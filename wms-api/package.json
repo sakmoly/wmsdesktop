@@ -1,0 +1,53 @@
+{
+  "name": "wms-api",
+  "version": "1.0.0",
+  "description": "WMS Backend API Server",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node test-api.js",
+    "build": "node build.js",
+    "build:exe": "npm run build && pkg dist/entry.js --targets node18-win-x64 --output dist/wms-api.exe --config package.json",
+    "package": "npm run build:exe && node package-deployment.js",
+    "cleanup-duplicates": "node cleanup-duplicate-pack-events.js",
+    "insert-locations": "node insert-sample-locations.js",
+    "insert-stock": "node insert-sample-stock.js",
+    "add-putaway-columns": "node add-source-type-transfer-in-to-putaway-task.js",
+    "test-transfer-in-putaway": "node test-transfer-in-putaway.js"
+  },
+  "keywords": [
+    "wms",
+    "api",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5",
+    "jsonwebtoken": "^9.0.2",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "esbuild": "^0.19.0",
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "scripts": [
+      "dist/entry.js",
+      "dist/server.cjs"
+    ],
+    "assets": [
+      "dist/server.cjs"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "dist"
+  }
+}
