@@ -1,0 +1,78 @@
+<UserControl x:Class="Wms.Desktop.Views.TransferCartonListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:TransferCartonListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Transfer Cartons"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Manage transfer cartons for dispatch to stores"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="TransferCartonGrid"
+                      ItemsSource="{Binding TransferCartons}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Transfer Carton ID"
+                                        Binding="{Binding TcId}"
+                                        Width="180" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="ASN"
+                                        Binding="{Binding AdvanceShippingNotice}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Transfer Order"
+                                        Binding="{Binding TransferOrder}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Store"
+                                        Binding="{Binding Store}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Created By"
+                                        Binding="{Binding CreatedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Created On"
+                                        Binding="{Binding CreatedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Sealed By"
+                                        Binding="{Binding SealedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Sealed On"
+                                        Binding="{Binding SealedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Dispatched On"
+                                        Binding="{Binding DispatchedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+

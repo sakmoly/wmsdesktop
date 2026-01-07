@@ -1,0 +1,486 @@
+<UserControl x:Class="Wms.Desktop.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             xmlns:converters="clr-namespace:Wms.Desktop.Converters"
+             mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:BoolToStatusConverter x:Key="BoolToStatusConverter" />
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </UserControl.Resources>
+    <UserControl.DataContext>
+        <viewModels:SettingsViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="WMS Settings"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Connection, synchronization configuration, and data import"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <TabControl Grid.Row="1">
+            <!-- Settings Tab -->
+            <TabItem Header="Settings">
+                <Border Background="White"
+                        CornerRadius="8"
+                        Padding="16"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="1">
+            <Grid Margin="0,4,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Company -->
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="Company"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <TextBox Grid.Row="0" Grid.Column="1"
+                         Text="{Binding Settings.Company}"
+                         Margin="0,4"
+                         Padding="4" />
+
+                <!-- API Endpoint URL -->
+                <TextBlock Grid.Row="1" Grid.Column="0"
+                           Text="API Endpoint URL"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <TextBox Grid.Row="1" Grid.Column="1"
+                         Text="{Binding Settings.ApiEndpointUrl}"
+                         Margin="0,4"
+                         Padding="4" />
+
+                <!-- API Key (masked) -->
+                <TextBlock Grid.Row="2" Grid.Column="0"
+                           Text="API Key"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <PasswordBox Grid.Row="2" Grid.Column="1"
+                             Margin="0,4"
+                             Padding="4"
+                             IsEnabled="False">
+                    <PasswordBox.Password>
+                        ****** MOCK ONLY ******
+                    </PasswordBox.Password>
+                </PasswordBox>
+
+                <!-- Sync Frequency -->
+                <TextBlock Grid.Row="3" Grid.Column="0"
+                           Text="Sync Frequency (Minutes)"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <TextBox Grid.Row="3" Grid.Column="1"
+                         Text="{Binding Settings.SyncFrequencyMinutes}"
+                         Margin="0,4"
+                         Padding="4" />
+
+                <!-- Default Picking Warehouse -->
+                <TextBlock Grid.Row="4" Grid.Column="0"
+                           Text="Default Picking Warehouse"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <TextBox Grid.Row="4" Grid.Column="1"
+                         Text="{Binding Settings.DefaultPickingWarehouse}"
+                         Margin="0,4"
+                         Padding="4" />
+
+                <!-- Last Sync Timestamp -->
+                <TextBlock Grid.Row="5" Grid.Column="0"
+                           Text="Last Sync Timestamp"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <TextBlock Grid.Row="5" Grid.Column="1"
+                           Text="{Binding Settings.LastSyncTimestamp, StringFormat=G}"
+                           Margin="0,4"
+                           VerticalAlignment="Center"
+                           Foreground="#111827" />
+
+                <!-- Database Configuration Section -->
+                <Border Grid.Row="6" Grid.ColumnSpan="2"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,1,0,0"
+                        Margin="0,16,0,0"
+                        Padding="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Database Configuration"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"
+                                   Margin="0,0,0,12" />
+
+                        <!-- Database Type -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Database Type"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <ComboBox Grid.Column="1"
+                                      SelectedValue="{Binding Settings.DatabaseType}"
+                                      SelectedValuePath="Content"
+                                      Margin="0,4"
+                                      Padding="4">
+                                <ComboBoxItem Content="MySQL" />
+                            </ComboBox>
+                        </Grid>
+
+                        <!-- Host -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Host"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Settings.DatabaseHost, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,4"
+                                     Padding="4" />
+                        </Grid>
+
+                        <!-- Database Name -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Database Name"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Settings.DatabaseName, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,4"
+                                     Padding="4" />
+                        </Grid>
+
+                        <!-- User Name -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="User Name"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Settings.DatabaseUserName, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,4"
+                                     Padding="4" />
+                        </Grid>
+
+                        <!-- Password -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Password"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <PasswordBox x:Name="PasswordBox"
+                                         Grid.Column="1"
+                                         Margin="0,4"
+                                         Padding="4"
+                                         PasswordChanged="PasswordBox_OnPasswordChanged" />
+                        </Grid>
+
+                        <!-- Port -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Port"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding Settings.DatabasePort, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,4"
+                                     Padding="4" />
+                        </Grid>
+
+                        <!-- Connection Status -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Connection Status"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding ConnectionStatus}"
+                                       Margin="0,4"
+                                       VerticalAlignment="Center"
+                                       Foreground="#111827" />
+                        </Grid>
+
+                        <!-- Database Status -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="Database Status"
+                                       VerticalAlignment="Center"
+                                       Margin="0,4"
+                                       Foreground="#4B5563" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,4">
+                                <TextBlock Text="{Binding Settings.DatabaseExists, Converter={StaticResource BoolToStatusConverter}}"
+                                           Margin="0,0,16,0"
+                                           Foreground="#111827" />
+                                <TextBlock Text="Tables: "
+                                           Foreground="#6B7280" />
+                                <TextBlock Text="{Binding Settings.TablesExist, Converter={StaticResource BoolToStatusConverter}}"
+                                           Foreground="#111827" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,8,0,0">
+                        <Button Content="Save Settings"
+                                Command="{Binding SaveSettingsCommand}"
+                                Margin="0,0,8,0"
+                                Padding="12,6" />
+                        <Button Content="Test Connection"
+                                Command="{Binding TestConnectionCommand}"
+                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="0,0,8,0"
+                                Padding="12,6" />
+                        <Button Content="Create DB and Tables"
+                                Command="{Binding CreateDatabaseAndTablesCommand}"
+                                IsEnabled="{Binding CanCreateDatabase}"
+                                Margin="0,0,8,0"
+                                Padding="12,6" />
+                        <Button Content="Import Mock Data"
+                                Command="{Binding ImportMockDataCommand}"
+                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
+                                Padding="12,6" />
+                    </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+            </TabItem>
+
+            <!-- Import Tab -->
+            <TabItem Header="Import">
+                <Border Background="White"
+                        CornerRadius="8"
+                        Padding="16"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="1">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0"
+                                   Text="Import Data from Excel"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"
+                                   Margin="0,0,0,20" />
+
+                        <StackPanel Grid.Row="1">
+                            <!-- ASN Import Section -->
+                            <Border BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="16"
+                                    Margin="0,0,0,24">
+                                <StackPanel>
+                                    <TextBlock Text="Import ASN (Advance Shipping Notice)"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Text="Import ASN data from Excel file. Download the template to see the required format."
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="Download ASN Template"
+                                                Command="{Binding ImportViewModel.DownloadAsnTemplateCommand}"
+                                                Padding="12,6"
+                                                MinWidth="160"
+                                                Margin="0,0,8,0" />
+                                        <Button Content="Import ASN"
+                                                Command="{Binding ImportViewModel.ImportAsnCommand}"
+                                                IsEnabled="{Binding ImportViewModel.IsImportingAsn, Converter={StaticResource InverseBoolConverter}}"
+                                                Padding="12,6"
+                                                MinWidth="120" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ImportViewModel.AsnImportStatus}"
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Transfer Order Import Section -->
+                            <Border BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="16"
+                                    Margin="0,0,0,16">
+                                <StackPanel>
+                                    <TextBlock Text="Import Transfer Order"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Text="Import Transfer Order data from Excel file. Download the template to see the required format."
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="Download TO Template"
+                                                Command="{Binding ImportViewModel.DownloadTransferOrderTemplateCommand}"
+                                                Padding="12,6"
+                                                MinWidth="160"
+                                                Margin="0,0,8,0" />
+                                        <Button Content="Import Transfer Order"
+                                                Command="{Binding ImportViewModel.ImportTransferOrderCommand}"
+                                                IsEnabled="{Binding ImportViewModel.IsImportingTransferOrder, Converter={StaticResource InverseBoolConverter}}"
+                                                Padding="12,6"
+                                                MinWidth="160" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ImportViewModel.TransferOrderImportStatus}"
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Material Request Import Section -->
+                            <Border BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="16"
+                                    Margin="0,0,0,24">
+                                <StackPanel>
+                                    <TextBlock Text="Import Material Request"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Text="Import Material Request data from Excel file. Download the template to see the required format."
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="Download MR Template"
+                                                Command="{Binding ImportViewModel.DownloadMaterialRequestTemplateCommand}"
+                                                Padding="12,6"
+                                                MinWidth="160"
+                                                Margin="0,0,8,0" />
+                                        <Button Content="Import Material Request"
+                                                Command="{Binding ImportViewModel.ImportMaterialRequestCommand}"
+                                                IsEnabled="{Binding ImportViewModel.IsImportingMaterialRequest, Converter={StaticResource InverseBoolConverter}}"
+                                                Padding="12,6"
+                                                MinWidth="160" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ImportViewModel.MaterialRequestImportStatus}"
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Transfer In Import Section -->
+                            <Border BorderBrush="#E5E7EB"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    Padding="16">
+                                <StackPanel>
+                                    <TextBlock Text="Import Transfer In (Inslip)"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Text="Import Transfer In (Inslip) data from Excel file. Download the template to see the required format."
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,12" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="Download TI Template"
+                                                Command="{Binding ImportViewModel.DownloadTransferInTemplateCommand}"
+                                                Padding="12,6"
+                                                MinWidth="160"
+                                                Margin="0,0,8,0" />
+                                        <Button Content="Import Transfer In"
+                                                Command="{Binding ImportViewModel.ImportTransferInCommand}"
+                                                IsEnabled="{Binding ImportViewModel.IsImportingTransferIn, Converter={StaticResource InverseBoolConverter}}"
+                                                Padding="12,6"
+                                                MinWidth="160" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding ImportViewModel.TransferInImportStatus}"
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>
+
+

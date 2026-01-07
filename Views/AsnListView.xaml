@@ -1,0 +1,77 @@
+<UserControl x:Class="Wms.Desktop.Views.AsnListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:AsnListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Advance Shipping Notices (ASN)"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="High-level ASN list"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="AsnGrid"
+                      ItemsSource="{Binding Asns}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="AsnGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ASN No."
+                                        Binding="{Binding Title}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Supplier"
+                                        Binding="{Binding Supplier}"
+                                        Width="200" />
+                    <DataGridTextColumn Header="Purchase Order"
+                                        Binding="{Binding PurchaseOrder}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Expected Arrival"
+                                        Binding="{Binding ExpectedArrivalDate, StringFormat=d}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Total CTN"
+                                        Binding="{Binding TotalCartonCount}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Total Shipped Qty"
+                                        Binding="{Binding TotalShippedQty}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Shipment Type"
+                                        Binding="{Binding ShipmentType}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Airway Bill"
+                                        Binding="{Binding AirwayBillNo}"
+                                        Width="150" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

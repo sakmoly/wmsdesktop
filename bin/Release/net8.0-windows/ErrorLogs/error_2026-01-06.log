@@ -1,0 +1,21 @@
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-JACKET-201-BLK-M, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Found 1 entries in warehouse 'Main Warehouse'
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Found 1 stock ledger entries for SKU-JACKET-201-BLK-M in warehouse 'Main Warehouse'
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L1-B1 for bin_location=A1-R01-L1-B1
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L1-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 2)
+[2026-01-06 13:23:08] INFO: ItemLocationBreakdownViewModel: Final count - Added 1 locations, Total Qty: 2, Collection Count: 1
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-HAT-301-BLU-OS, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Found 1 entries in warehouse 'Main Warehouse'
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Found 1 stock ledger entries for SKU-HAT-301-BLU-OS in warehouse 'Main Warehouse'
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L1-B1 for bin_location=A1-R01-L1-B1
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L1-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 2)
+[2026-01-06 13:31:08] INFO: ItemLocationBreakdownViewModel: Final count - Added 1 locations, Total Qty: 2, Collection Count: 1
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-HAT-301-RED-OS, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Found 1 entries in warehouse 'Main Warehouse'
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Found 1 stock ledger entries for SKU-HAT-301-RED-OS in warehouse 'Main Warehouse'
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L1-B1 for bin_location=A1-R01-L1-B1
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L1-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 2)
+[2026-01-06 13:33:30] INFO: ItemLocationBreakdownViewModel: Final count - Added 1 locations, Total Qty: 2, Collection Count: 1

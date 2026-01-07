@@ -1,0 +1,80 @@
+<UserControl x:Class="Wms.Desktop.Views.WmsTransactionListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:WmsTransactionListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="WMS Transactions"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Operational tasks (Receiving, Picking, etc.)"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="TransactionsGrid"
+                      ItemsSource="{Binding Transactions}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="TransactionsGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Title"
+                                        Binding="{Binding Title}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Operation Type"
+                                        Binding="{Binding OperationType}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Transaction Status"
+                                        Binding="{Binding TransactionStatus}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Transaction Date"
+                                        Binding="{Binding TransactionDate, StringFormat=g}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Assigned To"
+                                        Binding="{Binding AssignedTo}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Source Warehouse"
+                                        Binding="{Binding SourceWarehouse}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Target Warehouse"
+                                        Binding="{Binding TargetWarehouse}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Reference Doc"
+                                        Binding="{Binding ReferenceDoc}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Completion %"
+                                        Binding="{Binding CompletionProgress}"
+                                        Width="110" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

@@ -1,0 +1,362 @@
+{
+  "info": {
+    "name": "Putaway API - Complete Collection",
+    "description": "Complete Putaway API endpoints for testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login (Get Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.token) {",
+                  "        pm.collectionVariables.set('token', jsonData.token);",
+                  "        console.log('Token saved:', jsonData.token);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"your_username\",\n  \"password\": \"your_password\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Box Operations",
+      "item": [
+        {
+          "name": "Close Box (Creates Putaway Task)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"box_id\": \"BOX-WHMAIN-383712\",\n  \"closed_by\": \"USER-786249\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/boxes/close",
+              "host": ["{{base_url}}"],
+              "path": ["boxes", "close"]
+            },
+            "description": "Closes a box. If box destination is warehouse, automatically creates putaway task with lines.\n\n**Response includes:**\n- `putaway_task` field if warehouse box\n- Status: \"Closed\""
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Get Putaway Tasks",
+      "item": [
+        {
+          "name": "Get All Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/putaway/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "tasks"]
+            }
+          }
+        },
+        {
+          "name": "Get Open Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/putaway/tasks?status=Open",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Open"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Tasks by ASN",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/putaway/tasks?status=Open&advance_shipping_notice=ASN-12225",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Open"
+                },
+                {
+                  "key": "advance_shipping_notice",
+                  "value": "ASN-12225"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Scan Location",
+      "item": [
+        {
+          "name": "Scan Box with Location ID",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"box_id\": \"BOX-WHMAIN-383712\",\n  \"location_id\": \"A1-R01-L1-B1\",\n  \"user_id\": \"USER-786249\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/scan-transfer-carton",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "scan-transfer-carton"]
+            },
+            "description": "Scans location for putaway. Creates or updates putaway task, updates all lines with location, changes status to \"In Progress\"."
+          }
+        },
+        {
+          "name": "Update Existing Task Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"putaway_task\": \"PUT-20260101-0001\",\n  \"location_id\": \"A1-R01-L1-B1\",\n  \"user_id\": \"USER-786249\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/scan-transfer-carton",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "scan-transfer-carton"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Complete Putaway",
+      "item": [
+        {
+          "name": "Complete with Header Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"putaway_task\": \"PUT-20260101-0001\",\n  \"performed_by\": \"USER-786249\",\n  \"location_id\": \"A1-R01-L1-B1\",\n  \"items\": [\n    {\n      \"item_code\": \"SKU-HAT-301-BLU-OS\",\n      \"qty\": 75,\n      \"location_id\": \"A1-R01-L1-B1\",\n      \"completed\": true\n    },\n    {\n      \"item_code\": \"SKU-HAT-301-GRN-OS\",\n      \"qty\": 400,\n      \"location_id\": \"A1-R01-L1-B1\",\n      \"completed\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/complete",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "complete"]
+            },
+            "description": "Completes putaway task. Updates status to \"Completed\" and updates stock ledger.\n\n**IMPORTANT:** Include `location_id` in each item to avoid validation errors."
+          }
+        },
+        {
+          "name": "Complete with Item-Level Locations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"putaway_task\": \"PUT-20260101-0001\",\n  \"performed_by\": \"USER-786249\",\n  \"items\": [\n    {\n      \"item_code\": \"SKU-HAT-301-BLU-OS\",\n      \"qty\": 75,\n      \"location_id\": \"A1-R01-L1-B1\",\n      \"completed\": true\n    },\n    {\n      \"item_code\": \"SKU-HAT-301-GRN-OS\",\n      \"qty\": 400,\n      \"location_id\": \"A1-R01-L2-B1\",\n      \"completed\": true\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/complete",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "complete"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Remaining Items",
+      "item": [
+        {
+          "name": "Get Remaining Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/putaway/remaining-items?asn=ASN-12225",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "remaining-items"],
+              "query": [
+                {
+                  "key": "asn",
+                  "value": "ASN-12225"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Task for Remaining Items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asn_no\": \"ASN-12225\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/create-task-for-remaining-items",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "create-task-for-remaining-items"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Assign Rack (Legacy)",
+      "item": [
+        {
+          "name": "Assign Rack to Item",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"putaway_task\": \"PUT-20260101-0001\",\n  \"carton_id\": \"CTN-001\",\n  \"item_code\": \"SKU-HAT-301-BLU-OS\",\n  \"rack\": \"A1-R01-L1\",\n  \"bin\": \"B1\",\n  \"qty\": 75,\n  \"user_id\": \"USER-786249\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/putaway/assign-rack",
+              "host": ["{{base_url}}"],
+              "path": ["putaway", "assign-rack"]
+            },
+            "description": "Legacy endpoint. Prefer using /scan-transfer-carton instead."
+          }
+        }
+      ]
+    }
+  ]
+}

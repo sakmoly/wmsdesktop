@@ -1,0 +1,279 @@
+{
+  "api_base_url": "https://your-api-domain.com/api",
+  "endpoints": {
+    "update_session": {
+      "method": "POST",
+      "path": "/inbound/update",
+      "description": "Create or update inbound session (prevents duplicates)",
+      "authentication": {
+        "type": "Bearer Token",
+        "header": "Authorization",
+        "format": "Bearer {token}"
+      },
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer {token}"
+        },
+        "body": {
+          "inbound_session": {
+            "type": "string",
+            "required": true,
+            "description": "Unique session identifier (primary key - prevents duplicates)",
+            "example": "SESSION-1234567890"
+          },
+          "asn_no": {
+            "type": "string",
+            "required": true,
+            "description": "Advance Shipping Notice number",
+            "example": "ASN-0001"
+          },
+          "status": {
+            "type": "string",
+            "required": false,
+            "description": "Session status",
+            "enum": ["Active", "Completed", "Cancelled", "Draft"],
+            "default": "Active",
+            "example": "Active"
+          },
+          "completed_cartons": {
+            "type": "integer",
+            "required": false,
+            "description": "Number of cartons completed",
+            "minimum": 0,
+            "example": 3
+          },
+          "total_cartons": {
+            "type": "integer",
+            "required": false,
+            "description": "Total number of cartons expected",
+            "minimum": 0,
+            "example": 10
+          },
+          "transfer_order": {
+            "type": "string",
+            "required": false,
+            "description": "Transfer order number",
+            "example": "TO-00012"
+          },
+          "dock": {
+            "type": "string",
+            "required": false,
+            "description": "Dock identifier",
+            "example": "DOCK-01"
+          },
+          "user_id": {
+            "type": "string",
+            "required": false,
+            "description": "User identifier",
+            "example": "USER-123"
+          },
+          "device_id": {
+            "type": "string",
+            "required": false,
+            "description": "Device identifier",
+            "example": "DEVICE-001"
+          }
+        },
+        "example": {
+          "inbound_session": "SESSION-1703347200000",
+          "asn_no": "ASN-0001",
+          "status": "Active",
+          "completed_cartons": 3,
+          "total_cartons": 10,
+          "transfer_order": "TO-00012",
+          "dock": "DOCK-01",
+          "user_id": "USER-123",
+          "device_id": "DEVICE-001"
+        }
+      },
+      "response": {
+        "200": {
+          "description": "Session updated successfully",
+          "body": {
+            "ok": {
+              "type": "boolean",
+              "example": true
+            },
+            "message": {
+              "type": "string",
+              "example": "Session updated successfully"
+            },
+            "action": {
+              "type": "string",
+              "enum": ["created", "updated"],
+              "example": "updated",
+              "description": "Indicates if session was created or updated"
+            }
+          }
+        },
+        "201": {
+          "description": "Session created successfully",
+          "body": {
+            "ok": {
+              "type": "boolean",
+              "example": true
+            },
+            "message": {
+              "type": "string",
+              "example": "Session created successfully"
+            },
+            "action": {
+              "type": "string",
+              "example": "created"
+            }
+          }
+        },
+        "400": {
+          "description": "Validation error",
+          "body": {
+            "error": {
+              "type": "string",
+              "example": "VALIDATION_ERROR"
+            },
+            "message": {
+              "type": "string",
+              "example": "Validation failed"
+            },
+            "details": {
+              "type": "object",
+              "example": {
+                "inbound_session": "inbound_session is required"
+              }
+            }
+          }
+        },
+        "401": {
+          "description": "Authentication required",
+          "body": {
+            "error": {
+              "type": "string",
+              "example": "AUTH_REQUIRED"
+            },
+            "message": {
+              "type": "string",
+              "example": "Authentication token required"
+            }
+          }
+        },
+        "500": {
+          "description": "Internal server error",
+          "body": {
+            "error": {
+              "type": "string",
+              "example": "INTERNAL_ERROR"
+            },
+            "message": {
+              "type": "string",
+              "example": "Failed to update session"
+            }
+          }
+        }
+      },
+      "duplicate_prevention": {
+        "method": "primary_key",
+        "key": "inbound_session",
+        "behavior": "upsert",
+        "description": "If inbound_session exists, updates existing record. If not, creates new record. No duplicates will be created."
+      }
+    },
+    "complete_session": {
+      "method": "POST",
+      "path": "/inbound/complete",
+      "description": "Mark session as completed",
+      "authentication": {
+        "type": "Bearer Token",
+        "header": "Authorization",
+        "format": "Bearer {token}"
+      },
+      "request": {
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer {token}"
+        },
+        "body": {
+          "inbound_session": {
+            "type": "string",
+            "required": true,
+            "description": "Session identifier to complete",
+            "example": "SESSION-1234567890"
+          },
+          "asn_no": {
+            "type": "string",
+            "required": true,
+            "description": "Advance Shipping Notice number",
+            "example": "ASN-0001"
+          },
+          "user_id": {
+            "type": "string",
+            "required": false,
+            "description": "User identifier",
+            "example": "USER-123"
+          },
+          "device_id": {
+            "type": "string",
+            "required": false,
+            "description": "Device identifier",
+            "example": "DEVICE-001"
+          }
+        },
+        "example": {
+          "inbound_session": "SESSION-1703347200000",
+          "asn_no": "ASN-0001",
+          "user_id": "USER-123",
+          "device_id": "DEVICE-001"
+        }
+      },
+      "response": {
+        "200": {
+          "description": "Session completed successfully",
+          "body": {
+            "ok": {
+              "type": "boolean",
+              "example": true
+            },
+            "message": {
+              "type": "string",
+              "example": "Session completed successfully"
+            }
+          }
+        },
+        "404": {
+          "description": "Session not found",
+          "body": {
+            "error": {
+              "type": "string",
+              "example": "NOT_FOUND"
+            },
+            "message": {
+              "type": "string",
+              "example": "Session not found"
+            }
+          }
+        }
+      }
+    }
+  },
+  "mobile_integration": {
+    "sync_strategy": {
+      "recommended_endpoint": "/inbound/update",
+      "reason": "Automatically prevents duplicates using inbound_session as primary key",
+      "implementation": {
+        "step1": "Generate or use existing inbound_session identifier",
+        "step2": "Call POST /api/inbound/update with session data",
+        "step3": "API will create new session or update existing one automatically",
+        "step4": "Check response.action to know if session was 'created' or 'updated'"
+      }
+    },
+    "example_code": {
+      "javascript": "async function syncInboundSession(sessionData) {\n  const response = await fetch('https://api.com/api/inbound/update', {\n    method: 'POST',\n    headers: {\n      'Content-Type': 'application/json',\n      'Authorization': `Bearer ${token}`\n    },\n    body: JSON.stringify({\n      inbound_session: sessionData.inbound_session,\n      asn_no: sessionData.asn_no,\n      status: sessionData.status || 'Active',\n      completed_cartons: sessionData.completed_cartons || 0,\n      total_cartons: sessionData.total_cartons || 0,\n      transfer_order: sessionData.transfer_order,\n      dock: sessionData.dock,\n      user_id: sessionData.user_id,\n      device_id: sessionData.device_id\n    })\n  });\n  return await response.json();\n}"
+    },
+    "important_notes": [
+      "Always use the same inbound_session value for the same session",
+      "The API prevents duplicates automatically - no need to check manually",
+      "You can call the update endpoint multiple times safely (idempotent)",
+      "Use /inbound/update for both creating and updating sessions"
+    ]
+  }
+}
+

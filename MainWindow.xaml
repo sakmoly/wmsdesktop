@@ -1,0 +1,310 @@
+<Window x:Class="Wms.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:views="clr-namespace:Wms.Desktop.Views"
+        mc:Ignorable="d"
+        Title="Printechs WMS - Operations Console"
+        Height="720" Width="1280"
+        WindowStartupLocation="CenterScreen">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left navigation -->
+        <StackPanel Grid.Column="0" Background="#1F2933">
+            <TextBlock Text="Printechs WMS"
+                       Margin="16"
+                       Foreground="White"
+                       FontSize="20"
+                       FontWeight="Bold" />
+
+            <!-- Masters group -->
+            <Expander Header="Masters"
+                      Margin="4,4,4,0"
+                      Foreground="White"
+                      Background="#111827"
+                      BorderBrush="#111827"
+                      IsExpanded="False">
+                <StackPanel>
+                    <Button x:Name="SettingsButton"
+                            Content="Settings"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#3B82F6"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="SettingsButton_OnClick" />
+
+                    <Button x:Name="WarehousesButton"
+                            Content="Warehouses"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="WarehousesButton_OnClick" />
+
+                    <Button x:Name="ItemsButton"
+                            Content="Items"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="ItemsButton_OnClick" />
+
+                    <Button x:Name="ItemGroupsButton"
+                            Content="Item Groups"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="ItemGroupsButton_OnClick" />
+
+                    <Button x:Name="BrandsButton"
+                            Content="Brands"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="BrandsButton_OnClick" />
+
+                    <Button x:Name="SuppliersButton"
+                            Content="Suppliers"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="SuppliersButton_OnClick" />
+
+                    <Button x:Name="ZonesButton"
+                            Content="Zones"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="ZonesButton_OnClick" />
+
+                    <Button x:Name="AislesButton"
+                            Content="Aisles"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="AislesButton_OnClick" />
+
+                    <Button x:Name="RacksButton"
+                            Content="Racks"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="RacksButton_OnClick" />
+
+                    <Button x:Name="LocationsButton"
+                            Content="Locations"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="LocationsButton_OnClick" />
+
+                    <Button x:Name="RolesButton"
+                            Content="Roles"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="RolesButton_OnClick" />
+
+                    <Button x:Name="UsersButton"
+                            Content="Users"
+                            Margin="8,4,8,8"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="UsersButton_OnClick" />
+                </StackPanel>
+            </Expander>
+
+            <!-- Inbound Operations group -->
+            <Expander Header="Inbound Operations"
+                      Margin="4,8,4,0"
+                      Foreground="White"
+                      Background="#111827"
+                      BorderBrush="#111827"
+                      IsExpanded="True">
+                <StackPanel>
+                    <Button Content="Inbound Sessions"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="InboundSessionsButton_OnClick" />
+
+                    <Button Content="Sort Boxes"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="SortBoxesButton_OnClick" />
+
+                    <Button Content="Transfer Cartons"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="TransferCartonsButton_OnClick" />
+
+                    <Button Content="Putaway Tasks"
+                            Margin="8,4,8,8"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="PutawayTasksButton_OnClick" />
+                </StackPanel>
+            </Expander>
+
+            <!-- Transactions group -->
+            <Expander Header="Transactions"
+                      Margin="4,8,4,0"
+                      Foreground="White"
+                      Background="#111827"
+                      BorderBrush="#111827"
+                      IsExpanded="False">
+                <StackPanel>
+                    <Button Content="Purchase Orders"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="PurchaseOrdersButton_OnClick" />
+
+                    <Button Content="ASNs"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="AsnsButton_OnClick" />
+
+                    <!-- Distribution Plans - Hidden for now (UI-only mock data, use Transfer Orders instead) -->
+                    <Button Content="Distribution Plans"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="DistributionPlansButton_OnClick"
+                            Visibility="Collapsed" />
+
+                    <Button Content="Transfer Orders"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="TransferOrdersButton_OnClick" />
+
+                    <Button Content="Transfer In"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="TransferInButton_OnClick" />
+
+                    <Button Content="Material Requests"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="MaterialRequestsButton_OnClick" />
+
+                    <Button Content="WMS Transactions"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="WmsTransactionsButton_OnClick" />
+
+                    <Button Content="WMS Containers"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="WmsContainersButton_OnClick" />
+
+                    <Button Content="Stock Ledger"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="StockLedgerButton_OnClick" />
+
+                    <Button Content="Cycle Count"
+                            Margin="8,4,8,16"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="CycleCountButton_OnClick" />
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+
+        <!-- Main content -->
+        <ContentControl x:Name="MainContent"
+                        Grid.Column="1" />
+    </Grid>
+</Window>
+
+

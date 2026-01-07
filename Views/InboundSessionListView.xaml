@@ -1,0 +1,84 @@
+<UserControl x:Class="Wms.Desktop.Views.InboundSessionListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             xmlns:converters="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:InboundSessionListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Inbound Sessions"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Manage inbound receiving sessions for ASNs and Transfer Ins. Transfer Order (if assigned) provides store allocation plan for sorting."
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="SessionGrid"
+                      ItemsSource="{Binding Sessions}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="SessionGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Session Title"
+                                        Binding="{Binding Title}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Source Document"
+                                        Width="140">
+                        <DataGridTextColumn.Binding>
+                            <Binding Path=".">
+                                <Binding.Converter>
+                                    <converters:InboundSessionSourceDocumentConverter />
+                                </Binding.Converter>
+                            </Binding>
+                        </DataGridTextColumn.Binding>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Transfer Order"
+                                        Binding="{Binding TransferOrder}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Dock"
+                                        Binding="{Binding Dock}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Started By"
+                                        Binding="{Binding StartedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Started On"
+                                        Binding="{Binding StartedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Unloads"
+                                        Binding="{Binding UnloadLines.Count}"
+                                        Width="90" />
+                    <DataGridTextColumn Header="Receive Lines"
+                                        Binding="{Binding ReceiveLines.Count}"
+                                        Width="120" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+

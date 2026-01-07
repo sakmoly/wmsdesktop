@@ -1,0 +1,181 @@
+<Window x:Class="Wms.Desktop.PurchaseOrderDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Purchase Order Details"
+        Height="520" Width="900"
+        WindowStartupLocation="CenterOwner">
+    <Grid Background="#F3F4F6" Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="4,0,4,8">
+            <TextBlock Text="Purchase Order Details"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="{Binding PurchaseOrder.PoId}"
+                       FontSize="14"
+                       Foreground="#4B5563" />
+        </StackPanel>
+
+        <!-- Header fields -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Left column -->
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
+                    <TextBlock Text="Supplier"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.SupplierName}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,4">
+                    <TextBlock Text="Supplier ID"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.SupplierId}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="Status"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.Status}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <!-- Right column -->
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,4">
+                    <TextBlock Text="Transaction Date"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.TransactionDate, StringFormat=d}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,4">
+                    <TextBlock Text="Expected Delivery"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.ExpectedDeliveryDate, StringFormat=d}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,0">
+                    <TextBlock Text="Shipping Address"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseOrder.ShippingAddress}"
+                               FontSize="14"
+                               Foreground="#111827"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Items -->
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="Items"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8" />
+
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding PurchaseOrder.Items}"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserResizeRows="False"
+                          IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Item Code"
+                                            Binding="{Binding ItemCode}"
+                                            Width="180" />
+                        <DataGridTextColumn Header="Item Name"
+                                            Binding="{Binding ItemName}"
+                                            Width="*" />
+                        <DataGridTextColumn Header="Ordered Qty"
+                                            Binding="{Binding OrderedQty}"
+                                            Width="120" />
+                        <DataGridTextColumn Header="Received Qty"
+                                            Binding="{Binding ReceivedQty}"
+                                            Width="120" />
+                        <DataGridTextColumn Header="UOM"
+                                            Binding="{Binding Uom}"
+                                            Width="80" />
+                        <DataGridTextColumn Header="Target Warehouse"
+                                            Binding="{Binding TargetWarehouse}"
+                                            Width="140" />
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,8,0,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TotalOrderedQty, StringFormat=Total Ordered: {0}}"
+                               Margin="0,0,16,0"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#1D4ED8"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TotalReceivedQty, StringFormat=Total Received: {0}}"
+                               Margin="0,0,24,0"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#1D4ED8"
+                               VerticalAlignment="Center" />
+                    <Button Content="Close"
+                            Width="80"
+                            IsCancel="True" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
+
+

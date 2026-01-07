@@ -1,0 +1,67 @@
+<Window x:Class="Wms.Desktop.Windows.BarcodePrintPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Barcode Print Preview" 
+        Height="400" 
+        Width="350"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" 
+                   Text="Barcode Preview"
+                   FontSize="18"
+                   FontWeight="Bold"
+                   Margin="0,0,0,20" />
+
+        <!-- Preview -->
+        <Border Grid.Row="1"
+                BorderBrush="#E5E7EB"
+                BorderThickness="2"
+                Background="White"
+                Padding="20"
+                Margin="0,0,0,20">
+            <StackPanel HorizontalAlignment="Center"
+                       VerticalAlignment="Center">
+                <Image x:Name="BarcodeImage"
+                       Stretch="Uniform"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,10" />
+                <TextBlock x:Name="BarcodeText"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center" />
+            </StackPanel>
+        </Border>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right">
+            <Button x:Name="PrintButton"
+                    Content="Print"
+                    Padding="20,8"
+                    Margin="0,0,10,0"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Background="#3B82F6"
+                    Foreground="White"
+                    Click="PrintButton_Click" />
+            <Button Content="Close"
+                    Padding="20,8"
+                    FontSize="14"
+                    Click="CloseButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
+

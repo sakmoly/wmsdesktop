@@ -1,0 +1,247 @@
+{
+  "description": "ASN (Advance Shipping Notice) JSON Examples",
+  "asn_structure": {
+    "title": "ASN-0003",
+    "status": "Approved",
+    "purchase_order": "PO-0003",
+    "supplier": "ABC Suppliers",
+    "shipment_date": "2025-01-20T00:00:00Z",
+    "expected_arrival_date": "2025-01-23T00:00:00Z",
+    "total_shipped_qty": 1200.0,
+    "total_carton_count": 4,
+    "airway_bill_no": "AWB-12345",
+    "shipment_type": "Air",
+    "updated_on": "2025-01-23T10:30:00Z",
+    "payload_json": null,
+    "details": [
+      {
+        "item_code": "SKU-TSHIRT-001-BLK-S",
+        "po_item_reference": "PO-ITEM-001",
+        "shipped_qty": 300.0,
+        "carton_id": "CTN-0001",
+        "carton_assigned_status": "Assigned"
+      },
+      {
+        "item_code": "SKU-TSHIRT-001-BLK-M",
+        "po_item_reference": "PO-ITEM-002",
+        "shipped_qty": 300.0,
+        "carton_id": "CTN-0001",
+        "carton_assigned_status": "Assigned"
+      },
+      {
+        "item_code": "SKU-TSHIRT-001-BLK-L",
+        "po_item_reference": "PO-ITEM-003",
+        "shipped_qty": 200.0,
+        "carton_id": "CTN-0002",
+        "carton_assigned_status": "Assigned"
+      },
+      {
+        "item_code": "SKU-JEANS-021-BLU-32",
+        "po_item_reference": "PO-ITEM-004",
+        "shipped_qty": 200.0,
+        "carton_id": "CTN-0003",
+        "carton_assigned_status": "Assigned"
+      },
+      {
+        "item_code": "SKU-JEANS-021-BLU-34",
+        "po_item_reference": "PO-ITEM-005",
+        "shipped_qty": 200.0,
+        "carton_id": "CTN-0004",
+        "carton_assigned_status": "Assigned"
+      }
+    ]
+  },
+  "api_response_format": {
+    "success": true,
+    "data": [
+      {
+        "asn_no": "ASN-0003",
+        "payload_json": "{\"asn_no\":\"ASN-0003\",\"transfer_order\":\"TO-0001\",\"dock\":\"DOCK-01\"}",
+        "updated_on": "2025-01-23T10:30:00.000Z"
+      }
+    ]
+  },
+  "api_detail_response": {
+    "success": true,
+    "data": {
+      "asn_no": "ASN-0003",
+      "transfer_order": "TO-0001",
+      "dock": "DOCK-01",
+      "cartons": [
+        {
+          "carton_id": "CTN-0001",
+          "items": [
+            {
+              "item_code": "SKU-TSHIRT-001-BLK-S",
+              "shipped_qty": 300.0
+            },
+            {
+              "item_code": "SKU-TSHIRT-001-BLK-M",
+              "shipped_qty": 300.0
+            }
+          ]
+        },
+        {
+          "carton_id": "CTN-0002",
+          "items": [
+            {
+              "item_code": "SKU-TSHIRT-001-BLK-L",
+              "shipped_qty": 200.0
+            }
+          ]
+        },
+        {
+          "carton_id": "CTN-0003",
+          "items": [
+            {
+              "item_code": "SKU-JEANS-021-BLU-32",
+              "shipped_qty": 200.0
+            }
+          ]
+        },
+        {
+          "carton_id": "CTN-0004",
+          "items": [
+            {
+              "item_code": "SKU-JEANS-021-BLU-34",
+              "shipped_qty": 200.0
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "complete_asn_examples": [
+    {
+      "title": "ASN-0001",
+      "status": "Draft",
+      "purchase_order": "PO-0001",
+      "supplier": "ABC Suppliers",
+      "shipment_date": "2025-01-25T00:00:00Z",
+      "expected_arrival_date": "2025-01-28T00:00:00Z",
+      "total_shipped_qty": 500.0,
+      "total_carton_count": 2,
+      "airway_bill_no": null,
+      "shipment_type": "Air",
+      "updated_on": null,
+      "payload_json": null,
+      "details": [
+        {
+          "item_code": "SKU-TSHIRT-001-BLK-S",
+          "po_item_reference": null,
+          "shipped_qty": 200.0,
+          "carton_id": "CTN-0001",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-TSHIRT-001-BLK-M",
+          "po_item_reference": null,
+          "shipped_qty": 300.0,
+          "carton_id": "CTN-0002",
+          "carton_assigned_status": "Assigned"
+        }
+      ]
+    },
+    {
+      "title": "ASN-0004",
+      "status": "Receiving",
+      "purchase_order": "PO-0004",
+      "supplier": "XYZ Trading",
+      "shipment_date": "2025-01-22T00:00:00Z",
+      "expected_arrival_date": "2025-01-23T00:00:00Z",
+      "total_shipped_qty": 1500.0,
+      "total_carton_count": 4,
+      "airway_bill_no": "AWB-12347",
+      "shipment_type": "Road",
+      "updated_on": "2025-01-23T08:15:00Z",
+      "payload_json": null,
+      "details": [
+        {
+          "item_code": "SKU-SHOES-101-WHT-42",
+          "po_item_reference": null,
+          "shipped_qty": 500.0,
+          "carton_id": "CTN-0201",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-SHOES-101-WHT-43",
+          "po_item_reference": null,
+          "shipped_qty": 500.0,
+          "carton_id": "CTN-0202",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-SHOES-101-BLK-42",
+          "po_item_reference": null,
+          "shipped_qty": 300.0,
+          "carton_id": "CTN-0203",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-SHOES-101-BLK-43",
+          "po_item_reference": null,
+          "shipped_qty": 200.0,
+          "carton_id": "CTN-0204",
+          "carton_assigned_status": "Missing"
+        }
+      ]
+    },
+    {
+      "title": "ASN-0005",
+      "status": "Completed",
+      "purchase_order": "PO-0005",
+      "supplier": "Fashion Plus",
+      "shipment_date": "2025-01-18T00:00:00Z",
+      "expected_arrival_date": "2025-01-20T00:00:00Z",
+      "total_shipped_qty": 2000.0,
+      "total_carton_count": 3,
+      "airway_bill_no": "AWB-12348",
+      "shipment_type": "Air",
+      "updated_on": "2025-01-20T14:30:00Z",
+      "payload_json": null,
+      "details": [
+        {
+          "item_code": "SKU-JACKET-201-BLK-M",
+          "po_item_reference": null,
+          "shipped_qty": 800.0,
+          "carton_id": "CTN-0301",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-JACKET-201-BLK-L",
+          "po_item_reference": null,
+          "shipped_qty": 600.0,
+          "carton_id": "CTN-0302",
+          "carton_assigned_status": "Assigned"
+        },
+        {
+          "item_code": "SKU-JACKET-201-BLK-XL",
+          "po_item_reference": null,
+          "shipped_qty": 600.0,
+          "carton_id": "CTN-0303",
+          "carton_assigned_status": "Assigned"
+        }
+      ]
+    }
+  ],
+  "field_descriptions": {
+    "title": "ASN number/identifier (e.g., 'ASN-0001')",
+    "status": "ASN status: 'Draft', 'Submitted', 'Approved', 'Receiving', 'Completed'",
+    "purchase_order": "Purchase order number",
+    "supplier": "Supplier name",
+    "shipment_date": "Date when shipment was sent (ISO 8601 format)",
+    "expected_arrival_date": "Expected arrival date (ISO 8601 format)",
+    "total_shipped_qty": "Total quantity shipped (decimal number)",
+    "total_carton_count": "Total number of distinct cartons in this ASN (integer)",
+    "airway_bill_no": "Airway bill number (nullable, for Air shipments)",
+    "shipment_type": "Type of shipment: 'Air', 'Sea', 'Road' (nullable)",
+    "updated_on": "Last update timestamp (ISO 8601 format, nullable)",
+    "payload_json": "Serialized ASN data for sync (nullable JSON string)",
+    "details": "Array of ASN item details",
+    "details[].item_code": "Item code/SKU",
+    "details[].po_item_reference": "PO item reference (nullable)",
+    "details[].shipped_qty": "Quantity shipped for this item (decimal)",
+    "details[].carton_id": "Carton identifier (nullable)",
+    "details[].carton_assigned_status": "Carton status: 'Assigned', 'Missing'"
+  }
+}

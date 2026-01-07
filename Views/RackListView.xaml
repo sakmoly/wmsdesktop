@@ -1,0 +1,63 @@
+<UserControl x:Class="Wms.Desktop.Views.RackListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:RackListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Racks"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="WMS Rack master (mock data)"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid ItemsSource="{Binding Racks}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Rack Name"
+                                        Binding="{Binding RackName}"
+                                        Width="200" />
+                    <DataGridTextColumn Header="Parent Aisle"
+                                        Binding="{Binding ParentAisle}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Parent Zone"
+                                        Binding="{Binding ParentZone}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Warehouse"
+                                        Binding="{Binding Warehouse}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="System ID"
+                                        Binding="{Binding SystemId}"
+                                        Width="220" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

@@ -1,0 +1,16 @@
+{
+  "Company": "Printechs Advanced Printing Trading Co.",
+  "ApiEndpointUrl": "https://erpnext.printechs.example.com/api",
+  "ApiKey": "******-MOCK-KEY-ONLY-******",
+  "SyncFrequencyMinutes": 15,
+  "DefaultPickingWarehouse": "WH-MAIN",
+  "LastSyncTimestamp": "2025-12-27T22:38:32.4075386+03:00",
+  "DatabaseType": "MySQL",
+  "DatabaseHost": "localhost",
+  "DatabaseName": "wms_desktop",
+  "DatabaseUserName": "root",
+  "EncryptedPassword": "root",
+  "DatabasePort": 3306,
+  "DatabaseExists": true,
+  "TablesExist": true
+}

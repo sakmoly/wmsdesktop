@@ -1,0 +1,81 @@
+<UserControl x:Class="Wms.Desktop.Views.LocationListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:LocationListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Locations"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="WMS Location (bin-level) master"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid ItemsSource="{Binding Locations}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Location ID"
+                                        Binding="{Binding LocationId}"
+                                        Width="180" />
+                    <DataGridTextColumn Header="Warehouse"
+                                        Binding="{Binding Warehouse}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Zone"
+                                        Binding="{Binding Zone}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Aisle"
+                                        Binding="{Binding Aisle}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Rack"
+                                        Binding="{Binding ParentRack}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Level"
+                                        Binding="{Binding Level}"
+                                        Width="80" />
+                    <DataGridTextColumn Header="Bin"
+                                        Binding="{Binding BinId}"
+                                        Width="80" />
+                    <DataGridTextColumn Header="Type"
+                                        Binding="{Binding LocationType}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Detailed Type"
+                                        Binding="{Binding LocationTypeDetailed}"
+                                        Width="150" />
+                    <DataGridCheckBoxColumn Header="Available"
+                                            Binding="{Binding IsAvailable}"
+                                            Width="90" />
+                    <DataGridTextColumn Header="Capacity"
+                                        Binding="{Binding CapacityVolumeWeight}"
+                                        Width="100" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

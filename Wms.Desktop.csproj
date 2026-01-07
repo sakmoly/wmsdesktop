@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="EPPlus" Version="7.5.2" />
+    <PackageReference Include="MySql.Data" Version="9.1.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.4" />
+    <PackageReference Include="ZXing.Net" Version="0.16.9" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exclude utility files that have their own projects -->
+    <Compile Remove="InsertDummyAsnItemsApp.cs" />
+    <Compile Remove="InsertDummyAsnItems.cs" />
+    <Compile Remove="InsertDummyDataUtil\**" />
+  </ItemGroup>
+</Project>
+
+

@@ -1,0 +1,172 @@
+<Window x:Class="Wms.Desktop.Windows.CreateSortBoxWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+        mc:Ignorable="d"
+        Title="Create New Sort Box" 
+        Height="500" 
+        Width="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" 
+                   Text="Create New Sort Box"
+                   FontSize="20"
+                   FontWeight="Bold"
+                   Margin="0,0,0,20" />
+
+        <!-- Form Fields -->
+        <StackPanel Grid.Row="1">
+            <StackPanel.Resources>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Margin" Value="0,0,0,15" />
+                </Style>
+            </StackPanel.Resources>
+            <!-- ASN -->
+            <StackPanel>
+                <TextBlock Text="ASN Number *" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <TextBox Text="{Binding AdvanceShippingNotice, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="14"
+                         Padding="8" />
+            </StackPanel>
+
+            <!-- Transfer Order -->
+            <StackPanel>
+                <TextBlock Text="Transfer Order" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <TextBox Text="{Binding TransferOrder, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="14"
+                         Padding="8" />
+            </StackPanel>
+
+            <!-- Store -->
+            <StackPanel>
+                <TextBlock Text="Store *" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <ComboBox ItemsSource="{Binding Warehouses}"
+                          SelectedItem="{Binding SelectedWarehouse}"
+                          DisplayMemberPath="Name"
+                          SelectedValuePath="Code"
+                          FontSize="14"
+                          Padding="8"
+                          IsEditable="False" />
+            </StackPanel>
+
+            <!-- Purpose -->
+            <StackPanel>
+                <TextBlock Text="Purpose" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <ComboBox SelectedItem="{Binding Purpose}"
+                          FontSize="14"
+                          Padding="8">
+                    <ComboBoxItem Content="STORE" />
+                    <ComboBoxItem Content="PUTAWAY" />
+                </ComboBox>
+            </StackPanel>
+
+            <!-- Generated Box ID -->
+            <StackPanel>
+                <TextBlock Text="Box ID" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0"
+                             Text="{Binding GeneratedBoxId, Mode=OneWay}"
+                             FontSize="14"
+                             FontWeight="Bold"
+                             Padding="8"
+                             IsReadOnly="True"
+                             Background="#F3F4F6" />
+                    <Button Grid.Column="1"
+                            Content="Generate"
+                            Command="{Binding GenerateBoxIdCommand}"
+                            Margin="10,0,0,0"
+                            Padding="15,8"
+                            FontSize="14" />
+                </Grid>
+            </StackPanel>
+
+            <!-- Remarks -->
+            <StackPanel>
+                <TextBlock Text="Remarks (Optional)" 
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,5" />
+                <TextBox Text="{Binding Remarks, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="14"
+                         Padding="8"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         Height="60"
+                         VerticalScrollBarVisibility="Auto" />
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Margin="0,20,0,0">
+            <Button Content="Cancel"
+                    Command="{Binding CancelCommand}"
+                    Padding="20,8"
+                    Margin="0,0,10,0"
+                    FontSize="14" />
+            <Button Content="Print Barcode"
+                    Command="{Binding PrintBarcodeCommand}"
+                    Padding="20,8"
+                    Margin="0,0,10,0"
+                    FontSize="14"
+                    IsEnabled="{Binding CanPrintBarcode}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#10B981" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#D1D5DB" />
+                                <Setter Property="Foreground" Value="#9CA3AF" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Create"
+                    Command="{Binding CreateBoxCommand}"
+                    Padding="20,8"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Background="#3B82F6"
+                    Foreground="White">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="IsEnabled" Value="True" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsCreating}" Value="True">
+                                <Setter Property="IsEnabled" Value="False" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>
+

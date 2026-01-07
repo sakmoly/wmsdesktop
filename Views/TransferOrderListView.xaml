@@ -1,0 +1,74 @@
+<UserControl x:Class="Wms.Desktop.Views.TransferOrderListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:TransferOrderListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Transfer Orders"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Store allocation plans based on ASN - defines which items go to which stores"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="TransferOrdersGrid"
+                      ItemsSource="{Binding TransferOrders}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="TransferOrdersGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="TO Title"
+                                        Binding="{Binding Title}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="ASN"
+                                        Binding="{Binding AdvanceShippingNotice}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="From Warehouse"
+                                        Binding="{Binding FromWarehouse}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Prepared By"
+                                        Binding="{Binding PreparedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Required Date"
+                                        Binding="{Binding RequiredDate, StringFormat=d}"
+                                        Width="130" />
+                    <DataGridTextColumn Header="Total Allocated Qty"
+                                        Binding="{Binding TotalAllocatedQty}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Items Count"
+                                        Binding="{Binding Items.Count}"
+                                        Width="110" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

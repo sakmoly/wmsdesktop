@@ -1,0 +1,94 @@
+<UserControl x:Class="Wms.Desktop.Views.SortBoxListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:SortBoxListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Sort Boxes (Store Boxes)"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#111827" />
+                    <TextBlock Text="Manage store boxes for sorting items to stores"
+                               FontSize="12"
+                               Foreground="#6B7280" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="Create New Box"
+                        Command="{Binding CreateNewBoxCommand}"
+                        Padding="15,8"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+            </Grid>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="SortBoxGrid"
+                      ItemsSource="{Binding SortBoxes}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="SortBoxGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Box ID"
+                                        Binding="{Binding BoxId}"
+                                        Width="200" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="ASN"
+                                        Binding="{Binding AdvanceShippingNotice}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Transfer Order"
+                                        Binding="{Binding TransferOrder}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Store"
+                                        Binding="{Binding Store}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Created By"
+                                        Binding="{Binding CreatedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Created On"
+                                        Binding="{Binding CreatedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Closed By"
+                                        Binding="{Binding ClosedBy}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Closed On"
+                                        Binding="{Binding ClosedOn, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="160" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+

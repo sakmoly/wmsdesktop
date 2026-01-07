@@ -1,0 +1,272 @@
+<Window x:Class="Wms.Desktop.CycleCountTaskDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        mc:Ignorable="d"
+        Title="Cycle Count Task Details"
+        Height="600" Width="1000"
+        WindowStartupLocation="CenterOwner">
+    <Grid Background="#F3F4F6" Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="4,0,4,8">
+            <TextBlock Text="Cycle Count Task"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="{Binding CycleCountTask.Title}"
+                       FontSize="14"
+                       Foreground="#4B5563" />
+        </StackPanel>
+
+        <!-- Header fields -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
+                    <TextBlock Text="Status"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.Status}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,4">
+                    <TextBlock Text="Count Type"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.CountType}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="Warehouse"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.Warehouse}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,8,4">
+                    <TextBlock Text="Zone/Bin"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.Zone}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,8,4">
+                    <TextBlock Text="Count Date"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.CountDate, StringFormat=d}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,8,0">
+                    <TextBlock Text="Created By"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.CreatedBy}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,0,4">
+                    <TextBlock Text="Assigned To"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.AssignedTo}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="2" Margin="8,0,0,4">
+                    <TextBlock Text="Freeze Stock"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.FreezeStock}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Statistics -->
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                    <TextBlock Text="Statistics"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#111827"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding TotalLines, StringFormat='Total Lines: {0}'}"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="16,0,0,0" />
+                    <TextBlock Text="{Binding CountedLines, StringFormat='Counted: {0}'}"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="16,0,0,0" />
+                    <TextBlock Text="{Binding PendingLines, StringFormat='Pending: {0}'}"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="16,0,0,0" />
+                    <TextBlock Text="{Binding LinesWithDiscrepancy, StringFormat='With Discrepancy: {0}'}"
+                               FontSize="12"
+                               Foreground="#DC2626"
+                               Margin="16,0,0,0" />
+                </StackPanel>
+
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding CycleCountTask.Lines}"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserResizeRows="False"
+                          IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Item Code"
+                                            Binding="{Binding ItemCode}"
+                                            Width="200" />
+                        <DataGridTextColumn Header="Bin Location"
+                                            Binding="{Binding BinLocation}"
+                                            Width="150" />
+                        <DataGridTextColumn Header="Expected Qty"
+                                            Binding="{Binding ExpectedQty, StringFormat=N2}"
+                                            Width="110" />
+                        <DataGridTextColumn Header="Actual Qty"
+                                            Binding="{Binding ActualQty, StringFormat=N2}"
+                                            Width="110" />
+                        <DataGridTextColumn Header="Discrepancy"
+                                            Binding="{Binding Discrepancy, StringFormat=N2}"
+                                            Width="110">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <Trigger Property="Text" Value="0">
+                                            <Setter Property="Foreground" Value="#10B981" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding ActualQty}" Value="{x:Null}">
+                                            <Setter Property="Foreground" Value="#6B7280" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                    <Setter Property="Foreground" Value="#DC2626" />
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Status"
+                                            Binding="{Binding Status}"
+                                            Width="100" />
+                        <DataGridTextColumn Header="Counted By"
+                                            Binding="{Binding CountedBy}"
+                                            Width="120" />
+                        <DataGridTextColumn Header="Counted On"
+                                            Binding="{Binding CountedOn, StringFormat=g}"
+                                            Width="150" />
+                        <DataGridTextColumn Header="Discrepancy Reason"
+                                            Binding="{Binding DiscrepancyReason}"
+                                            Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- Summary and Actions -->
+        <Border Grid.Row="3"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding TotalExpectedQty, StringFormat='Total Expected Qty: {0:N2}'}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding TotalActualQty, StringFormat='Total Actual Qty: {0:N2}'}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding TotalDiscrepancy, StringFormat='Total Discrepancy: {0:N2}'}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#DC2626" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Submit"
+                            Command="{Binding SubmitCycleCountCommand}"
+                            IsEnabled="{Binding CanSubmit}"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Background="#3B82F6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold" />
+                    <Button Content="Complete"
+                            Command="{Binding CompleteCycleCountCommand}"
+                            IsEnabled="{Binding CanComplete}"
+                            Padding="16,8"
+                            Background="#10B981"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
+

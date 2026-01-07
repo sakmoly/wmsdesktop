@@ -1,0 +1,71 @@
+<UserControl x:Class="Wms.Desktop.Views.DistributionPlanListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:DistributionPlanListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Distribution Plans"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Store allocation plans (mock data)"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="DistributionPlansGrid"
+                      ItemsSource="{Binding DistributionPlans}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="DistributionPlansGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="DP No."
+                                        Binding="{Binding DpName}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="ASN"
+                                        Binding="{Binding AsnName}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Company"
+                                        Binding="{Binding Company}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Source Warehouse"
+                                        Binding="{Binding SourceWarehouse}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Distinct Items"
+                                        Binding="{Binding TotalItems}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Total Qty Allocated"
+                                        Binding="{Binding TotalQtyAllocated}"
+                                        Width="150" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>
+
+

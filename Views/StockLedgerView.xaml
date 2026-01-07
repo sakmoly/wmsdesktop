@@ -1,0 +1,270 @@
+<UserControl x:Class="Wms.Desktop.Views.StockLedgerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:StockLedgerListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Stock Ledger (Real-Time Stock)"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Current stock quantities by item, warehouse, and bin location with pagination and filtering"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <!-- Filter Controls -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="16"
+                Margin="0,0,0,12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Item Code Search -->
+                <TextBlock Grid.Column="0"
+                           Text="Item Code:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding SearchItemCode, UpdateSourceTrigger=PropertyChanged}"
+                         VerticalAlignment="Center"
+                         Padding="8,4"
+                         Margin="0,0,16,0">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+
+                <!-- From Date -->
+                <TextBlock Grid.Column="2"
+                           Text="From Date:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <DatePicker Grid.Column="3"
+                            SelectedDate="{Binding FromDate}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,16,0"
+                            Padding="8,4" />
+
+                <!-- To Date -->
+                <TextBlock Grid.Column="4"
+                           Text="To Date:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <DatePicker Grid.Column="5"
+                            SelectedDate="{Binding ToDate}"
+                            VerticalAlignment="Center"
+                            Margin="0,0,16,0"
+                            Padding="8,4" />
+
+                <!-- Search Button -->
+                <Button Grid.Column="7"
+                        Content="Search"
+                        Command="{Binding SearchCommand}"
+                        Padding="16,6"
+                        Margin="0,0,8,0"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+
+                <!-- Clear Button -->
+                <Button Grid.Column="8"
+                        Content="Clear"
+                        Command="{Binding ClearFiltersCommand}"
+                        Padding="16,6"
+                        Background="#6B7280"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+            </Grid>
+        </Border>
+
+        <!-- Data Grid -->
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="StockLedgerGrid"
+                      ItemsSource="{Binding StockLedgers}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Item Code"
+                                        Binding="{Binding ItemCode}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Warehouse"
+                                        Binding="{Binding Warehouse}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Bin Location"
+                                        Binding="{Binding BinLocation}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Quantity"
+                                        Binding="{Binding Qty, StringFormat=N2}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Reserved Qty"
+                                        Binding="{Binding ReservedQty, StringFormat=N2}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Available Qty"
+                                        Binding="{Binding AvailableQty, StringFormat=N2}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Qty Before"
+                                        Binding="{Binding QtyBefore, StringFormat=N2}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Qty +/-"
+                                        Binding="{Binding QtyReduced, StringFormat=N2}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Last Transaction Type"
+                                        Binding="{Binding LastTransactionType}"
+                                        Width="160" />
+                    <DataGridTextColumn Header="Last Transaction Ref"
+                                        Binding="{Binding LastTransactionRef}"
+                                        Width="150" />
+                    <DataGridTextColumn Header="Last Transaction Date"
+                                        Binding="{Binding LastTransactionDate, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="180" />
+                    <DataGridTextColumn Header="Updated At"
+                                        Binding="{Binding UpdatedAt, StringFormat=yyyy-MM-dd HH:mm}"
+                                        Width="180" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Pagination Controls -->
+        <Border Grid.Row="3"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,12,0,0"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Page Size Selector -->
+                <TextBlock Grid.Column="0"
+                           Text="Page Size:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <ComboBox Grid.Column="1"
+                          SelectedValue="{Binding PageSize}"
+                          SelectedValuePath="Tag"
+                          DisplayMemberPath="Content"
+                          Width="80"
+                          Margin="0,0,16,0"
+                          HorizontalAlignment="Left">
+                    <ComboBoxItem Content="50" Tag="50" />
+                    <ComboBoxItem Content="100" Tag="100" IsSelected="True" />
+                    <ComboBoxItem Content="200" Tag="200" />
+                    <ComboBoxItem Content="500" Tag="500" />
+                </ComboBox>
+
+                <!-- Pagination Info -->
+                <TextBlock Grid.Column="2"
+                           Text="{Binding PaginationInfo}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,16,0"
+                           Foreground="#6B7280" />
+
+                <!-- Pagination Buttons -->
+                <Button Grid.Column="3"
+                        Content="First"
+                        Command="{Binding GoToFirstPageCommand}"
+                        IsEnabled="{Binding CanGoToPreviousPage}"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+
+                <Button Grid.Column="4"
+                        Content="Previous"
+                        Command="{Binding GoToPreviousPageCommand}"
+                        IsEnabled="{Binding CanGoToPreviousPage}"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+
+                <Button Grid.Column="5"
+                        Content="Next"
+                        Command="{Binding GoToNextPageCommand}"
+                        IsEnabled="{Binding CanGoToNextPage}"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+
+                <Button Grid.Column="6"
+                        Content="Last"
+                        Command="{Binding GoToLastPageCommand}"
+                        IsEnabled="{Binding CanGoToNextPage}"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+
+                <!-- Refresh Button -->
+                <Button Grid.Column="7"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Padding="12,6"
+                        Background="#10B981"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>
