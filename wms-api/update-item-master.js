@@ -103,14 +103,15 @@ async function updateItemMaster() {
 
             try {
                 // Insert new item
+                // Use item_code as default barcode if barcode is not provided
                 await connection.execute(`
                     INSERT INTO tabItem 
-                        (code, name, item_group, brand, default_uom, stock_uom, maintain_stock, stock_qty, reserved_qty, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, 'Nos', 'Nos', TRUE, 0, 0, NOW(), NOW())
+                        (code, name, item_group, brand, barcode, default_uom, stock_uom, maintain_stock, stock_qty, reserved_qty, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'Nos', 'Nos', TRUE, 0, 0, NOW(), NOW())
                     ON DUPLICATE KEY UPDATE
                         name = COALESCE(VALUES(name), name),
                         updated_at = NOW()
-                `, [itemCode, itemName, itemGroup, brand]);
+                `, [itemCode, itemName, itemGroup, brand, itemCode]); // Use itemCode as default barcode
 
                 insertedCount++;
                 console.log(`  ✅ Added: ${itemCode} - ${itemName} (${itemGroup})`);

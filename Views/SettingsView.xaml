@@ -46,6 +46,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -112,20 +113,35 @@
                          Margin="0,4"
                          Padding="4" />
 
-                <!-- Last Sync Timestamp -->
+                <!-- Inventory Tracking Mode -->
                 <TextBlock Grid.Row="5" Grid.Column="0"
+                           Text="Inventory Tracking Mode"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <ComboBox Grid.Row="5" Grid.Column="1"
+                          SelectedValue="{Binding Settings.InventoryTrackingMode}"
+                          SelectedValuePath="Tag"
+                          Margin="0,4"
+                          Padding="4">
+                    <ComboBoxItem Content="Bin Level Inventory" Tag="BinLevel" />
+                    <ComboBoxItem Content="Carton Level Inventory" Tag="CartonLevel" />
+                </ComboBox>
+
+                <!-- Last Sync Timestamp -->
+                <TextBlock Grid.Row="6" Grid.Column="0"
                            Text="Last Sync Timestamp"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <TextBlock Grid.Row="5" Grid.Column="1"
+                <TextBlock Grid.Row="6" Grid.Column="1"
                            Text="{Binding Settings.LastSyncTimestamp, StringFormat=G}"
                            Margin="0,4"
                            VerticalAlignment="Center"
                            Foreground="#111827" />
 
                 <!-- Database Configuration Section -->
-                <Border Grid.Row="6" Grid.ColumnSpan="2"
+                <Border Grid.Row="7" Grid.ColumnSpan="2"
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,1,0,0"
                         Margin="0,16,0,0"
@@ -301,6 +317,24 @@
                                 IsEnabled="{Binding CanCreateDatabase}"
                                 Margin="0,0,8,0"
                                 Padding="12,6" />
+                        <Button Content="Run Migration 005"
+                                Command="{Binding RunMigration005Command}"
+                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="0,0,8,0"
+                                Padding="12,6"
+                                ToolTip="Run Migration 005: Bin + Carton Level Inventory Support" />
+                        <Button Content="Run Full Carton Test"
+                                Command="{Binding RunFullCartonTestCommand}"
+                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="0,0,8,0"
+                                Padding="12,6"
+                                ToolTip="Automated test: Run Migration 005 + Insert Test Data + Verify" />
+                        <Button Content="Insert Test Carton Data"
+                                Command="{Binding InsertTestCartonDataCommand}"
+                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="0,0,8,0"
+                                Padding="12,6"
+                                ToolTip="Insert test carton-level inventory data for testing" />
                         <Button Content="Import Mock Data"
                                 Command="{Binding ImportMockDataCommand}"
                                 IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"

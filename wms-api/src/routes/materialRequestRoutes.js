@@ -2,7 +2,7 @@
 // Material Request API routes
 
 import express from 'express';
-import { getMaterialRequests, getMaterialRequestByTitle, createMaterialRequest, updateMaterialRequestStatus, pickMaterialRequestItems } from '../modules/material-request/materialRequestController.js';
+import { getMaterialRequests, getMaterialRequestByTitle, createMaterialRequest, updateMaterialRequestStatus, pickMaterialRequestItems, getPickingStatus } from '../modules/material-request/materialRequestController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -18,6 +18,9 @@ router.post('/:title/update-status', authenticateToken, updateMaterialRequestSta
 
 // POST /api/material-requests/:title/pick-items - Pick items for Material Request and reduce stock
 router.post('/:title/pick-items', authenticateToken, pickMaterialRequestItems);
+
+// GET /api/material-requests/:title/picking-status - Get picking status (check if all items are fully picked) (must come before /:title)
+router.get('/:title/picking-status', authenticateToken, getPickingStatus);
 
 // GET /api/material-requests/:title - Get a single Material Request document
 router.get('/:title', authenticateToken, getMaterialRequestByTitle);

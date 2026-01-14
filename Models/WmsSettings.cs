@@ -20,6 +20,7 @@ public sealed class WmsSettings : INotifyPropertyChanged
     private int _databasePort = 3306;
     private bool _databaseExists;
     private bool _tablesExist;
+    private string _inventoryTrackingMode = "BinLevel"; // BinLevel or CartonLevel
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -111,6 +112,23 @@ public sealed class WmsSettings : INotifyPropertyChanged
     {
         get => _tablesExist;
         set { _tablesExist = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Inventory tracking mode: "BinLevel" or "CartonLevel"
+    /// BinLevel: Track inventory at item + warehouse + bin level (current implementation)
+    /// CartonLevel: Track inventory at item + warehouse + bin + carton level (new requirement)
+    /// </summary>
+    public string InventoryTrackingMode
+    {
+        get => _inventoryTrackingMode;
+        set 
+        { 
+            if (value != "BinLevel" && value != "CartonLevel")
+                throw new ArgumentException("InventoryTrackingMode must be 'BinLevel' or 'CartonLevel'");
+            _inventoryTrackingMode = value; 
+            OnPropertyChanged(); 
+        }
     }
 }
 

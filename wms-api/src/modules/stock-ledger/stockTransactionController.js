@@ -45,6 +45,16 @@ export const getStockTransactions = async (req, res) => {
   try {
     const { warehouse, item_code, transaction_type, reference_doc, from_date, to_date, limit } = req.query;
     
+    // Check if carton_id column exists
+    const [cartonIdColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockTransaction' 
+      AND COLUMN_NAME = 'carton_id'
+    `);
+    const hasCartonIdColumn = cartonIdColumn.length > 0;
+    
     let query = `
       SELECT 
         id,
@@ -61,6 +71,7 @@ export const getStockTransactions = async (req, res) => {
         qty_after,
         source_bin,
         target_bin,
+        ${hasCartonIdColumn ? 'carton_id,' : ''}
         performed_by,
         notes,
         created_at
@@ -118,6 +129,7 @@ export const getStockTransactions = async (req, res) => {
       item_code: row.item_code,
       warehouse: row.warehouse,
       bin_location: row.bin_location || null,
+      carton_id: hasCartonIdColumn ? (row.carton_id || null) : null,
       qty_change: parseFloat(row.qty_change) || 0,
       qty_before: parseFloat(row.qty_before) || 0,
       qty_after: parseFloat(row.qty_after) || 0,

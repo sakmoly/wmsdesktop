@@ -214,5 +214,124 @@ public static class MaterialRequestDataService
             return false;
         }
     }
+
+    /// <summary>
+    /// Validate carton-level picking requirements (for carton-level inventory mode)
+    /// Validates that carton exists, is in correct bin, and has sufficient stock
+    /// </summary>
+    public static async Task<(bool IsValid, string? ErrorMessage)> ValidateCartonLevelPickingAsync(
+        WmsSettings settings,
+        string cartonId,
+        string itemCode,
+        string sourceBin,
+        string warehouse,
+        double requestedQty)
+    {
+        try
+        {
+            // Check if carton-level mode is enabled
+            if (settings.InventoryTrackingMode != "CartonLevel")
+            {
+                return (true, null); // Not needed in bin-level mode
+            }
+
+            // Get carton
+            var carton = await CartonDataService.GetCartonAsync(settings, cartonId);
+            if (carton == null)
+            {
+                return (false, $"Carton {cartonId} not found");
+            }
+
+            // Validate carton is in correct bin
+            if (carton.CurrentBinId != sourceBin)
+            {
+                return (false, $"Carton {cartonId} is in bin {carton.CurrentBinId}, not {sourceBin}");
+            }
+
+            // Validate carton status allows picking
+            if (carton.Status != "PUTAWAY")
+            {
+                return (false, $"Carton {cartonId} status is {carton.Status}, cannot pick");
+            }
+
+            // Get carton stock
+            var cartonStock = await CartonDataService.GetCartonStockAsync(
+                settings,
+                cartonId: cartonId,
+                itemCode: itemCode,
+                warehouse: warehouse,
+                binLocation: sourceBin);
+
+            var availableQty = cartonStock.FirstOrDefault()?.Qty ?? 0;
+            if (availableQty < requestedQty)
+            {
+                return (false, $"Insufficient stock in carton {cartonId}. Available: {availableQty}, Required: {requestedQty}");
+            }
+
+            return (true, null);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"MaterialRequestDataService: Error validating carton-level picking for {cartonId}", ex);
+            return (false, $"Validation error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Get available cartons for picking (for carton-level inventory mode)
+    /// Returns cartons in the specified bin that contain the requested item
+    /// </summary>
+    public static async Task<List<(string CartonId, double AvailableQty)>> GetAvailableCartonsForPickingAsync(
+        WmsSettings settings,
+        string itemCode,
+        string sourceBin,
+        string warehouse,
+        double requestedQty)
+    {
+        var availableCartons = new List<(string CartonId, double AvailableQty)>();
+
+        try
+        {
+            // Check if carton-level mode is enabled
+            if (settings.InventoryTrackingMode != "CartonLevel")
+            {
+                return availableCartons; // Not applicable in bin-level mode
+            }
+
+            // Get cartons in bin
+            var cartons = await CartonDataService.GetCartonsInBinAsync(settings, sourceBin, warehouse);
+
+            foreach (var carton in cartons)
+            {
+                // Only consider cartons with PUTAWAY status
+                if (carton.Status != "PUTAWAY")
+                {
+                    continue;
+                }
+
+                // Get carton stock for this item
+                var cartonStock = await CartonDataService.GetCartonStockAsync(
+                    settings,
+                    cartonId: carton.CartonId,
+                    itemCode: itemCode,
+                    warehouse: warehouse,
+                    binLocation: sourceBin);
+
+                var stock = cartonStock.FirstOrDefault();
+                if (stock != null && stock.Qty > 0)
+                {
+                    availableCartons.Add((carton.CartonId, stock.Qty));
+                }
+            }
+
+            // Sort by available quantity (descending) for FEFO/FIFO
+            return availableCartons.OrderByDescending(c => c.AvailableQty).ToList();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"MaterialRequestDataService: Error getting available cartons for picking {itemCode}", ex);
+            return availableCartons;
+        }
+    }
 }
 

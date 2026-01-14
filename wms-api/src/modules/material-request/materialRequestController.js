@@ -2,6 +2,7 @@
 // Material Request API endpoints (Warehouse to Showroom)
 
 import { getConnection } from '../../db/connection.js';
+import { postStock } from '../stock-ledger/stockPostingService.js';
 
 /**
  * GET /api/material-requests
@@ -179,47 +180,58 @@ export const getMaterialRequests = async (req, res) => {
       const totalTCs = tcStatus[0].total_tcs || 0;
       const sealedTCs = tcStatus[0].sealed_tcs || 0;
       
-      // Status "Picked" only when ALL items are fully picked (picked_qty >= requested_qty) AND ALL transfer cartons are sealed
-      if (allItemsFullyPicked && items.length > 0 && sealedTCs === totalTCs && totalTCs > 0 && status !== 'Picked') {
-        status = 'Picked';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [status, row.title]);
-        console.log(`✅ Material Request ${row.title} status updated to "Picked" (all items fully picked, all TCs sealed)`);
-      } else if (someItemsPicked && status === 'Submitted') {
-        status = 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [status, row.title]);
-        console.log(`✅ Material Request ${row.title} status updated to "In Progress" (picking started)`);
-      } else if (allItemsFullyPicked && items.length > 0 && (sealedTCs < totalTCs || totalTCs === 0) && status === 'Picked') {
-        // All items are picked but not all sealed - should be "In Progress", not "Picked"
-        status = 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [status, row.title]);
-        console.log(`⚠️  Material Request ${row.title} status changed from "Picked" to "In Progress" (all items picked but ${sealedTCs}/${totalTCs} TCs sealed)`);
-      } else if (!allItemsFullyPicked && status === 'Picked') {
-        // Not all items are fully picked but status is "Picked" - should be "In Progress"
-        status = 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [status, row.title]);
-        const pendingItems = items.filter(item => item.picked_qty < item.requested_qty);
-        console.log(`⚠️  Material Request ${row.title} status changed from "Picked" to "In Progress" (${pendingItems.length} item(s) not fully picked: ${pendingItems.map(i => i.item_code).join(', ')})`);
-      }
+      // REMOVED: Auto-status update to "Picked"
+      // Status is now managed manually via update-status endpoint
+      // Users control status transitions through the mobile app buttons:
+      // 1. User clicks "Complete Picking" → POST /api/material-requests/:title/update-status { "status": "Picked" }
+      // 2. User clicks "Seal Transfer Carton" → POST /api/material-requests/:title/update-status { "status": "Sealed TC" }
+      // if (allItemsFullyPicked && items.length > 0 && sealedTCs === totalTCs && totalTCs > 0 && status !== 'Picked') {
+      //   status = 'Picked';
+      //   await connection.execute(`
+      //     UPDATE tabMaterialRequest
+      //     SET status = ?,
+      //         updated_at = NOW()
+      //     WHERE title = ?
+      //   `, [status, row.title]);
+      //   console.log(`✅ Material Request ${row.title} status updated to "Picked" (all items fully picked, all TCs sealed)`);
+      // }
+      // REMOVED: Auto-status correction from "Submitted" to "In Progress"
+      // Status is now managed manually via update-status endpoint
+      // else if (someItemsPicked && status === 'Submitted') {
+      //   status = 'In Progress';
+      //   ...
+      // }
+      // REMOVED: Auto-status correction from "Picked" to "In Progress"
+      // Status is now managed manually via update-status endpoint
+      // The workflow allows:
+      // - Status "Picked" even if not all TCs are sealed (user will seal them manually)
+      // - Status "Picked" even if items are not fully picked (user controls status explicitly)
+      // Status changes are handled by:
+      // 1. User clicks "Start Picking" → POST /api/material-requests/:title/update-status { "status": "In Progress" }
+      // 2. User clicks "Complete Picking" → POST /api/material-requests/:title/update-status { "status": "Picked" }
+      // 3. User clicks "Seal Transfer Carton" → POST /api/material-requests/:title/update-status { "status": "Sealed TC" }
+      // else if (allItemsFullyPicked && items.length > 0 && (sealedTCs < totalTCs || totalTCs === 0) && status === 'Picked') {
+      //   // All items are picked but not all sealed - should be "In Progress", not "Picked"
+      //   status = 'In Progress';
+      //   await connection.execute(`
+      //     UPDATE tabMaterialRequest
+      //     SET status = ?,
+      //         updated_at = NOW()
+      //     WHERE title = ?
+      //   `, [status, row.title]);
+      //   console.log(`⚠️  Material Request ${row.title} status changed from "Picked" to "In Progress" (all items picked but ${sealedTCs}/${totalTCs} TCs sealed)`);
+      // } else if (!allItemsFullyPicked && status === 'Picked') {
+      //   // Not all items are fully picked but status is "Picked" - should be "In Progress"
+      //   status = 'In Progress';
+      //   await connection.execute(`
+      //     UPDATE tabMaterialRequest
+      //     SET status = ?,
+      //         updated_at = NOW()
+      //     WHERE title = ?
+      //   `, [status, row.title]);
+      //   const pendingItems = items.filter(item => item.picked_qty < item.requested_qty);
+      //   console.log(`⚠️  Material Request ${row.title} status changed from "Picked" to "In Progress" (${pendingItems.length} item(s) not fully picked: ${pendingItems.map(i => i.item_code).join(', ')})`);
+      // }
       
       return {
         title: row.title,
@@ -346,30 +358,38 @@ export const getMaterialRequestByTitle = async (req, res) => {
     
     let status = row.status;
     
-    // Fix status if it's "Picked" but no items are picked
-    if (status === 'Picked' && actualTotalPicked === 0) {
-      const correctStatus = row.status === 'Submitted' ? 'Submitted' : 'In Progress';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [correctStatus, title]);
-      status = correctStatus;
-      console.log(`⚠️  Fixed Material Request ${title} status from "Picked" to "${correctStatus}" (no items picked)`);
-    }
-    // Fix status if it's "Picked" but not all items are fully picked
-    else if (status === 'Picked' && !allItemsFullyPicked) {
-      status = 'In Progress';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [status, title]);
-      const pendingItems = items.filter(item => item.picked_qty < item.requested_qty);
-      console.log(`⚠️  Fixed Material Request ${title} status from "Picked" to "In Progress" (not all items fully picked: ${pendingItems.length} item(s) still pending)`);
-    }
+    // REMOVED: Auto-status correction
+    // Status is now managed manually via update-status endpoint
+    // The workflow allows users to control status explicitly:
+    // - Status "Picked" can remain even if items are not fully picked (user controls status)
+    // - Status "Picked" can remain even if no items are picked (user controls status)
+    // Status changes are handled by:
+    // 1. User clicks "Start Picking" → POST /api/material-requests/:title/update-status { "status": "In Progress" }
+    // 2. User clicks "Complete Picking" → POST /api/material-requests/:title/update-status { "status": "Picked" }
+    // 3. User clicks "Seal Transfer Carton" → POST /api/material-requests/:title/update-status { "status": "Sealed TC" }
+    // if (status === 'Picked' && actualTotalPicked === 0) {
+    //   const correctStatus = row.status === 'Submitted' ? 'Submitted' : 'In Progress';
+    //   await connection.execute(`
+    //     UPDATE tabMaterialRequest
+    //     SET status = ?,
+    //         updated_at = NOW()
+    //     WHERE title = ?
+    //   `, [correctStatus, title]);
+    //   status = correctStatus;
+    //   console.log(`⚠️  Fixed Material Request ${title} status from "Picked" to "${correctStatus}" (no items picked)`);
+    // }
+    // // Fix status if it's "Picked" but not all items are fully picked
+    // else if (status === 'Picked' && !allItemsFullyPicked) {
+    //   status = 'In Progress';
+    //   await connection.execute(`
+    //     UPDATE tabMaterialRequest
+    //     SET status = ?,
+    //         updated_at = NOW()
+    //     WHERE title = ?
+    //   `, [status, title]);
+    //   const pendingItems = items.filter(item => item.picked_qty < item.requested_qty);
+    //   console.log(`⚠️  Fixed Material Request ${title} status from "Picked" to "In Progress" (not all items fully picked: ${pendingItems.length} item(s) still pending)`);
+    // }
     // Check if all transfer cartons are sealed
     // Detect schema for tabTransferCarton to find the correct column name
     const [tableInfo] = await connection.execute(`DESCRIBE tabTransferCarton`);
@@ -398,47 +418,25 @@ export const getMaterialRequestByTitle = async (req, res) => {
     const totalTCs = tcStatus[0].total_tcs || 0;
     const sealedTCs = tcStatus[0].sealed_tcs || 0;
     
-    // Status "Picked" only when ALL items are fully picked (picked_qty >= requested_qty) AND ALL transfer cartons are sealed
-    if (allItemsFullyPicked && items.length > 0 && sealedTCs === totalTCs && totalTCs > 0 && status !== 'Picked') {
-      status = 'Picked';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [status, title]);
-      console.log(`✅ Material Request ${title} status updated to "Picked" (all items fully picked, all TCs sealed)`);
-    } else if (someItemsPicked && status === 'Submitted') {
-      status = 'In Progress';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [status, title]);
-      console.log(`✅ Material Request ${title} status updated to "In Progress" (picking started)`);
-    } else if (allItemsFullyPicked && items.length > 0 && (sealedTCs < totalTCs || totalTCs === 0) && status === 'Picked') {
-      // All items are picked but not all sealed - should be "In Progress", not "Picked"
-      status = 'In Progress';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [status, title]);
-      console.log(`⚠️  Material Request ${title} status changed from "Picked" to "In Progress" (all items picked but ${sealedTCs}/${totalTCs} TCs sealed)`);
-    } else if (!allItemsFullyPicked && status === 'Picked') {
-      // Not all items are fully picked but status is "Picked" - should be "In Progress"
-      status = 'In Progress';
-      await connection.execute(`
-        UPDATE tabMaterialRequest
-        SET status = ?,
-            updated_at = NOW()
-        WHERE title = ?
-      `, [status, title]);
-      const pendingItems = items.filter(item => item.picked_qty < item.requested_qty);
-      console.log(`⚠️  Material Request ${title} status changed from "Picked" to "In Progress" (${pendingItems.length} item(s) not fully picked: ${pendingItems.map(i => i.item_code).join(', ')})`);
-    }
+    // REMOVED: Auto-status update to "Picked"
+    // Status is now managed manually via update-status endpoint
+    // Users control status transitions through the mobile app buttons:
+    // 1. User clicks "Complete Picking" → POST /api/material-requests/:title/update-status { "status": "Picked" }
+    // 2. User clicks "Seal Transfer Carton" → POST /api/material-requests/:title/update-status { "status": "Sealed TC" }
+    // if (allItemsFullyPicked && items.length > 0 && sealedTCs === totalTCs && totalTCs > 0 && status !== 'Picked') {
+    //   status = 'Picked';
+    //   await connection.execute(`
+    //     UPDATE tabMaterialRequest
+    //     SET status = ?,
+    //         updated_at = NOW()
+    //     WHERE title = ?
+    //   `, [status, title]);
+    //   console.log(`✅ Material Request ${title} status updated to "Picked" (all items fully picked, all TCs sealed)`);
+    // }
+    // REMOVED: Auto-status correction from "Submitted" to "In Progress"
+    // REMOVED: Auto-status correction from "Picked" to "In Progress"
+    // Status is now managed manually via update-status endpoint
+    // Users control status transitions through the mobile app buttons
     
     res.json({
       title: row.title,
@@ -613,9 +611,9 @@ export const updateMaterialRequestStatus = async (req, res) => {
       });
     }
     
-    // Check if Material Request exists
+    // Check if Material Request exists and get current status
     const [rows] = await connection.execute(
-      'SELECT title FROM tabMaterialRequest WHERE title = ?',
+      'SELECT title, status FROM tabMaterialRequest WHERE title = ?',
       [title]
     );
     
@@ -628,6 +626,57 @@ export const updateMaterialRequestStatus = async (req, res) => {
         }
       });
     }
+    
+    const currentStatus = rows[0].status;
+    
+    // Validate status transitions
+    if (status === 'Picked') {
+      // Only allow status change to "Picked" if ALL items are fully picked
+      const [itemRows] = await connection.execute(
+        `SELECT 
+          item_code,
+          requested_qty,
+          COALESCE(picked_qty, 0) as picked_qty
+        FROM tabMaterialRequestItem
+        WHERE parent_title = ?`,
+        [title]
+      );
+      
+      const allItemsFullyPicked = itemRows.length > 0 && itemRows.every(item => 
+        parseFloat(item.picked_qty) >= parseFloat(item.requested_qty)
+      );
+      
+      if (!allItemsFullyPicked) {
+        const pendingItems = itemRows.filter(item => 
+          parseFloat(item.picked_qty) < parseFloat(item.requested_qty)
+        );
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Cannot set status to "Picked". Not all items are fully picked.',
+            details: {
+              pending_items: pendingItems.map(item => ({
+                item_code: item.item_code,
+                requested_qty: parseFloat(item.requested_qty),
+                picked_qty: parseFloat(item.picked_qty),
+                remaining_qty: parseFloat(item.requested_qty) - parseFloat(item.picked_qty)
+              }))
+            }
+          }
+        });
+      }
+    }
+    
+    // Validate "In Progress" status transition
+    // Allow changing from "Picked" to "In Progress" to resume picking
+    // This is needed when users want to continue picking or adjust quantities
+    // No validation needed - users can always resume picking regardless of completion status
+    // if (status === 'In Progress' && currentStatus === 'Picked') {
+    //   // REMOVED: This validation was too restrictive
+    //   // Users should be able to resume picking even if all items are fully picked
+    //   // (e.g., to pick more items, adjust quantities, or correct mistakes)
+    // }
     
     // Build update query
     let updateQuery = 'UPDATE tabMaterialRequest SET status = ?, updated_at = NOW()';
@@ -718,7 +767,20 @@ export const pickMaterialRequestItems = async (req, res) => {
   
   try {
     const { title } = req.params;
-    const { items, warehouse } = req.body;
+    const { items, warehouse, user_id, created_by } = req.body;
+    
+    // Normalize user_id/created_by (support both mobile and desktop app formats)
+    const userId = user_id || created_by || null;
+    if (!userId) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'user_id or created_by is required'
+        }
+      });
+    }
+    const normalizedCreatedBy = userId.trim();
     
     // Validation
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -749,7 +811,42 @@ export const pickMaterialRequestItems = async (req, res) => {
     }
     
     const materialRequest = mrRows[0];
-    const targetWarehouse = warehouse || materialRequest.from_warehouse;
+    
+    // Normalize warehouse to code (handle both name and code)
+    const normalizeWarehouseToCode = async (warehouseValue) => {
+      if (!warehouseValue || typeof warehouseValue !== 'string') {
+        // Use Material Request's from_warehouse as default
+        return materialRequest.from_warehouse || 'WH-MAIN';
+      }
+
+      const normalized = warehouseValue.trim();
+      
+      // If it's already a code (check if exists in tabWarehouse by code), return it
+      const [codeCheck] = await connection.execute(
+        `SELECT code FROM tabWarehouse WHERE code = ? LIMIT 1`,
+        [normalized]
+      );
+      
+      if (codeCheck.length > 0) {
+        return codeCheck[0].code;
+      }
+      
+      // Try to find by name
+      const [nameCheck] = await connection.execute(
+        `SELECT code FROM tabWarehouse WHERE name = ? LIMIT 1`,
+        [normalized]
+      );
+      
+      if (nameCheck.length > 0) {
+        return nameCheck[0].code;
+      }
+      
+      // If not found, return the Material Request's from_warehouse or default
+      console.warn(`[Material Request Picking] ⚠️ Warehouse "${normalized}" not found in master data. Using Material Request's from_warehouse: ${materialRequest.from_warehouse}`);
+      return materialRequest.from_warehouse || 'WH-MAIN';
+    };
+    
+    const targetWarehouse = await normalizeWarehouseToCode(warehouse || materialRequest.from_warehouse);
     
     await connection.beginTransaction();
     
@@ -757,14 +854,30 @@ export const pickMaterialRequestItems = async (req, res) => {
       let totalPickedQty = 0;
       const stockUpdates = [];
       
+      // Check if carton tables exist (for carton-level inventory)
+      const [cartonTables] = await connection.execute(`
+        SELECT COUNT(*) as count
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME IN ('tabCarton', 'tabCartonItem', 'tabCartonStock', 'tabBin')
+      `);
+      const isCartonLevelMode = cartonTables[0].count === 4;
+      
       // Process each item
       for (const item of items) {
-        const { item_code, picked_qty, source_bin } = item;
+        const { item_code, picked_qty, source_bin, carton_id } = item;
         const pickedQty = parseFloat(picked_qty) || 0;
         
-        if (!item_code || pickedQty <= 0) {
+        // Validate required fields
+        // NOTE: Allow negative values to support decreasing quantities
+        // Negative values will decrease picked_qty (e.g., -5 decreases by 5)
+        if (!item_code || isNaN(pickedQty)) {
+          console.warn(`Skipping invalid item: ${JSON.stringify(item)}`);
           continue; // Skip invalid items
         }
+        
+        // Allow zero, positive, and negative values
+        // Zero is allowed (no change, but still processed for validation)
         
         // Get current picked_qty for this item
         const [currentItem] = await connection.execute(`
@@ -781,27 +894,30 @@ export const pickMaterialRequestItems = async (req, res) => {
         const currentPickedQty = parseFloat(currentItem[0].picked_qty) || 0;
         const requestedQty = parseFloat(currentItem[0].requested_qty) || 0;
         
-        // Check if already fully picked
-        if (currentPickedQty >= requestedQty && requestedQty > 0) {
-          console.log(`ℹ️  Item ${item_code} already fully picked (${currentPickedQty}/${requestedQty}). Skipping.`);
-          continue; // Skip this item - already fully picked
-        }
+        // NOTE: Removed check for "already fully picked" - backend now allows over-picking
+        // Users can continue to scan items even if picked_qty already exceeds requested_qty
         
-        const newPickedQty = currentPickedQty + pickedQty;
+        // CRITICAL: Always increment/decrement picked_qty (add to existing), never set to absolute value
+        // Calculate new total (supports both positive and negative pickedQty)
+        const newPickedQty = Math.max(0, currentPickedQty + pickedQty); // Ensure picked_qty doesn't go below 0
         
-        // Validate: Don't allow picking more than requested
-        if (newPickedQty > requestedQty) {
-          await connection.rollback();
-          return res.status(400).json({
-            ok: false,
-            error: {
-              code: 'VALIDATION_ERROR',
-              message: `Cannot pick ${pickedQty} for ${item_code}. Already picked: ${currentPickedQty}, Requested: ${requestedQty}. Maximum additional quantity: ${requestedQty - currentPickedQty}`
-            }
-          });
-        }
+        // NOTE: Backend now allows:
+        // - Picking more than requested quantity (over-picking)
+        // - Decreasing picked quantity (negative pickedQty values)
+        // - Setting picked_qty to 0 (by sending negative value equal to current)
         
-        // Compute item status based on picked_qty
+        // Check if scan_qty column exists
+        const [scanQtyColumn] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabMaterialRequestItem' 
+            AND COLUMN_NAME = 'scan_qty'
+        `);
+        const hasScanQtyColumn = scanQtyColumn.length > 0;
+        
+        // Compute item status based on new picked_qty
+        // Status is "Picked" if picked_qty >= requested_qty (allows over-picking)
         let itemStatus = 'Pending';
         if (newPickedQty >= requestedQty && requestedQty > 0) {
           itemStatus = 'Picked';
@@ -809,99 +925,535 @@ export const pickMaterialRequestItems = async (req, res) => {
           itemStatus = 'In Progress';
         }
         
-        // Update Material Request Item picked_qty and status
-        await connection.execute(`
-          UPDATE tabMaterialRequestItem
-          SET picked_qty = ?,
-              status = ?,
-              updated_at = NOW()
-          WHERE parent_title = ? AND item_code = ?
-        `, [newPickedQty, itemStatus, title, item_code]);
+        // Log warning if over-picking (informational only, not blocking)
+        if (newPickedQty > requestedQty && requestedQty > 0) {
+          console.log(`ℹ️  Over-picked item ${item_code}: Requested ${requestedQty}, Picked ${newPickedQty} (excess: ${newPickedQty - requestedQty})`);
+        }
         
-        console.log(`✅ Updated picked_qty for ${item_code}: ${currentPickedQty} → ${newPickedQty} (added ${pickedQty}), status: ${itemStatus}`);
+        // Update Material Request Item picked_qty, scan_qty, and status
+        // CRITICAL: Always increment picked_qty (add to existing), never set to absolute value
+        // Set scan_qty = picked_qty (for tracking scanned quantity)
+        if (hasScanQtyColumn) {
+          await connection.execute(`
+            UPDATE tabMaterialRequestItem
+            SET picked_qty = picked_qty + ?,
+                scan_qty = picked_qty + ?,
+                status = ?,
+                updated_at = NOW()
+            WHERE parent_title = ? AND item_code = ?
+          `, [pickedQty, pickedQty, itemStatus, title, item_code]);
+        } else {
+          await connection.execute(`
+            UPDATE tabMaterialRequestItem
+            SET picked_qty = picked_qty + ?,
+                status = ?,
+                updated_at = NOW()
+            WHERE parent_title = ? AND item_code = ?
+          `, [pickedQty, itemStatus, title, item_code]);
+        }
+        
+        // Log update with appropriate message
+        if (pickedQty > 0) {
+          console.log(`✅ Updated picked_qty for ${item_code}: ${currentPickedQty} → ${newPickedQty} (added ${pickedQty}), status: ${itemStatus}`);
+        } else if (pickedQty < 0) {
+          console.log(`✅ Updated picked_qty for ${item_code}: ${currentPickedQty} → ${newPickedQty} (decreased by ${Math.abs(pickedQty)}), status: ${itemStatus}`);
+        } else {
+          console.log(`ℹ️  No change to picked_qty for ${item_code}: ${currentPickedQty} (pickedQty was 0)`);
+        }
         totalPickedQty += pickedQty;
         
-        // Reduce stock from source bin if source_bin is provided
-        if (source_bin) {
-          // Get current stock from source bin
-          const [currentStock] = await connection.execute(`
-            SELECT qty, reserved_qty
-            FROM tabStockLedger
-            WHERE item_code = ?
-              AND warehouse = ?
-              AND bin_location = ?
-          `, [item_code, targetWarehouse, source_bin]);
+        // Handle stock updates: reduce stock if increasing, add stock back if decreasing
+        // Only process stock updates if source_bin is provided and pickedQty is not zero
+        if (source_bin && pickedQty !== 0) {
+          // Determine if we're increasing or decreasing picked quantity
+          const isDecreasing = pickedQty < 0;
+          const absoluteQty = Math.abs(pickedQty);
+          let currentQty = 0;
+          let currentReservedQty = 0;
+          let newQty = 0;
+          let cartonStockUpdated = false;
           
-          const currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
-          const currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
-          
-          // Validate: Check if sufficient stock available
-          if (currentQty < pickedQty) {
-            await connection.rollback();
-            return res.status(400).json({
-              ok: false,
-              error: {
-                code: 'INSUFFICIENT_STOCK',
-                message: `Insufficient stock for ${item_code} at ${source_bin}. Available: ${currentQty}, Required: ${pickedQty}`
+          // If carton-level mode and carton_id provided, update carton stock
+          if (isCartonLevelMode && carton_id) {
+            // Helper function to find matching bin_location (handles incomplete formats)
+            const findMatchingBinLocation = async (itemCode, cartonId, binLocation, warehouse) => {
+              // First try exact match
+              let [exactMatch] = await connection.execute(`
+                SELECT carton_id, item_code, bin_location, qty, status, warehouse
+                FROM tabCartonStock
+                WHERE carton_id = ?
+                  AND item_code = ?
+                  AND bin_location = ?
+                  AND warehouse = ?
+                  AND qty > 0
+                  AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
+                LIMIT 1
+              `, [cartonId, itemCode, binLocation, warehouse]);
+              
+              if (exactMatch.length > 0) {
+                return exactMatch[0];
               }
-            });
+              
+              // If no exact match, try to parse and match by components
+              // Example: "A1-R02-L1-B2" -> try to match "Rack 02-B2" or similar
+              const parts = binLocation.split('-');
+              if (parts.length >= 2) {
+                const lastPart = parts[parts.length - 1]; // "B2"
+                // Extract rack number from full format (e.g., "A1-R02-L1-B2" -> "R02" or "02")
+                let rackNumber = null;
+                for (const part of parts) {
+                  if (part.startsWith('R') || part.match(/^Rack\s*\d+/i)) {
+                    rackNumber = part.replace(/^R/i, '').replace(/^Rack\s*/i, '').trim();
+                    break;
+                  }
+                }
+                
+                // Try matching with LIKE for partial bin_location
+                // Match patterns like "Rack 02-B2", "R02-B2", "02-B2", etc.
+                const likePatterns = [];
+                if (rackNumber && lastPart) {
+                  likePatterns.push(`%Rack ${rackNumber}-${lastPart}%`);
+                  likePatterns.push(`%R${rackNumber}-${lastPart}%`);
+                  likePatterns.push(`%${rackNumber}-${lastPart}%`);
+                }
+                if (lastPart) {
+                  likePatterns.push(`%-${lastPart}`);
+                }
+                
+                if (likePatterns.length > 0) {
+                  const placeholders = likePatterns.map(() => '?').join(',');
+                  const [partialMatch] = await connection.execute(`
+                    SELECT carton_id, item_code, bin_location, qty, status, warehouse
+                    FROM tabCartonStock
+                    WHERE carton_id = ?
+                      AND item_code = ?
+                      AND warehouse = ?
+                      AND (${likePatterns.map(() => 'bin_location LIKE ?').join(' OR ')})
+                      AND qty > 0
+                      AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
+                    LIMIT 1
+                  `, [cartonId, itemCode, warehouse, ...likePatterns]);
+                  
+                  if (partialMatch.length > 0) {
+                    return partialMatch[0];
+                  }
+                }
+              }
+              
+              return null;
+            };
+            
+            // Find matching carton stock (handles incomplete bin_location formats)
+            const cartonStock = await findMatchingBinLocation(item_code, carton_id, source_bin, targetWarehouse);
+            
+            // Only check for carton stock when increasing (not when decreasing)
+            if (!isDecreasing && !cartonStock) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: 'INSUFFICIENT_STOCK',
+                  message: `Insufficient stock for ${item_code} at ${source_bin}. Available: 0, Required: ${absoluteQty}. Carton ${carton_id} not found or has no stock at this location.`
+                }
+              });
+            }
+            
+            // When decreasing, if carton stock doesn't exist, create it or use source_bin directly
+            let cartonStockQty = 0;
+            let actualBinLocation = source_bin;
+            
+            if (cartonStock) {
+              cartonStockQty = parseFloat(cartonStock.qty) || 0;
+              actualBinLocation = cartonStock.bin_location; // Use the actual bin_location from database
+            } else if (isDecreasing) {
+              // When decreasing and carton stock doesn't exist, we'll create/update it with the added quantity
+              cartonStockQty = 0; // Start from 0, will add absoluteQty
+              actualBinLocation = source_bin; // Use provided source_bin
+              console.log(`ℹ️  Decreasing quantity: Carton ${carton_id} not found at ${source_bin}, will create/update carton stock entry`);
+            }
+            
+            // Validate: Check if sufficient stock available in carton (only when increasing)
+            if (!isDecreasing && cartonStockQty < absoluteQty) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: 'INSUFFICIENT_STOCK',
+                  message: `Insufficient stock for ${item_code} at ${source_bin}. Available: ${cartonStockQty}, Required: ${absoluteQty}`
+                }
+              });
+            }
+            
+            // Calculate new quantity: subtract if increasing, add if decreasing
+            newQty = isDecreasing ? cartonStockQty + absoluteQty : cartonStockQty - absoluteQty;
+            currentQty = cartonStockQty;
+            
+            // Update or insert carton stock (use actual bin_location from database, not source_bin)
+            // Use INSERT ... ON DUPLICATE KEY UPDATE to handle both cases
+            await connection.execute(`
+              INSERT INTO tabCartonStock 
+                (carton_id, item_code, bin_location, warehouse, qty, status, updated_at)
+              VALUES (?, ?, ?, ?, ?, 'PUTAWAY', NOW())
+              ON DUPLICATE KEY UPDATE
+                qty = ?,
+                updated_at = NOW(),
+                status = 'PUTAWAY'
+            `, [carton_id, item_code, actualBinLocation, targetWarehouse, newQty, newQty]);
+            
+            // Update carton status to PICKED if fully picked
+            if (newQty <= 0) {
+              await connection.execute(`
+                UPDATE tabCarton
+                SET status = 'PICKED',
+                    last_moved_on = NOW()
+                WHERE carton_id = ?
+              `, [carton_id]);
+            }
+            
+            cartonStockUpdated = true;
+            console.log(`✅ Updated carton stock for ${carton_id}: ${currentQty} → ${newQty}`);
+          } else {
+            // Bin-level mode: Update stock ledger
+            // CRITICAL: source_bin is required for bin-level stock reduction
+            if (!source_bin || source_bin.trim() === '') {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: 'VALIDATION_ERROR',
+                  message: `source_bin is required for bin-level stock reduction. Item: ${item_code}`,
+                  details: {
+                    item_code: item_code,
+                    source_bin: source_bin || null,
+                    note: 'Please provide the bin location (location_id) where the item is being picked from'
+                  }
+                }
+              });
+            }
+            
+            // Check if carton_id column exists in tabStockLedger
+            const [stockLedgerCartonIdColumn] = await connection.execute(`
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'tabStockLedger' 
+              AND COLUMN_NAME = 'carton_id'
+            `);
+            const hasStockLedgerCartonIdColumn = stockLedgerCartonIdColumn.length > 0;
+
+            // Helper function to find matching bin_location in tabStockLedger (handles format differences)
+            const findMatchingStockLedgerBin = async (itemCode, binLocation, warehouse) => {
+              // First try exact match
+              let stockQuery = `
+                SELECT qty, reserved_qty, bin_location
+              `;
+              if (hasStockLedgerCartonIdColumn) {
+                stockQuery += `, carton_id`;
+              }
+              stockQuery += `
+                FROM tabStockLedger
+                WHERE item_code = ?
+                  AND warehouse = ?
+                  AND bin_location = ?
+                LIMIT 1
+              `;
+              
+              let [exactMatch] = await connection.execute(
+                stockQuery,
+                [itemCode, warehouse, binLocation]
+              );
+              
+              if (exactMatch.length > 0) {
+                return exactMatch[0];
+              }
+              
+              // If no exact match, try fuzzy matching by components
+              // Example: "A1-R02-L1-B2" might match "Rack 02-B2" or "R02-L1-B2"
+              const parts = binLocation.split('-');
+              if (parts.length >= 2) {
+                // Try matching last 2 parts (e.g., "L1-B2" from "A1-R02-L1-B2")
+                const lastTwoParts = parts.slice(-2).join('-');
+                let fuzzyQuery = `
+                  SELECT qty, reserved_qty, bin_location
+                `;
+                if (hasStockLedgerCartonIdColumn) {
+                  fuzzyQuery += `, carton_id`;
+                }
+                fuzzyQuery += `
+                  FROM tabStockLedger
+                  WHERE item_code = ?
+                    AND warehouse = ?
+                    AND (bin_location LIKE ? OR bin_location LIKE ?)
+                  LIMIT 1
+                `;
+                
+                let [fuzzyMatch] = await connection.execute(
+                  fuzzyQuery,
+                  [itemCode, warehouse, `%${lastTwoParts}%`, `%-${lastTwoParts}`]
+                );
+                
+                if (fuzzyMatch.length > 0) {
+                  return fuzzyMatch[0];
+                }
+              }
+              
+              // If still no match, return null (will create new record)
+              return null;
+            };
+
+            // Find matching bin_location in stock ledger
+            const stockLedgerEntry = await findMatchingStockLedgerBin(item_code, source_bin, targetWarehouse);
+            
+            // Use actual bin_location from stock ledger if found, otherwise use source_bin from request
+            const actualBinLocation = stockLedgerEntry ? stockLedgerEntry.bin_location : source_bin;
+            
+            // Get current stock from matched bin (including carton_id if available)
+            let stockQuery = `
+              SELECT qty, reserved_qty
+            `;
+            if (hasStockLedgerCartonIdColumn) {
+              stockQuery += `, carton_id`;
+            }
+            stockQuery += `
+              FROM tabStockLedger
+              WHERE item_code = ?
+                AND warehouse = ?
+                AND bin_location = ?
+            `;
+
+            const [currentStock] = await connection.execute(
+              stockQuery,
+              [item_code, targetWarehouse, actualBinLocation]
+            );
+            
+            currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
+            currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
+            const stockLedgerCartonId = hasStockLedgerCartonIdColumn && currentStock.length > 0
+              ? (currentStock[0].carton_id || null)
+              : null;
+            
+            // Validate: Check if sufficient stock available (only when increasing)
+            if (!isDecreasing && currentQty < absoluteQty) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: 'INSUFFICIENT_STOCK',
+                  message: `Insufficient stock for ${item_code} at ${source_bin}. Available: ${currentQty}, Required: ${absoluteQty}`
+                }
+              });
+            }
+            
+            // Calculate new quantity: subtract if increasing, add if decreasing
+            newQty = isDecreasing ? currentQty + absoluteQty : currentQty - absoluteQty;
+            
+            // Store transaction details for Stock Ledger display
+            // qty_before = stock before transaction
+            // qty_reduced = transaction amount (negative for picking/reduction, positive for increase)
+            // qty = remaining stock after transaction
+            // IMPORTANT: Use pickedQty (actual transaction qty) not absoluteQty
+            const qtyBefore = currentQty;
+            const qtyReduced = isDecreasing ? pickedQty : -pickedQty; // Negative for picking (reduction), positive for decrease (stock added back)
+            // pickedQty is the actual transaction quantity (e.g., 2 items), not the absolute value
+            
+            // Check if qty_before and qty_reduced columns exist
+            const [qtyColumns] = await connection.execute(`
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'tabStockLedger' 
+              AND COLUMN_NAME IN ('qty_before', 'qty_reduced')
+            `);
+            const hasQtyBefore = qtyColumns.some(col => col.COLUMN_NAME === 'qty_before');
+            const hasQtyReduced = qtyColumns.some(col => col.COLUMN_NAME === 'qty_reduced');
+            
+            // Build stock ledger update query with optional carton_id, qty_before, qty_reduced
+            // IMPORTANT: Use actualBinLocation (matched from database) instead of source_bin (from request)
+            let insertFields = `item_code, warehouse, bin_location, qty, reserved_qty, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at`;
+            let insertValues = `?, ?, ?, ?, ?, NOW(), 'Picking', ?, NOW(), NOW()`;
+            let insertParams = [item_code, targetWarehouse, actualBinLocation, newQty, currentReservedQty, title];
+            
+            let updateFields = `qty = ?, last_transaction_date = NOW(), last_transaction_type = 'Picking', last_transaction_ref = ?, updated_at = NOW()`;
+            let updateParams = [newQty, title];
+            
+            // Add qty_before if column exists
+            if (hasQtyBefore) {
+              insertFields += `, qty_before`;
+              insertValues += `, ?`;
+              insertParams.push(qtyBefore);
+              updateFields += `, qty_before = ?`;
+              updateParams.push(qtyBefore);
+            }
+            
+            // Add qty_reduced if column exists
+            if (hasQtyReduced) {
+              insertFields += `, qty_reduced`;
+              insertValues += `, ?`;
+              insertParams.push(qtyReduced);
+              updateFields += `, qty_reduced = ?`;
+              updateParams.push(qtyReduced);
+            }
+
+            // Use carton_id from request if provided, otherwise use from stock ledger
+            const finalCartonId = carton_id || stockLedgerCartonId || null;
+            
+            // Include carton_id if column exists and carton_id is present (from request or stock ledger)
+            if (hasStockLedgerCartonIdColumn && finalCartonId) {
+              insertFields += `, carton_id`;
+              insertValues += `, ?`;
+              insertParams.push(finalCartonId);
+              updateFields += `, carton_id = ?`;
+              updateParams.push(finalCartonId);
+            }
+            
+            // Update stock ledger (decrease from source bin)
+            // NOTE: tabStockLedger has UNIQUE KEY on (item_code, warehouse, bin_location)
+            // This means it will UPDATE the existing record for that bin, not create a new one
+            // This is CORRECT - tabStockLedger shows CURRENT stock at each bin
+            // Transaction history is stored in tabStockTransaction table
+            await connection.execute(`
+              INSERT INTO tabStockLedger 
+                (${insertFields})
+              VALUES (${insertValues})
+              ON DUPLICATE KEY UPDATE
+                ${updateFields}
+            `, [...insertParams, ...updateParams]);
+            
+            // ALWAYS create a transaction log entry (for history/audit trail)
+            // Use actualBinLocation for bin_location, but keep source_bin in source_bin field for reference
+            // Check if carton_id column exists in tabStockTransaction
+            const [cartonIdColumn] = await connection.execute(`
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'tabStockTransaction' 
+              AND COLUMN_NAME = 'carton_id'
+            `);
+            const hasCartonIdColumn = cartonIdColumn.length > 0;
+            
+            // finalCartonId already declared above (line 1298), reuse it
+            
+            if (hasCartonIdColumn && finalCartonId) {
+              // Insert with carton_id
+              await connection.execute(`
+                INSERT INTO tabStockTransaction 
+                  (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                   item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                   source_bin, target_bin, carton_id, performed_by, created_at)
+                VALUES 
+                  (NOW(), 'Picking', 'Material Request', ?,
+                   ?, ?, ?, ?, ?, ?,
+                   ?, NULL, ?, ?, NOW())
+              `, [
+                title,
+                item_code,
+                targetWarehouse,
+                actualBinLocation, // Use matched bin_location
+                qtyReduced, // qty_change (negative for picking)
+                qtyBefore, // qty_before
+                newQty, // qty_after
+                source_bin, // Keep original source_bin from request for reference
+                finalCartonId, // carton_id
+                normalizedCreatedBy || null // performed_by
+              ]);
+            } else {
+              // Insert without carton_id
+              await connection.execute(`
+                INSERT INTO tabStockTransaction 
+                  (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                   item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                   source_bin, target_bin, performed_by, created_at)
+                VALUES 
+                  (NOW(), 'Picking', 'Material Request', ?,
+                   ?, ?, ?, ?, ?, ?,
+                   ?, NULL, ?, NOW())
+              `, [
+                title,
+                item_code,
+                targetWarehouse,
+                actualBinLocation, // Use matched bin_location
+                qtyReduced, // qty_change (negative for picking)
+                qtyBefore, // qty_before
+                newQty, // qty_after
+                source_bin, // Keep original source_bin from request for reference
+                normalizedCreatedBy || null // performed_by
+              ]);
+            }
+
+            // Update tabCartonStock if carton_id is provided (from request or stock ledger) and tabCartonStock table exists
+            if (finalCartonId) {
+              const [cartonStockTable] = await connection.execute(`
+                SELECT TABLE_NAME 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tabCartonStock'
+              `);
+
+              if (cartonStockTable.length > 0) {
+                try {
+                  // Get current carton stock at the actual bin_location (matched from stock ledger)
+                  // IMPORTANT: Use actualBinLocation instead of source_bin to ensure correct matching
+                  const [currentCartonStock] = await connection.execute(
+                    `SELECT qty, bin_location FROM tabCartonStock 
+                     WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?`,
+                    [finalCartonId, item_code, targetWarehouse, actualBinLocation]
+                  );
+
+                  const currentCartonQty = currentCartonStock.length > 0 
+                    ? parseFloat(currentCartonStock[0].qty) || 0 
+                    : 0;
+                  
+                  // Calculate new quantity: subtract if increasing, add if decreasing
+                  const newCartonQty = isDecreasing ? currentCartonQty + absoluteQty : Math.max(0, currentCartonQty - absoluteQty);
+
+                  // Update or insert carton stock (use INSERT ... ON DUPLICATE KEY UPDATE)
+                  // IMPORTANT: Use actualBinLocation (matched from database) instead of source_bin (from request)
+                  // NOTE: UNIQUE KEY is on (carton_id, item_code, batch_no), so we need to include batch_no (NULL if not provided)
+                  // First, try to get existing batch_no if record exists
+                  const [existingCartonStock] = await connection.execute(
+                    `SELECT batch_no FROM tabCartonStock 
+                     WHERE carton_id = ? AND item_code = ? AND bin_location = ? AND warehouse = ?
+                     LIMIT 1`,
+                    [finalCartonId, item_code, actualBinLocation, targetWarehouse]
+                  );
+                  
+                  const existingBatchNo = existingCartonStock.length > 0 
+                    ? (existingCartonStock[0].batch_no || null)
+                    : null;
+                  
+                  // Use existing batch_no if available, otherwise NULL
+                  // This ensures ON DUPLICATE KEY UPDATE matches correctly
+                  await connection.execute(`
+                    INSERT INTO tabCartonStock 
+                      (carton_id, item_code, bin_location, warehouse, qty, status, batch_no, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'PUTAWAY', ?, NOW())
+                    ON DUPLICATE KEY UPDATE
+                      qty = ?,
+                      updated_at = NOW(),
+                      status = 'PUTAWAY'
+                  `, [finalCartonId, item_code, actualBinLocation, targetWarehouse, newCartonQty, existingBatchNo, newCartonQty]);
+
+                  cartonStockUpdated = true;
+                  console.log(`[Material Request Picking] 📦 Updated tabCartonStock: carton_id=${finalCartonId}, item=${item_code}, qty=${currentCartonQty} → ${newCartonQty}, bin=${actualBinLocation} (matched from stock ledger, original: ${source_bin})`);
+                } catch (cartonStockError) {
+                  console.warn(`[Material Request Picking] ⚠️ Could not update tabCartonStock: ${cartonStockError.message}`);
+                  // Don't fail the transaction - stock ledger is already updated
+                }
+              }
+            }
           }
           
-          const newQty = currentQty - pickedQty;
-          
-          // Update stock ledger (decrease from source bin)
-          await connection.execute(`
-            INSERT INTO tabStockLedger 
-              (item_code, warehouse, bin_location, qty, reserved_qty,
-               last_transaction_date, last_transaction_type, last_transaction_ref,
-               updated_at, created_at)
-            VALUES (?, ?, ?, ?, ?,
-                    NOW(), 'Picking', ?,
-                    NOW(), NOW())
-            ON DUPLICATE KEY UPDATE
-              qty = ?,
-              last_transaction_date = NOW(),
-              last_transaction_type = 'Picking',
-              last_transaction_ref = ?,
-              updated_at = NOW()
-          `, [
-            item_code,
-            targetWarehouse,
-            source_bin,
-            newQty,
-            currentReservedQty,
-            title,
-            newQty,
-            title
-          ]);
-          
-          // Insert stock transaction log
-          await connection.execute(`
-            INSERT INTO tabStockTransaction 
-              (transaction_date, transaction_type, reference_doc_type, reference_doc,
-               item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
-               source_bin, target_bin, performed_by, created_at)
-            VALUES 
-              (NOW(), 'Picking', 'Material Request', ?,
-               ?, ?, ?, ?, ?, ?,
-               ?, NULL, NULL, NOW())
-          `, [
-            title,
-            item_code,
-            targetWarehouse,
-            source_bin,
-            -pickedQty, // Negative (decrease)
-            currentQty,
-            newQty,
-            source_bin
-          ]);
+          // NOTE: Transaction log entry already created above (line 1324-1343)
+          // No need to insert again here - this was causing duplicate entries
           
           stockUpdates.push({
             item_code,
+            carton_id: carton_id || null,
             source_bin,
-            qty_reduced: pickedQty,
+            qty_reduced: isDecreasing ? -absoluteQty : absoluteQty, // Negative if decreasing (stock added back)
             qty_before: currentQty,
-            qty_after: newQty
+            qty_after: newQty,
+            carton_stock_updated: cartonStockUpdated
           });
         }
       }
@@ -948,107 +1500,40 @@ export const pickMaterialRequestItems = async (req, res) => {
       let newStatus = materialRequest.status;
       
       // Fix incorrect status: if status is "Picked" but no items are picked
-      if (newTotalPicked === 0 && newStatus === 'Picked') {
-        newStatus = materialRequest.status === 'Submitted' ? 'Submitted' : 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [newStatus, title]);
-        console.log(`⚠️  Material Request ${title} status reset from "Picked" to "${newStatus}" (no items picked)`);
-      }
-      // Update to "In Progress" when picking starts
-      else if (materialRequest.status === 'Submitted' && newTotalPicked > 0) {
-        newStatus = 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [newStatus, title]);
-        console.log(`✅ Material Request ${title} status updated to "In Progress" (picking started)`);
-      }
-      // Only set to "Picked" when ALL items are fully picked AND ALL transfer cartons are sealed
-      // Check if all transfer cartons are sealed
-      // Detect schema for tabTransferCarton to find the correct column name
-      const [tableInfo] = await connection.execute(`DESCRIBE tabTransferCarton`);
-      const allColumns = new Set(tableInfo.map(row => row.Field));
+      // REMOVED: Auto-status changes - status is now managed manually via update-status endpoint
+      // Status changes are handled by:
+      // 1. User clicks "Start Picking" → POST /api/material-requests/:title/update-status { "status": "In Progress" }
+      // 2. User clicks "Complete Picking" → POST /api/material-requests/:title/update-status { "status": "Picked" }
+      // This allows multiple users to pick items without automatic status changes
       
-      let toColumn;
-      if (allColumns.has('to_no')) {
-        toColumn = 'to_no';
-      } else if (allColumns.has('transfer_order')) {
-        toColumn = 'transfer_order';
-      } else {
-        toColumn = null; // No TO column found
-      }
-      
-      let tcStatus = [{ total_tcs: 0, sealed_tcs: 0 }];
-      if (toColumn) {
-        [tcStatus] = await connection.execute(`
-          SELECT 
-            COUNT(*) as total_tcs,
-            SUM(CASE WHEN status = 'Sealed' OR status = 'Dispatched' THEN 1 ELSE 0 END) as sealed_tcs
-          FROM tabTransferCarton
-          WHERE ${toColumn} = ?
-        `, [title]);
-      }
-      
-      const totalTCs = tcStatus[0].total_tcs || 0;
-      const sealedTCs = tcStatus[0].sealed_tcs || 0;
-      
-      // Status "Picked" only when ALL items are fully picked AND ALL transfer cartons are sealed
-      if (fullyPickedItems === totalItems && totalItems > 0 && sealedTCs === totalTCs && totalTCs > 0 && newTotalPicked > 0 && newStatus !== 'Picked') {
-        newStatus = 'Picked';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [newStatus, title]);
-        console.log(`✅ Material Request ${title} status updated to "Picked" (all ${totalItems} items fully picked, all ${totalTCs} TCs sealed)`);
-      } else if (fullyPickedItems === totalItems && totalItems > 0 && (sealedTCs < totalTCs || totalTCs === 0)) {
-        // All items are picked but not all sealed - keep as "In Progress"
-        if (newStatus !== 'In Progress') {
-          newStatus = 'In Progress';
-          await connection.execute(`
-            UPDATE tabMaterialRequest
-            SET status = ?,
-                updated_at = NOW()
-            WHERE title = ?
-          `, [newStatus, title]);
-          console.log(`ℹ️  Material Request ${title} status remains "In Progress" (all ${totalItems} items picked, but ${sealedTCs}/${totalTCs} TCs sealed)`);
-        }
-      }
-      // Keep status as "In Progress" if some items are picked but not all
-      else if (newTotalPicked > 0 && fullyPickedItems < totalItems && newStatus !== 'In Progress') {
-        newStatus = 'In Progress';
-        await connection.execute(`
-          UPDATE tabMaterialRequest
-          SET status = ?,
-              updated_at = NOW()
-          WHERE title = ?
-        `, [newStatus, title]);
-      }
-      
-      // Update tabItem.stock_qty for affected items
+      // Post stock updates (rebuild summaries from ledger)
+      // This is the ONLY place that should update tabItem.stock_qty to ensure consistency
+      // The stock posting service will:
+      // 1. Rebuild item stock summary from tabStockLedger/tabCartonStock (across ALL warehouses)
+      // 2. Rebuild bin stock summary
+      // 3. Ensure all stock quantities are consistent
+      // NOTE: Do NOT pass warehouse filter - tabItem.stock_qty should be total across ALL warehouses
       const itemCodes = [...new Set(items.map(item => item.item_code).filter(Boolean))];
-      for (const itemCode of itemCodes) {
-        const [stockSum] = await connection.execute(`
-          SELECT COALESCE(SUM(qty), 0) as total_qty
-          FROM tabStockLedger
-          WHERE item_code = ? AND warehouse = ?
-        `, [itemCode, targetWarehouse]);
+      try {
+        // Generate unique posting key per API call to allow multiple picks for same MR
+        // Use timestamp + item codes to ensure uniqueness while maintaining idempotency within same call
+        const timestamp = Date.now();
+        const uniqueTransactionId = `${title}:${timestamp}:${itemCodes.sort().join(',')}`;
+        const postingResult = await postStock('MR_PICK', uniqueTransactionId, {
+          itemCodes,
+          warehouse: null, // Don't filter by warehouse - calculate total across all warehouses
+          postedBy: normalizedCreatedBy,
+          connection // Use existing transaction
+        });
         
-        const totalStockQty = parseFloat(stockSum[0].total_qty) || 0;
-        
-        await connection.execute(`
-          UPDATE tabItem
-          SET stock_qty = ?,
-              updated_at = NOW()
-          WHERE code = ?
-        `, [totalStockQty, itemCode]);
+        if (postingResult.posted) {
+          console.log(`✅ Stock posted for Material Request ${title}: ${postingResult.affectedItems.length} items updated`);
+        } else {
+          console.log(`⏭️  Stock posting skipped for ${title}: ${postingResult.reason}`);
+        }
+      } catch (postingError) {
+        console.error(`⚠️  Stock posting failed for Material Request ${title}:`, postingError);
+        // Don't fail the entire operation, but log the error
       }
       
       await connection.commit();
@@ -1060,7 +1545,8 @@ export const pickMaterialRequestItems = async (req, res) => {
           material_request: title,
           status: newStatus,
           total_picked_qty: newTotalPicked,
-          items_picked: items.length,
+          items_picked: stockUpdates.length,
+          carton_stock_updated: stockUpdates.some(s => s.carton_stock_updated),
           stock_updates: stockUpdates
         }
       });
@@ -1085,3 +1571,93 @@ export const pickMaterialRequestItems = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/material-requests/:title/picking-status
+ * Get picking status for Material Request (check if all items are fully picked)
+ * 
+ * Response:
+ * {
+ *   "ok": true,
+ *   "data": {
+ *     "title": "MR-123459",
+ *     "total_items": 5,
+ *     "fully_picked_items": 5,
+ *     "all_items_fully_picked": true,
+ *     "pending_items": []
+ *   }
+ * }
+ */
+export const getPickingStatus = async (req, res) => {
+  const connection = await getConnection();
+  
+  try {
+    const { title } = req.params;
+    
+    // Check if Material Request exists
+    const [mrRows] = await connection.execute(
+      'SELECT title FROM tabMaterialRequest WHERE title = ?',
+      [title]
+    );
+    
+    if (mrRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Material Request ${title} not found`
+        }
+      });
+    }
+    
+    // Get all items with picking status
+    const [itemRows] = await connection.execute(
+      `SELECT 
+        item_code,
+        requested_qty,
+        COALESCE(picked_qty, 0) as picked_qty,
+        (requested_qty - COALESCE(picked_qty, 0)) as remaining_qty
+      FROM tabMaterialRequestItem
+      WHERE parent_title = ?
+      ORDER BY item_code`,
+      [title]
+    );
+    
+    const totalItems = itemRows.length;
+    const fullyPickedItems = itemRows.filter(item => 
+      parseFloat(item.picked_qty) >= parseFloat(item.requested_qty)
+    ).length;
+    const allItemsFullyPicked = fullyPickedItems === totalItems && totalItems > 0;
+    
+    const pendingItems = itemRows.filter(item => 
+      parseFloat(item.picked_qty) < parseFloat(item.requested_qty)
+    );
+    
+    res.json({
+      ok: true,
+      data: {
+        title: title,
+        total_items: totalItems,
+        fully_picked_items: fullyPickedItems,
+        all_items_fully_picked: allItemsFullyPicked,
+        pending_items: pendingItems.map(item => ({
+          item_code: item.item_code,
+          requested_qty: parseFloat(item.requested_qty),
+          picked_qty: parseFloat(item.picked_qty),
+          remaining_qty: parseFloat(item.remaining_qty)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Failed to get picking status:', error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to get picking status',
+        details: process.env.NODE_ENV === 'development' ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+};

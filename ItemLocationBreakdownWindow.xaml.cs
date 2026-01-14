@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using System.Windows;
 using Wms.Desktop.Models;
 using Wms.Desktop.ViewModels;
@@ -20,8 +21,22 @@ public partial class ItemLocationBreakdownWindow : Window
     
     private async void ItemLocationBreakdownWindow_Loaded(object sender, RoutedEventArgs e)
     {
+        await RefreshDataAsync();
+    }
+    
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RefreshDataAsync();
+    }
+    
+    private async Task RefreshDataAsync()
+    {
         if (DataContext is ItemLocationBreakdownViewModel viewModel)
         {
+            // Clear existing data first
+            viewModel.Locations.Clear();
+            
+            // Load fresh data (this will reset TotalQty internally)
             await viewModel.LoadLocationDataAsync(_item);
         }
     }

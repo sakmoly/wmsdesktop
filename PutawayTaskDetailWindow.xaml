@@ -3,10 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Wms.Desktop.Converters"
         mc:Ignorable="d"
         Title="Putaway Task Details"
-        Height="500" Width="900"
+        Height="500" Width="1200"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -110,39 +114,136 @@
                            FontWeight="SemiBold"
                            Margin="0,0,0,8" />
 
-                <DataGrid Grid.Row="1"
-                          ItemsSource="{Binding PutawayTask.Lines}"
-                          AutoGenerateColumns="False"
-                          HeadersVisibility="Column"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False"
-                          CanUserResizeRows="False"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Carton ID"
-                                            Binding="{Binding CartonId}"
-                                            Width="120" />
-                        <DataGridTextColumn Header="Item Code"
-                                            Binding="{Binding ItemCode}"
-                                            Width="200" />
-                        <DataGridTextColumn Header="Quantity"
-                                            Binding="{Binding Qty}"
-                                            Width="100" />
-                        <DataGridTextColumn Header="Location ID"
-                                            Binding="{Binding LocationId}"
-                                            Width="150" />
-                        <DataGridTextColumn Header="Rack"
-                                            Binding="{Binding Rack}"
-                                            Width="120" />
-                        <DataGridTextColumn Header="Bin"
-                                            Binding="{Binding Bin}"
-                                            Width="120" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" MinWidth="300" />
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid Grid.Column="0"
+                              x:Name="PutawayLinesGrid"
+                              ItemsSource="{Binding PutawayTask.Lines}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserResizeRows="False"
+                              IsReadOnly="True"
+                              SelectionChanged="PutawayLinesGrid_SelectionChanged"
+                              Margin="0,0,8,0">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Carton ID"
+                                                Binding="{Binding CartonId}"
+                                                Width="120" />
+                            <DataGridTextColumn Header="Item Code"
+                                                Binding="{Binding ItemCode}"
+                                                Width="200" />
+                            <DataGridTextColumn Header="Quantity"
+                                                Binding="{Binding Qty, StringFormat=N2}"
+                                                Width="100" />
+                            <DataGridTextColumn Header="Location ID"
+                                                Binding="{Binding LocationId}"
+                                                Width="150" />
+                            <DataGridTextColumn Header="Rack"
+                                                Binding="{Binding Rack}"
+                                                Width="120" />
+                            <DataGridTextColumn Header="Bin"
+                                                Binding="{Binding Bin}"
+                                                Width="120" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Carton Details Panel (shown when carton mode and carton selected) -->
+                    <Border Grid.Column="1"
+                            x:Name="CartonDetailsPanel"
+                            Background="#F9FAFB"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12"
+                            Visibility="{Binding IsCartonLevelMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Carton Details"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Margin="0,0,0,8"
+                                       Foreground="#111827" />
+                            
+                            <TextBlock x:Name="SelectedCartonIdText"
+                                       Text="Select a line with Carton ID"
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       Margin="0,0,0,12"
+                                       TextWrapping="Wrap" />
+
+                            <StackPanel x:Name="CartonInfoPanel" Visibility="Collapsed">
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" MinWidth="100" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Current Bin:"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,8,4" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1"
+                                               x:Name="CartonCurrentBinText"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0"
+                                               Text="Status:"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,8,4" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1"
+                                               x:Name="CartonStatusText"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0"
+                                               Text="Items:"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,8,0" />
+                                </Grid>
+
+                                <DataGrid x:Name="CartonItemsGrid"
+                                          AutoGenerateColumns="False"
+                                          HeadersVisibility="Column"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          CanUserResizeRows="False"
+                                          IsReadOnly="True"
+                                          MaxHeight="200"
+                                          Margin="0,4,0,0">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Item Code"
+                                                            Binding="{Binding ItemCode}"
+                                                            Width="*" />
+                                        <DataGridTextColumn Header="Qty"
+                                                            Binding="{Binding Qty, StringFormat=N2}"
+                                                            Width="80" />
+                                        <DataGridTextColumn Header="UOM"
+                                                            Binding="{Binding Uom}"
+                                                            Width="60" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
 
-        <!-- Totals + Close -->
+        <!-- Totals + Actions -->
         <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
@@ -160,6 +261,16 @@
                        FontWeight="Bold"
                        Foreground="#1D4ED8"
                        VerticalAlignment="Center" />
+            <Button Content="Complete"
+                    Command="{Binding CompletePutawayCommand}"
+                    IsEnabled="{Binding CanComplete}"
+                    Padding="16,8"
+                    Margin="0,0,8,0"
+                    Background="#10B981"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    FontWeight="SemiBold" />
             <Button Content="Close"
                     Width="80"
                     IsCancel="True" />

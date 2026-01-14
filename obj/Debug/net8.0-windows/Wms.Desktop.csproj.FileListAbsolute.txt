@@ -36,10 +36,7 @@ D:\Development Project\Printechs WMS\Wms.Desktop\bin\Debug\net8.0-windows\runtim
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.csproj.AssemblyReference.cache
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\AsnDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\DistributionPlanDetailWindow.baml
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\ItemLocationBreakdownWindow.baml
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\MaterialRequestDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\PurchaseOrderDetailWindow.baml
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\PutawayTaskDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\SortBoxDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\TransferCartonDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\TransferInDetailWindow.baml
@@ -48,6 +45,7 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Window
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Windows\InputDialog.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\WmsContainerDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\AsnDetailWindow.g.cs
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\CycleCountTaskDetailWindow.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\DistributionPlanDetailWindow.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\InboundSessionDetailWindow.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\ItemLocationBreakdownWindow.g.cs
@@ -62,6 +60,7 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Transf
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\AisleListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\AsnListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\BrandListView.g.cs
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\CycleCountTaskListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\DistributionPlanListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\InboundSessionListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\ItemGroupListView.g.cs
@@ -76,6 +75,7 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\SortBoxListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\StockLedgerView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\SupplierListView.g.cs
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransactionHistoryView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferCartonListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferInListView.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferOrderListView.g.cs
@@ -94,11 +94,16 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\App.g.
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\GeneratedInternalTypeHelper.g.cs
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop_MarkupCompile.cache
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop_MarkupCompile.lref
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\CycleCountTaskDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\InboundSessionDetailWindow.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\ItemLocationBreakdownWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\MainWindow.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\MaterialRequestDetailWindow.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\PutawayTaskDetailWindow.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\AisleListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\AsnListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\BrandListView.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\CycleCountTaskListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\DistributionPlanListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\InboundSessionListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\ItemGroupListView.baml
@@ -113,6 +118,7 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\SortBoxListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\StockLedgerView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\SupplierListView.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransactionHistoryView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferCartonListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferInListView.baml
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\TransferOrderListView.baml
@@ -127,13 +133,10 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\WmsTra
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.g.resources
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.GeneratedMSBuildEditorConfig.editorconfig
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.csproj.CoreCompileInputs.cache
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.sourcelink.json
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desk.075879BC.Up2Date
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.dll
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\refint\Wms.Desktop.dll
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.pdb
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Wms.Desktop.genruntimeconfig.cache
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\ref\Wms.Desktop.dll
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\CycleCountTaskDetailWindow.baml
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\CycleCountTaskDetailWindow.g.cs
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\CycleCountTaskListView.g.cs
-D:\Development Project\Printechs WMS\Wms.Desktop\obj\Debug\net8.0-windows\Views\CycleCountTaskListView.baml

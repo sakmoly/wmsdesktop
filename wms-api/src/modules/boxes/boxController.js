@@ -625,15 +625,33 @@ export const closeBox = async (req, res) => {
  * }
  */
 export const getBoxes = async (req, res) => {
-  const { asn, store, status } = req.query;
+  const { asn, store, status, bin_location, bin_code } = req.query;
 
-  // Validation
+  // If bin_location or bin_code is provided, this might be a bin scan request
+  // Redirect to bin-master API or return helpful error
+  if (bin_location || bin_code) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'INVALID_ENDPOINT',
+        message: 'For bin scanning/validation, use GET /api/master/bin-master/:bin_code instead of GET /api/boxes',
+        suggestion: `Use: GET /api/master/bin-master/${bin_location || bin_code}`
+      }
+    });
+  }
+
+  // Validation: asn and store are required for getting boxes
   if (!asn || !store) {
     return res.status(400).json({
       ok: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'asn and store query parameters are required'
+        message: 'asn and store query parameters are required for getting boxes',
+        details: {
+          provided: { asn: asn || null, store: store || null },
+          required: ['asn', 'store'],
+          note: 'If you are trying to scan/validate a bin location, use GET /api/master/bin-master/:bin_code instead'
+        }
       }
     });
   }

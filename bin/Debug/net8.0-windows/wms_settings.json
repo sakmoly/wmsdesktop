@@ -1,7 +1,7 @@
 {
   "Company": "Printechs Advanced Printing Trading Co.",
-  "ApiEndpointUrl": "https://erpnext.printechs.example.com/api",
-  "ApiKey": "******-MOCK-KEY-ONLY-******",
+  "ApiEndpointUrl": "http://localhost:3000/api",
+  "ApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2NvZGUiOiJzeXNhZG1pbiIsInVzZXJfaWQiOiJzeXNhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODM3Nzc4NiwiZXhwIjoxNzY4OTgyNTg2fQ.O-cM-kpKlT9La1_D8RuaDmMLiUr-dAqYQxMMLuX-tgQ",
   "SyncFrequencyMinutes": 15,
   "DefaultPickingWarehouse": "WH-MAIN",
   "LastSyncTimestamp": "2025-12-25T11:24:29.4058388+03:00",
@@ -12,5 +12,6 @@
   "EncryptedPassword": "root",
   "DatabasePort": 3306,
   "DatabaseExists": true,
-  "TablesExist": true
+  "TablesExist": true,
+  "InventoryTrackingMode": "BinLevel"
 }

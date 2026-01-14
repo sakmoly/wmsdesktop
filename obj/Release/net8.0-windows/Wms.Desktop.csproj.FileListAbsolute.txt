@@ -133,3 +133,8 @@ D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\refi
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\Wms.Desktop.pdb
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\Wms.Desktop.genruntimeconfig.cache
 D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\ref\Wms.Desktop.dll
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\CycleCountTaskDetailWindow.g.cs
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\Views\CycleCountTaskListView.g.cs
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\CycleCountTaskDetailWindow.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\Views\CycleCountTaskListView.baml
+D:\Development Project\Printechs WMS\Wms.Desktop\obj\Release\net8.0-windows\Wms.Desktop.sourcelink.json

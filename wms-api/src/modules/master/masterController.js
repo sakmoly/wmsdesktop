@@ -1242,3 +1242,127 @@ export const getItemBarcodeMap = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/master/items/lookup?barcode=XXX or ?item_code=XXX
+ * Lookup item by barcode or item_code (for real-time validation in mobile app)
+ * 
+ * Purpose: Allow mobile app to validate items in real-time when scanning barcodes
+ * 
+ * Query Parameters:
+ * - barcode: Barcode to lookup (optional)
+ * - item_code: Item code to lookup (optional)
+ * 
+ * Response Format:
+ * {
+ *   "found": true,
+ *   "item": {
+ *     "item_code": "SKU-SHIRT-001-WHT-M",
+ *     "item_name": "Shirt White Medium",
+ *     "barcode": "SKU-SHIRT-001-WHT-M",
+ *     ...
+ *   }
+ * }
+ * OR
+ * {
+ *   "found": false,
+ *   "message": "Item not found"
+ * }
+ */
+export const lookupItem = async (req, res) => {
+  const connection = await getConnection();
+  
+  try {
+    const { barcode, item_code } = req.query;
+    
+    // Validation: at least one parameter required
+    if (!barcode && !item_code) {
+      return res.status(400).json({
+        found: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Either barcode or item_code query parameter is required'
+        }
+      });
+    }
+    
+    let query = `
+      SELECT 
+        code as item_code,
+        name as item_name,
+        item_group,
+        brand,
+        default_uom,
+        stock_uom,
+        barcode,
+        maintain_stock,
+        stock_qty,
+        reserved_qty,
+        updated_on,
+        created_at,
+        updated_at
+      FROM tabItem
+      WHERE 1=1
+    `;
+    const params = [];
+    
+    // Lookup by barcode (exact match or item_code match)
+    if (barcode) {
+      query += ` AND (barcode = ? OR code = ?)`;
+      params.push(barcode, barcode);
+    }
+    
+    // Lookup by item_code
+    if (item_code) {
+      query += ` AND code = ?`;
+      params.push(item_code);
+    }
+    
+    query += ` LIMIT 1`;
+    
+    const [rows] = await connection.execute(query, params);
+    
+    if (rows.length > 0) {
+      const item = rows[0];
+      res.json({
+        found: true,
+        item: {
+          item_code: item.item_code,
+          code: item.item_code, // Backward compatibility
+          item_name: item.item_name,
+          name: item.item_name, // Backward compatibility
+          item_group: item.item_group || null,
+          brand: item.brand || null,
+          default_uom: item.default_uom || null,
+          stock_uom: item.stock_uom || null,
+          barcode: item.barcode || item.item_code, // Use item_code as barcode if barcode is null
+          maintain_stock: Boolean(item.maintain_stock),
+          stock_qty: parseFloat(item.stock_qty) || 0,
+          reserved_qty: parseFloat(item.reserved_qty) || 0,
+          updated_on: item.updated_on ? item.updated_on.toISOString() : null,
+          created_at: item.created_at ? item.created_at.toISOString() : null,
+          updated_at: item.updated_at ? item.updated_at.toISOString() : null
+        }
+      });
+    } else {
+      res.json({
+        found: false,
+        message: barcode 
+          ? `Barcode '${barcode}' not found in system`
+          : `Item code '${item_code}' not found in system`
+      });
+    }
+    
+  } catch (error) {
+    console.error('Failed to lookup item:', error);
+    res.status(500).json({
+      found: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to lookup item',
+        details: process.env.NODE_ENV === 'development' ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+};

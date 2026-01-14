@@ -13,6 +13,8 @@ import boxRoutes from './boxRoutes.js';
 import transferCartonRoutes from './transferCartonRoutes.js';
 import stockLedgerRoutes from './stockLedgerRoutes.js';
 import stockTransactionRoutes from './stockTransactionRoutes.js';
+import transactionHistoryRoutes from './transactionHistoryRoutes.js';
+import { getStockLedgerByLocation } from '../modules/stock-ledger/stockLedgerController.js';
 import transferInRoutes from './transferInRoutes.js';
 import materialRequestRoutes from './materialRequestRoutes.js';
 import cycleCountRoutes from './cycleCountRoutes.js';
@@ -60,8 +62,27 @@ router.use('/api/transfer-cartons', transferCartonRoutes);
 // Register stock ledger routes
 router.use('/api/stock-ledger', stockLedgerRoutes);
 
+// Register WMS stock routes (diagnostics)
+router.use('/api/wms/stock', stockLedgerRoutes);
+
 // Register stock transaction routes
 router.use('/api/stock-transactions', stockTransactionRoutes);
+
+// Register transaction history routes (from tabTransactionHistory)
+router.use('/api/transaction-history', transactionHistoryRoutes);
+
+// Register enhanced stock ledger route for Cycle Count (bin_location + carton_id filtering)
+// GET /api/stock/ledger - Get stock ledger filtered by bin_location (required) and carton_id (optional)
+router.get('/api/stock/ledger', authenticateToken, getStockLedgerByLocation);
+
+// Register alias route for stock by item/warehouse (alternative path structure)
+// GET /api/stock/item/:item_code/warehouse/:warehouse - Get stock ledger for specific item/warehouse
+// This is an alias for /api/stock-ledger/:item_code/:warehouse
+import { getStockLedgerByItem, syncStockQuantities } from '../modules/stock-ledger/stockLedgerController.js';
+router.get('/api/stock/item/:item_code/warehouse/:warehouse', authenticateToken, getStockLedgerByItem);
+
+// POST /api/stock/sync-quantities - Sync tabItem.stock_qty with actual stock
+router.post('/api/stock/sync-quantities', authenticateToken, syncStockQuantities);
 
 // Register transfer in routes
 router.use('/api/transfer-in', transferInRoutes);

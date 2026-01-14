@@ -4,20 +4,25 @@
 import { logger } from "../../utils/logger.js";
 
 import { getConnection } from "../../db/connection.js";
+import { postStock } from "../stock-ledger/stockPostingService.js";
 
 /**
  * GET /api/transfer-cartons
- * Get transfer cartons with optional filtering by ASN and store
+ * Get transfer cartons with optional filtering by ASN, store, and transfer order
  *
  * Query Parameters:
  * - ?asn=ASN-0001 (optional) - Filter by ASN number
  * - ?store=STORE-001 (optional) - Filter by store
+ * - ?material_request=MR-123460 (optional) - Filter by Material Request number (alias for to_no)
+ * - ?to_no=MR-123460 (optional) - Filter by Transfer Order number (or Material Request)
  *
- * Example:
+ * Examples:
  * GET /api/transfer-cartons?asn=ASN-0002&store=WAREHOUSE
+ * GET /api/transfer-cartons?material_request=MR-123460&store=STORE-002
+ * GET /api/transfer-cartons?to_no=MR-123460&store=STORE-002
  */
 export const getTransferCartons = async (req, res) => {
-  const { asn, store } = req.query;
+  const { asn, store, material_request, to_no } = req.query;
 
   const connection = await getConnection();
 
@@ -62,6 +67,14 @@ export const getTransferCartons = async (req, res) => {
     if (store) {
       whereConditions.push("store = ?");
       queryParams.push(store);
+    }
+
+    // Support material_request query parameter (alias for to_no when filtering Material Requests)
+    // Use material_request if provided, otherwise use to_no
+    const transferOrderFilter = material_request || to_no;
+    if (transferOrderFilter) {
+      whereConditions.push(`${toColumn} = ?`);
+      queryParams.push(transferOrderFilter);
     }
 
     const whereClause =
@@ -754,8 +767,62 @@ export const dispatchTransferCarton = async (req, res) => {
       });
     }
 
-    // For Material Request transfer cartons, reduce stock when dispatched
-    if (isMaterialRequest) {
+    // Get item codes from packing events for this Transfer Carton
+    // This is needed for stock posting regardless of whether it's a Material Request or not
+    const [eventItems] = await connection.execute(
+      `
+      SELECT DISTINCT item_code
+      FROM tabWmsScanEvent
+      WHERE tc_id = ?
+        AND event_type IN ('PACK_ITEM_TO_TC', 'PACK_BOX_TO_TC')
+        AND item_code IS NOT NULL
+        AND item_code != ''
+      `,
+      [tc_id]
+    );
+    
+    const itemCodes = eventItems.map(row => row.item_code).filter(Boolean);
+    console.log(`📦 Dispatch: Found ${itemCodes.length} unique item(s) in transfer carton ${tc_id}`);
+    
+    // Get warehouse from transfer carton or Material Request
+    // Note: tabWmsScanEvent doesn't have a warehouse column
+    let warehouse = null;
+    if (itemCodes.length > 0) {
+      // For Material Request transfer cartons, get warehouse from Material Request
+      if (isMaterialRequest && transferOrder) {
+        const [mrRows] = await connection.execute(
+          `SELECT from_warehouse FROM tabMaterialRequest WHERE title = ?`,
+          [transferOrder]
+        );
+        if (mrRows.length > 0 && mrRows[0].from_warehouse) {
+          warehouse = mrRows[0].from_warehouse;
+        }
+      }
+      
+      // Fallback: get warehouse from transfer carton store
+      if (!warehouse && tcRows[0].store) {
+        warehouse = tcRows[0].store;
+      }
+      
+      // Final fallback: use default warehouse
+      if (!warehouse) {
+        const [defaultWarehouse] = await connection.execute(
+          `SELECT code FROM tabWarehouse WHERE warehouse_type = 'Warehouse' ORDER BY code LIMIT 1`
+        );
+        warehouse = defaultWarehouse.length > 0 ? defaultWarehouse[0].code : 'WH-MAIN';
+      }
+      
+      console.log(`📦 Dispatch: Using warehouse: ${warehouse} for transfer carton ${tc_id}`);
+    }
+
+    // For Material Request transfer cartons, DO NOT reduce stock when dispatched
+    // Stock was already reduced during picking (POST /api/material-requests/:title/pick-items)
+    // Dispatch is just a status change to indicate the carton was physically sent out
+    // Reducing stock again would cause DOUBLE REDUCTION
+    // 
+    // NOTE: Stock reduction for Material Requests happens during picking, not dispatch
+    // This is different from regular Transfer Orders where stock is reduced during dispatch
+    if (false && isMaterialRequest) { // DISABLED: Stock already reduced during picking
       const materialRequest = transferOrder;
 
       // Get Material Request details
@@ -834,6 +901,9 @@ export const dispatchTransferCarton = async (req, res) => {
           `📦 Dispatch: Found ${cartonItemsByBin.length} item-bin combination(s) in transfer carton ${tc_id} for Material Request ${materialRequest}`
         );
 
+        // Collect all item codes for stock posting
+        const itemCodes = [...new Set(cartonItemsByBin.map(item => item.item_code).filter(Boolean))];
+        
         // For each item-bin combination, reduce stock from source bin
         for (const item of cartonItemsByBin) {
           const itemCode = item.item_code;
@@ -865,17 +935,36 @@ export const dispatchTransferCarton = async (req, res) => {
           }
 
           if (sourceBin && qty > 0) {
-            // Get current stock from source bin
-            const [currentStock] = await connection.execute(
-              `
+            // Check if carton_id column exists in tabStockLedger
+            const [stockLedgerCartonIdColumn] = await connection.execute(`
+              SELECT COLUMN_NAME 
+              FROM INFORMATION_SCHEMA.COLUMNS 
+              WHERE TABLE_SCHEMA = DATABASE() 
+              AND TABLE_NAME = 'tabStockLedger' 
+              AND COLUMN_NAME = 'carton_id'
+            `);
+            const hasStockLedgerCartonIdColumn =
+              stockLedgerCartonIdColumn.length > 0;
+
+            // Get current stock from source bin (including carton_id if available)
+            let stockQuery = `
               SELECT qty, reserved_qty
+            `;
+            if (hasStockLedgerCartonIdColumn) {
+              stockQuery += `, carton_id`;
+            }
+            stockQuery += `
               FROM tabStockLedger
               WHERE item_code = ?
                 AND warehouse = ?
                 AND bin_location = ?
-            `,
-              [itemCode, warehouse, sourceBin]
-            );
+            `;
+
+            const [currentStock] = await connection.execute(stockQuery, [
+              itemCode,
+              warehouse,
+              sourceBin,
+            ]);
 
             const currentQty =
               currentStock.length > 0
@@ -885,51 +974,60 @@ export const dispatchTransferCarton = async (req, res) => {
               currentStock.length > 0
                 ? parseFloat(currentStock[0].reserved_qty) || 0
                 : 0;
+            const cartonId =
+              hasStockLedgerCartonIdColumn && currentStock.length > 0
+                ? currentStock[0].carton_id || null
+                : null;
 
             if (currentQty >= qty) {
               const newQty = currentQty - qty;
               const qtyBefore = currentQty;
               const qtyReduced = -qty; // Negative for reduction
 
+              // Build stock ledger update query with optional carton_id
+              let insertFields = `item_code, warehouse, bin_location, qty, reserved_qty, qty_before, qty_reduced, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at`;
+              let insertValues = `?, ?, ?, ?, ?, ?, ?, NOW(), 'Dispatch', ?, NOW(), NOW()`;
+              let insertParams = [
+                itemCode,
+                warehouse,
+                sourceBin,
+                newQty,
+                currentReservedQty,
+                qtyBefore,
+                qtyReduced,
+                tc_id,
+              ];
+
+              let updateFields = `qty = ?, qty_before = ?, qty_reduced = ?, last_transaction_date = NOW(), last_transaction_type = 'Dispatch', last_transaction_ref = ?, updated_at = NOW()`;
+              let updateParams = [newQty, qtyBefore, qtyReduced, tc_id];
+
+              // Include carton_id if column exists
+              if (hasStockLedgerCartonIdColumn && cartonId) {
+                insertFields += `, carton_id`;
+                insertValues += `, ?`;
+                insertParams.push(cartonId);
+                updateFields += `, carton_id = ?`;
+                updateParams.push(cartonId);
+              }
+
               // Update stock ledger (decrease from source bin)
+              // NOTE: tabStockLedger has UNIQUE KEY on (item_code, warehouse, bin_location)
+              // This means it will UPDATE the existing record for that bin, not create a new one
+              // This is CORRECT - tabStockLedger shows CURRENT stock at each bin
+              // Transaction history is stored in tabStockTransaction table
               await connection.execute(
                 `
                 INSERT INTO tabStockLedger 
-                  (item_code, warehouse, bin_location, qty, reserved_qty,
-                   qty_before, qty_reduced,
-                   last_transaction_date, last_transaction_type, last_transaction_ref,
-                   updated_at, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?,
-                        NOW(), 'Dispatch', ?,
-                        NOW(), NOW())
+                  (${insertFields})
+                VALUES (${insertValues})
                 ON DUPLICATE KEY UPDATE
-                  qty = ?,
-                  qty_before = ?,
-                  qty_reduced = ?,
-                  last_transaction_date = NOW(),
-                  last_transaction_type = 'Dispatch',
-                  last_transaction_ref = ?,
-                  updated_at = NOW()
+                  ${updateFields}
               `,
-                [
-                  itemCode,
-                  warehouse,
-                  sourceBin,
-                  newQty,
-                  currentReservedQty,
-                  qtyBefore,
-                  qtyReduced,
-                  tc_id,
-                  newQty,
-                  qtyBefore,
-                  qtyReduced,
-                  tc_id,
-                ]
+                [...insertParams, ...updateParams]
               );
-
-              // Insert stock transaction log
-              await connection.execute(
-                `
+              
+              // ALWAYS create a transaction log entry (for history/audit trail)
+              await connection.execute(`
                 INSERT INTO tabStockTransaction 
                   (transaction_date, transaction_type, reference_doc_type, reference_doc,
                    item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
@@ -938,19 +1036,129 @@ export const dispatchTransferCarton = async (req, res) => {
                   (NOW(), 'Dispatch', 'Transfer Carton', ?,
                    ?, ?, ?, ?, ?, ?,
                    ?, NULL, ?, NOW())
-              `,
-                [
-                  tc_id,
-                  itemCode,
-                  warehouse,
-                  sourceBin,
-                  -qty, // Negative (decrease)
-                  currentQty,
-                  newQty,
-                  sourceBin,
-                  dispatched_by || null,
-                ]
-              );
+              `, [
+                tc_id,
+                itemCode,
+                warehouse,
+                sourceBin,
+                qtyReduced, // qty_change (negative for dispatch)
+                qtyBefore, // qty_before
+                newQty, // qty_after
+                sourceBin, // source_bin
+                dispatched_by || null // performed_by
+              ]);
+
+              // Update tabCartonStock if carton_id exists and tabCartonStock table exists
+              if (cartonId) {
+                const [cartonStockTable] = await connection.execute(`
+                  SELECT TABLE_NAME 
+                  FROM INFORMATION_SCHEMA.TABLES 
+                  WHERE TABLE_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'tabCartonStock'
+                `);
+
+                if (cartonStockTable.length > 0) {
+                  try {
+                    // Get current carton stock
+                    const [currentCartonStock] = await connection.execute(
+                      `SELECT qty FROM tabCartonStock 
+                       WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?`,
+                      [cartonId, itemCode, warehouse, sourceBin]
+                    );
+
+                    const currentCartonQty =
+                      currentCartonStock.length > 0
+                        ? parseFloat(currentCartonStock[0].qty) || 0
+                        : 0;
+                    const newCartonQty = Math.max(0, currentCartonQty - qty); // Don't go below 0
+
+                    // Update carton stock
+                    await connection.execute(
+                      `
+                      UPDATE tabCartonStock
+                      SET qty = ?,
+                          updated_at = NOW()
+                      WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?
+                    `,
+                      [newCartonQty, cartonId, itemCode, warehouse, sourceBin]
+                    );
+
+                    console.log(
+                      `[Dispatch] 📦 Updated tabCartonStock: carton_id=${cartonId}, item=${itemCode}, qty=${currentCartonQty} → ${newCartonQty}, bin=${sourceBin}`
+                    );
+                  } catch (cartonStockError) {
+                    console.warn(
+                      `[Dispatch] ⚠️ Could not update tabCartonStock: ${cartonStockError.message}`
+                    );
+                    // Don't fail the transaction - stock ledger is already updated
+                  }
+                }
+              }
+
+              // Insert stock transaction log
+              // Check if carton_id column exists in tabStockTransaction
+              const [stockTransactionColumns] = await connection.execute(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tabStockTransaction' 
+                AND COLUMN_NAME = 'carton_id'
+              `);
+              const hasStockTransactionCartonId =
+                stockTransactionColumns.length > 0;
+
+              if (hasStockTransactionCartonId && cartonId) {
+                // Include carton_id in stock transaction log
+                await connection.execute(
+                  `
+                  INSERT INTO tabStockTransaction 
+                    (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                     item_code, warehouse, bin_location, carton_id, qty_change, qty_before, qty_after,
+                     source_bin, target_bin, performed_by, created_at)
+                  VALUES 
+                    (NOW(), 'Dispatch', 'Transfer Carton', ?,
+                     ?, ?, ?, ?, ?, ?, ?,
+                     ?, NULL, ?, NOW())
+                `,
+                  [
+                    tc_id,
+                    itemCode,
+                    warehouse,
+                    sourceBin,
+                    cartonId,
+                    -qty, // Negative (decrease)
+                    currentQty,
+                    newQty,
+                    sourceBin,
+                    dispatched_by || null,
+                  ]
+                );
+              } else {
+                // Standard stock transaction log without carton_id
+                await connection.execute(
+                  `
+                  INSERT INTO tabStockTransaction 
+                    (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                     item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                     source_bin, target_bin, performed_by, created_at)
+                  VALUES 
+                    (NOW(), 'Dispatch', 'Transfer Carton', ?,
+                     ?, ?, ?, ?, ?, ?,
+                     ?, NULL, ?, NOW())
+                `,
+                  [
+                    tc_id,
+                    itemCode,
+                    warehouse,
+                    sourceBin,
+                    -qty, // Negative (decrease)
+                    currentQty,
+                    newQty,
+                    sourceBin,
+                    dispatched_by || null,
+                  ]
+                );
+              }
 
               // Update tabItem.stock_qty
               const [stockSum] = await connection.execute(
@@ -988,6 +1196,27 @@ export const dispatchTransferCarton = async (req, res) => {
             );
           }
         }
+      }
+    }
+
+    // Post stock updates (rebuild summaries from ledger)
+    if (itemCodes && itemCodes.length > 0) {
+      try {
+        const postingResult = await postStock('TC_DISPATCH', tc_id, {
+          itemCodes,
+          warehouse: warehouse,
+          postedBy: dispatched_by || null,
+          connection // Use existing transaction
+        });
+        
+        if (postingResult.posted) {
+          console.log(`✅ Stock posted for Transfer Carton ${tc_id}: ${postingResult.affectedItems.length} items updated`);
+        } else {
+          console.log(`⏭️  Stock posting skipped for ${tc_id}: ${postingResult.reason}`);
+        }
+      } catch (postingError) {
+        console.error(`⚠️  Stock posting failed for Transfer Carton ${tc_id}:`, postingError);
+        // Don't fail the entire operation, but log the error
       }
     }
 
@@ -1129,26 +1358,27 @@ export const getTransferCartonById = async (req, res) => {
           `Transfer Carton ${tc_id}: Found ${packCountResult[0].total} PACK_BOX_TO_TC events`
         );
 
-        // Group by item_code and source carton (box_id) at SQL level to prevent duplicate summing
-        // CRITICAL: Group by item_code and box_id only - carton_id might vary but we want to sum all quantities
-        // for the same item from the same box
-        // Include both PACK_BOX_TO_TC and PACK_ITEM_TO_TC event types
+        // Group by item_code and carton_id at SQL level to properly sum all quantities
+        // CRITICAL: When the same item is scanned multiple times with the same carton_id and tc_id,
+        // we need to SUM all the qty values from all events, not just use the latest value
+        // Query matches user requirement: GROUP BY item_code, carton_id (without tc_id)
+        // Include both PACK_BOX_TO_TC and PACK_ITEM_TO_TC event types for backward compatibility
         const [sortEvents] = await connection.execute(
           `
           SELECT 
             item_code,
-            box_id,
-            COALESCE(box_id, carton_id) as source_carton,
-            SUM(qty) as total_qty,
-            MAX(event_time) as latest_event_time,
-            MAX(user_id) as latest_user_id
+            carton_id AS source_carton,
+            SUM(qty) AS quantity,
+            MAX(user_id) AS packed_by,
+            MAX(event_time) AS packed_on
           FROM tabWmsScanEvent
           WHERE tc_id = ?
             AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
             AND item_code IS NOT NULL
+            AND item_code != ''
             AND qty > 0
-          GROUP BY item_code, box_id
-          ORDER BY latest_event_time DESC
+          GROUP BY item_code, carton_id
+          ORDER BY packed_on DESC
         `,
           [tc_id]
         );
@@ -1185,60 +1415,19 @@ export const getTransferCartonById = async (req, res) => {
           `Transfer Carton ${tc_id}: Found ${sortEvents.length} unique items (grouped by SQL)`
         );
 
-        // Group by item_code + source_carton (box_id or carton_id)
-        // If same item from same box appears multiple times with different carton_id, we should sum them
-        // But if it's the same item+box+carton combination, SQL SUM already handled it
-        const contentsMap = new Map();
-        for (const event of sortEvents) {
-          // Use box_id as primary source, fallback to carton_id
-          const sourceCarton = event.box_id || event.carton_id || null;
-          // Key: item_code + source box/carton
-          // For transfer cartons, we want to sum quantities for same item from same source box
-          const key = `${event.item_code}_${sourceCarton || ""}`;
-
-          if (!contentsMap.has(key)) {
-            contentsMap.set(key, {
-              item_code: event.item_code,
-              source_carton: sourceCarton,
-              qty: parseFloat(event.total_qty) || 0,
-              packed_by: event.latest_user_id,
-              packed_on: event.latest_event_time
-                ? new Date(event.latest_event_time).toISOString()
-                : new Date().toISOString(),
-            });
-            logger.debug(
-              `Transfer Carton ${tc_id}: Added item ${event.item_code} from ${
-                sourceCarton || "NULL"
-              } with qty ${event.total_qty}`
-            );
-          } else {
-            // If we still get duplicates after SQL GROUP BY, there might be multiple box_id or carton_id values
-            // This shouldn't happen, but log it
-            const existing = contentsMap.get(key);
-            const oldQty = existing.qty;
-            existing.qty += parseFloat(event.total_qty) || 0;
-            logger.warn(
-              `Transfer Carton ${tc_id}: Duplicate key found after SQL grouping: ${key} (old qty: ${oldQty}, adding: ${event.total_qty}, new total: ${existing.qty})`,
-              {
-                event_box_id: event.box_id,
-                event_carton_id: event.carton_id,
-                existing_source_carton: existing.source_carton,
-              }
-            );
-            // Use latest event time
-            if (
-              new Date(event.latest_event_time) > new Date(existing.packed_on)
-            ) {
-              existing.packed_on = new Date(
-                event.latest_event_time
-              ).toISOString();
-              existing.packed_by = event.latest_user_id;
-            }
-          }
-        }
-        cartonContents = Array.from(contentsMap.values()).sort((a, b) =>
-          a.item_code.localeCompare(b.item_code)
-        );
+        // SQL query already groups and sums by item_code and carton_id
+        // Map results directly to cartonContents (no additional grouping needed)
+        cartonContents = sortEvents
+          .map((event) => ({
+            item_code: event.item_code,
+            source_carton: event.source_carton || null,
+            qty: parseFloat(event.quantity) || 0,
+            packed_by: event.packed_by || null,
+            packed_on: event.packed_on
+              ? new Date(event.packed_on).toISOString()
+              : new Date().toISOString(),
+          }))
+          .sort((a, b) => a.item_code.localeCompare(b.item_code));
 
         console.log(
           `Transfer Carton ${tc_id}: Returning ${cartonContents.length} unique items`
@@ -1288,8 +1477,9 @@ export const getTransferCartonById = async (req, res) => {
           `
           SELECT 
             item_code,
-            box_id,
-            COALESCE(box_id, carton_id) as source_carton,
+            carton_id,
+            tc_id,
+            COALESCE(MAX(box_id), carton_id) as source_carton,
             SUM(qty) as total_qty,
             MAX(event_time) as latest_event_time,
             MAX(user_id) as latest_user_id
@@ -1300,7 +1490,7 @@ export const getTransferCartonById = async (req, res) => {
             AND qty > 0
             AND (tc_id IS NULL OR tc_id = ?)
             AND event_time >= ? AND event_time <= ?
-          GROUP BY item_code, box_id
+          GROUP BY item_code, carton_id, tc_id
           ORDER BY latest_event_time DESC
         `,
           mrParams
@@ -1395,6 +1585,235 @@ export const getTransferCartonById = async (req, res) => {
         message: "Failed to fetch transfer carton",
         details: process.env.NODE_ENV === "development" ? error.message : null,
       },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * POST /api/transfer-cartons/:tc_id/add-items
+ * Add items to an existing Transfer Carton
+ * 
+ * Request Body:
+ * {
+ *   "items": [
+ *     {
+ *       "item_code": "SKU-HAT-301-BLU-OS",
+ *       "qty": 2.0,
+ *       "carton_id": "PAW-ASN365425473-1768138301111",
+ *       "source_bin": "A1-R02-L1-B2"
+ *     }
+ *   ],
+ *   "user_id": "USER-150526"
+ * }
+ * 
+ * This endpoint creates PACK_ITEM_TO_TC events for the items, which will appear
+ * in the Transfer Carton contents when queried.
+ */
+export const addItemsToTransferCarton = async (req, res) => {
+  const connection = await getConnection();
+  
+  try {
+    const { tc_id } = req.params;
+    const { items, user_id } = req.body;
+    
+    // Validation
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'items array is required and must not be empty'
+        }
+      });
+    }
+    
+    if (!user_id) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'user_id is required'
+        }
+      });
+    }
+    
+    // Check if transfer carton exists
+    const [tcRows] = await connection.execute(`
+      SELECT tc_id, status, store, to_no, asn_no
+      FROM tabTransferCarton
+      WHERE tc_id = ?
+    `, [tc_id]);
+    
+    if (tcRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Transfer Carton ${tc_id} not found`
+        }
+      });
+    }
+    
+    const transferCarton = tcRows[0];
+    
+    // Check transfer carton status - cannot add items if sealed or dispatched
+    if (transferCarton.status === 'Sealed' || transferCarton.status === 'Dispatched' || transferCarton.status === 'Completed') {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'INVALID_STATUS',
+          message: `Cannot add items to Transfer Carton ${tc_id}. Current status: ${transferCarton.status}`
+        }
+      });
+    }
+    
+    await connection.beginTransaction();
+    
+    const addedItems = [];
+    const errors = [];
+    
+    // Get to_no from transfer carton
+    const transferOrder = transferCarton.to_no || null;
+    const asnNo = transferCarton.asn_no || null;
+    
+    // Check which columns exist in tabWmsScanEvent
+    const [eventTableInfo] = await connection.execute(`DESCRIBE tabWmsScanEvent`);
+    const eventColumns = new Set(eventTableInfo.map((row) => row.Field));
+    
+    const hasMaterialRequestColumn = eventColumns.has('material_request');
+    const hasSourceBinColumn = eventColumns.has('source_bin');
+    const hasToNoColumn = eventColumns.has('to_no');
+    
+    for (const item of items) {
+      const { item_code, qty, carton_id, source_bin } = item;
+      
+      // Validate required fields
+      if (!item_code || qty === undefined || qty <= 0) {
+        errors.push({
+          item_code: item_code || 'MISSING',
+          error: 'Missing or invalid required fields: item_code, qty (must be > 0)'
+        });
+        continue;
+      }
+      
+      try {
+        // Validate carton_id if carton-level inventory is enabled
+        if (carton_id) {
+          const [cartonStockTable] = await connection.execute(`
+            SELECT TABLE_NAME 
+            FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabCartonStock'
+          `);
+          
+          const isCartonLevelMode = cartonStockTable.length > 0;
+          
+          if (isCartonLevelMode && source_bin) {
+            // Validate carton exists at source_bin
+            const [cartonStock] = await connection.execute(`
+              SELECT carton_id, item_code, bin_location, qty
+              FROM tabCartonStock
+              WHERE carton_id = ? 
+                AND item_code = ?
+                AND bin_location = ?
+                AND qty > 0
+                AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
+              LIMIT 1
+            `, [carton_id, item_code, source_bin]);
+            
+            if (cartonStock.length === 0) {
+              errors.push({
+                item_code,
+                error: `Carton ${carton_id} not found in bin ${source_bin} for item ${item_code}. Please verify the carton exists at this location.`
+              });
+              continue;
+            }
+          }
+        }
+        
+        // Create PACK_ITEM_TO_TC event
+        const offlineUuid = `add-item-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        
+        // Build INSERT statement dynamically based on available columns
+        const insertFields = ['offline_uuid', 'event_type', 'event_time', 'device_id', 'user_id',
+                              'carton_id', 'item_code', 'qty', 'tc_id', 'store'];
+        const insertValues = ['?', '?', 'NOW()', '?', '?', '?', '?', '?', '?', '?'];
+        const insertParams = [offlineUuid, 'PACK_ITEM_TO_TC', 'SYSTEM', user_id, carton_id || null, 
+                              item_code, qty, tc_id, transferCarton.store || null];
+        
+        // Add to_no column if column exists and value is available
+        if (hasToNoColumn && transferOrder) {
+          insertFields.push('to_no');
+          insertValues.push('?');
+          insertParams.push(transferOrder);
+        }
+        
+        if (hasMaterialRequestColumn && transferOrder) {
+          insertFields.push('material_request');
+          insertValues.push('?');
+          insertParams.push(transferOrder);
+        }
+        
+        if (hasSourceBinColumn && source_bin) {
+          insertFields.push('source_bin');
+          insertValues.push('?');
+          insertParams.push(source_bin);
+        }
+        
+        // Check if asn_no column exists in tabWmsScanEvent and add if available
+        const hasAsnNoColumn = eventColumns.has('asn_no');
+        if (hasAsnNoColumn && asnNo) {
+          insertFields.push('asn_no');
+          insertValues.push('?');
+          insertParams.push(asnNo);
+        }
+        
+        await connection.execute(`
+          INSERT INTO tabWmsScanEvent 
+            (${insertFields.join(', ')})
+          VALUES (${insertValues.join(', ')})
+        `, insertParams);
+        
+        addedItems.push({
+          item_code,
+          qty,
+          carton_id: carton_id || null
+        });
+        
+        console.log(`✅ Added item ${item_code} (qty: ${qty}) to Transfer Carton ${tc_id}`);
+        
+      } catch (itemError) {
+        errors.push({
+          item_code: item_code || 'MISSING',
+          error: itemError.message
+        });
+      }
+    }
+    
+    await connection.commit();
+    
+    res.json({
+      ok: true,
+      message: 'Items added to transfer carton successfully',
+      added_count: addedItems.length,
+      failed_count: errors.length,
+      total_count: items.length,
+      added_items: addedItems,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    await connection.rollback();
+    console.error('❌ Failed to add items to transfer carton:', error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to add items to transfer carton',
+        details: process.env.NODE_ENV === 'development' ? error.message : null
+      }
     });
   } finally {
     connection.release();

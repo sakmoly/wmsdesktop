@@ -45,20 +45,26 @@ public static class TransferCartonService
             }
 
             // Query WMS Scan Events for this transfer carton
-            // Get PACK_BOX_TO_TC events with item_code (items packed into transfer carton)
-            // Group by item_code and source carton to sum quantities and prevent duplicates
+            // Get PACK_BOX_TO_TC and PACK_ITEM_TO_TC events with item_code (items packed into transfer carton)
+            // CRITICAL: Group by item_code and carton_id to properly SUM all quantities
+            // When the same item is scanned multiple times with the same carton_id and tc_id,
+            // we need to SUM all the qty values from all events, not just use the latest value
+            // Query matches user requirement: GROUP BY item_code, carton_id (without tc_id)
+            // This query MUST match the backend API query exactly
             var sql = @"SELECT 
-                            item_code, 
-                            COALESCE(box_id, carton_id) as source_carton,
-                            SUM(qty) as total_qty,
-                            MAX(event_time) as latest_event_time,
-                            MAX(user_id) as latest_user_id
+                            item_code,
+                            carton_id AS source_carton,
+                            SUM(qty) AS quantity,
+                            MAX(user_id) AS packed_by,
+                            MAX(event_time) AS packed_on
                         FROM tabWmsScanEvent
                         WHERE tc_id = @tc_id
                         AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
                         AND item_code IS NOT NULL
-                        GROUP BY item_code, COALESCE(box_id, carton_id)
-                        ORDER BY latest_event_time DESC";
+                        AND item_code != ''
+                        AND qty > 0
+                        GROUP BY item_code, carton_id
+                        ORDER BY packed_on DESC";
             
             ErrorLogService.LogInfo($"TransferCartonService: Executing query with tc_id = '{tcId}'");
             ErrorLogService.LogInfo($"TransferCartonService: SQL = {sql}");
@@ -96,11 +102,11 @@ public static class TransferCartonService
                 rowCount++;
                 var itemCode = reader.IsDBNull(0) ? null : reader.GetString(0);
                 var sourceCartonId = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var totalQty = Convert.ToDouble(reader.GetDecimal(2)); // Already summed by SQL
-                var latestEventTime = reader.GetDateTime(3);
-                var latestUserId = reader.IsDBNull(4) ? null : reader.GetString(4);
+                var quantity = Convert.ToDouble(reader.GetDecimal(2)); // Already summed by SQL (column name: quantity)
+                var packedBy = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var packedOn = reader.GetDateTime(4);
 
-                ErrorLogService.LogInfo($"TransferCartonService: Found grouped item - ItemCode: {itemCode ?? "NULL"}, SourceCarton: {sourceCartonId ?? "NULL"}, TotalQty: {totalQty}");
+                ErrorLogService.LogInfo($"TransferCartonService: Found grouped item - ItemCode: {itemCode ?? "NULL"}, SourceCarton: {sourceCartonId ?? "NULL"}, Quantity: {quantity}");
 
                 // Skip events without item_code
                 if (string.IsNullOrEmpty(itemCode))
@@ -111,19 +117,20 @@ public static class TransferCartonService
 
                 var key = (itemCode, sourceCartonId);
                 
-                // Since SQL already groups, we should not have duplicates, but check anyway
+                // Since SQL already groups by item_code and carton_id, we should not have duplicates
+                // If a duplicate is found, REPLACE (not add) - the SQL query already summed correctly
                 if (itemDict.ContainsKey(key))
                 {
-                    // This shouldn't happen if SQL grouping works correctly, but handle it
-                    ErrorLogService.LogInfo($"TransferCartonService: WARNING - Duplicate key found after SQL grouping: {itemCode} + {sourceCartonId}");
+                    // This shouldn't happen if SQL grouping works correctly, but if it does, REPLACE not ADD
+                    ErrorLogService.LogInfo($"TransferCartonService: WARNING - Duplicate key found after SQL grouping: {itemCode} + {sourceCartonId}. Replacing quantity (not adding).");
                     var existing = itemDict[key];
                     itemDict[key] = new TransferCartonItem
                     {
                         ItemCode = existing.ItemCode,
                         SourceCartonId = existing.SourceCartonId,
-                        Qty = existing.Qty + totalQty, // Sum if somehow duplicate
-                        PackedOn = latestEventTime > existing.PackedOn ? latestEventTime : existing.PackedOn,
-                        PackedBy = latestEventTime > existing.PackedOn ? (latestUserId ?? string.Empty) : existing.PackedBy
+                        Qty = quantity, // REPLACE with new quantity (SQL already summed correctly)
+                        PackedOn = packedOn > existing.PackedOn ? packedOn : existing.PackedOn,
+                        PackedBy = packedOn > existing.PackedOn ? (packedBy ?? string.Empty) : existing.PackedBy
                     };
                 }
                 else
@@ -133,9 +140,9 @@ public static class TransferCartonService
                     {
                         ItemCode = itemCode,
                         SourceCartonId = sourceCartonId,
-                        Qty = totalQty, // Use the summed quantity from SQL
-                        PackedOn = latestEventTime,
-                        PackedBy = latestUserId ?? string.Empty
+                        Qty = quantity, // Use the summed quantity from SQL
+                        PackedOn = packedOn,
+                        PackedBy = packedBy ?? string.Empty
                     };
                 }
             }
@@ -225,8 +232,8 @@ public static class TransferCartonService
                     var hasMaterialRequestColumn = Convert.ToInt32(await checkColCmd.ExecuteScalarAsync()) > 0;
                     
                     var mrEventsSql = new System.Text.StringBuilder();
-                    mrEventsSql.Append(@"SELECT item_code, COALESCE(box_id, carton_id) as source_carton, 
-                                               SUM(qty) as total_qty, MAX(event_time) as latest_event_time, MAX(user_id) as latest_user_id
+                    mrEventsSql.Append(@"SELECT item_code, carton_id AS source_carton, 
+                                               SUM(qty) AS quantity, MAX(user_id) AS packed_by, MAX(event_time) AS packed_on
                                         FROM tabWmsScanEvent
                                         WHERE transfer_order = @transfer_order");
                     
@@ -238,6 +245,7 @@ public static class TransferCartonService
                     mrEventsSql.Append(@"
                                         AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
                                         AND item_code IS NOT NULL
+                                        AND item_code != ''
                                         AND (tc_id IS NULL OR tc_id = @tc_id)");
                     
                     var mrParams = new List<MySqlParameter>
@@ -285,7 +293,7 @@ public static class TransferCartonService
                         ErrorLogService.LogInfo($"TransferCartonService: Using default time window (last 24 hours): {startTime:yyyy-MM-dd HH:mm:ss} to {endTime:yyyy-MM-dd HH:mm:ss}");
                     }
                     
-                    mrEventsSql.Append(" GROUP BY item_code, COALESCE(box_id, carton_id) ORDER BY latest_event_time DESC");
+                    mrEventsSql.Append(" GROUP BY item_code, carton_id ORDER BY packed_on DESC");
                     
                     await using var mrCmd = new MySqlCommand(mrEventsSql.ToString(), connection);
                     foreach (var param in mrParams)
@@ -299,9 +307,9 @@ public static class TransferCartonService
                     {
                         var itemCode = mrReader.IsDBNull(0) ? null : mrReader.GetString(0);
                         var sourceCartonId = mrReader.IsDBNull(1) ? null : mrReader.GetString(1);
-                        var totalQty = Convert.ToDouble(mrReader.GetDecimal(2));
-                        var latestEventTime = mrReader.GetDateTime(3);
-                        var latestUserId = mrReader.IsDBNull(4) ? null : mrReader.GetString(4);
+                        var quantity = Convert.ToDouble(mrReader.GetDecimal(2));
+                        var packedBy = mrReader.IsDBNull(3) ? null : mrReader.GetString(3);
+                        var packedOn = mrReader.GetDateTime(4);
                         
                         if (!string.IsNullOrEmpty(itemCode))
                         {
@@ -309,14 +317,15 @@ public static class TransferCartonService
                             
                             if (itemDict.ContainsKey(key))
                             {
+                                // REPLACE (not add) - SQL already summed correctly
                                 var existing = itemDict[key];
                                 itemDict[key] = new TransferCartonItem
                                 {
                                     ItemCode = existing.ItemCode,
                                     SourceCartonId = existing.SourceCartonId,
-                                    Qty = existing.Qty + totalQty,
-                                    PackedOn = latestEventTime > existing.PackedOn ? latestEventTime : existing.PackedOn,
-                                    PackedBy = latestEventTime > existing.PackedOn ? (latestUserId ?? string.Empty) : existing.PackedBy
+                                    Qty = quantity, // REPLACE with new quantity (SQL already summed correctly)
+                                    PackedOn = packedOn > existing.PackedOn ? packedOn : existing.PackedOn,
+                                    PackedBy = packedOn > existing.PackedOn ? (packedBy ?? string.Empty) : existing.PackedBy
                                 };
                             }
                             else
@@ -325,9 +334,9 @@ public static class TransferCartonService
                                 {
                                     ItemCode = itemCode,
                                     SourceCartonId = sourceCartonId,
-                                    Qty = totalQty,
-                                    PackedOn = latestEventTime,
-                                    PackedBy = latestUserId ?? string.Empty
+                                    Qty = quantity,
+                                    PackedOn = packedOn,
+                                    PackedBy = packedBy ?? string.Empty
                                 };
                             }
                         }
@@ -418,12 +427,15 @@ public static class TransferCartonService
                             
                             if (itemDict.ContainsKey(key))
                             {
+                                // For SORT_TO_BOX fallback, we need to sum because items from multiple boxes might have same item_code+carton_id
+                                // But if the main query already found this item, we should use the main query's summed quantity
+                                // Only sum if this is from the fallback and main query didn't find it
                                 var existing = itemDict[key];
                                 itemDict[key] = new TransferCartonItem
                                 {
                                     ItemCode = existing.ItemCode,
                                     SourceCartonId = existing.SourceCartonId,
-                                    Qty = existing.Qty + qty,
+                                    Qty = existing.Qty + qty, // Sum for SORT_TO_BOX fallback (multiple boxes)
                                     PackedOn = eventTime > existing.PackedOn ? eventTime : existing.PackedOn,
                                     PackedBy = eventTime > existing.PackedOn ? (userId ?? string.Empty) : existing.PackedBy
                                 };

@@ -8,6 +8,13 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node test-api.js",
+    "test:cycle-count": "node test-cycle-count-complete.js",
+    "test:inbound": "node test-inbound-complete.js",
+    "test:putaway": "node test-putaway-complete.js",
+    "test:transfer-in": "node test-transfer-in-complete.js",
+    "test:material-request": "node test-material-request-complete.js",
+    "test:stock-posting": "node test-stock-posting-system.js",
+    "test:all": "npm run test:cycle-count && npm run test:inbound && npm run test:putaway && npm run test:transfer-in && npm run test:material-request",
     "build": "node build.js",
     "build:exe": "npm run build && pkg dist/entry.js --targets node18-win-x64 --output dist/wms-api.exe --config package.json",
     "package": "npm run build:exe && node package-deployment.js",
@@ -15,7 +22,9 @@
     "insert-locations": "node insert-sample-locations.js",
     "insert-stock": "node insert-sample-stock.js",
     "add-putaway-columns": "node add-source-type-transfer-in-to-putaway-task.js",
-    "test-transfer-in-putaway": "node test-transfer-in-putaway.js"
+    "test-transfer-in-putaway": "node test-transfer-in-putaway.js",
+    "fix-carton-stock": "node fix-carton-stock-from-stock-ledger.js",
+    "update-packing-carton-id": "node update-packing-events-carton-id.js"
   },
   "keywords": [
     "wms",

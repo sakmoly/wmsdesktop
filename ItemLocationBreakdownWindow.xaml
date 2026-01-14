@@ -3,10 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Wms.Desktop.Converters"
         mc:Ignorable="d"
         Title="Item Location Breakdown"
-        Height="420" Width="900"
+        Height="420" Width="1100"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -62,25 +66,45 @@
                     <DataGridTextColumn Header="Bin"
                                         Binding="{Binding BinId}"
                                         Width="80" />
-                    <DataGridTextColumn Header="Qty"
-                                        Binding="{Binding Qty}"
-                                        Width="80" />
+                    <DataGridTextColumn Header="Carton ID"
+                                        Binding="{Binding CartonId}"
+                                        Width="120"
+                                        Visibility="{Binding DataContext.IsCartonLevelMode, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    <DataGridTextColumn Header="Available Qty"
+                                        Binding="{Binding AvailableQty, StringFormat=N2}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Total Qty"
+                                        Binding="{Binding TotalQty, StringFormat=N2}"
+                                        Width="100"
+                                        Visibility="Collapsed" />
+                    <DataGridTextColumn Header="Reserved Qty"
+                                        Binding="{Binding ReservedQty, StringFormat=N2}"
+                                        Width="100"
+                                        Visibility="Collapsed" />
+                    <DataGridTextColumn Header="Blocked Qty"
+                                        Binding="{Binding BlockedQty, StringFormat=N2}"
+                                        Width="100"
+                                        Visibility="Collapsed" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
 
-        <!-- Totals + Close -->
+        <!-- Totals + Actions -->
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,8,0,0"
                     VerticalAlignment="Center">
-            <TextBlock Text="{Binding TotalQty, StringFormat=Total Qty: {0}}"
+            <TextBlock Text="{Binding TotalQty, StringFormat=Total Available Qty: {0}}"
                        Margin="0,0,24,0"
                        FontSize="14"
                        FontWeight="Bold"
                        Foreground="#1D4ED8"
                        VerticalAlignment="Center" />
+            <Button Content="Refresh"
+                    Width="80"
+                    Margin="0,0,8,0"
+                    Click="RefreshButton_Click" />
             <Button Content="Close"
                     Width="80"
                     IsCancel="True" />

@@ -40,6 +40,66 @@ async function isWarehouseStore(connection, storeCode) {
 }
 
 /**
+ * Helper function to normalize warehouse to CODE (not name)
+ * CRITICAL: tabStockLedger stores warehouse CODE, not NAME
+ * @param {Object} connection - Database connection
+ * @param {string} warehouse - Warehouse name or code
+ * @returns {Promise<string>} - Warehouse code (e.g., "WH-MAIN")
+ */
+async function normalizeWarehouseToCode(connection, warehouse) {
+  if (!warehouse || typeof warehouse !== 'string') {
+    // Get default warehouse code
+    const [defaultWarehouse] = await connection.execute(
+      `SELECT code FROM tabWarehouse 
+       WHERE warehouse_type = 'Warehouse' 
+       ORDER BY code 
+       LIMIT 1`
+    );
+    return defaultWarehouse.length > 0 ? defaultWarehouse[0].code : 'WH-MAIN';
+  }
+
+  const normalized = warehouse.trim();
+  
+  // If it's already a code (check if exists in tabWarehouse by code), return it
+  const [codeCheck] = await connection.execute(
+    `SELECT code FROM tabWarehouse WHERE code = ? LIMIT 1`,
+    [normalized]
+  );
+  
+  if (codeCheck.length > 0) {
+    return codeCheck[0].code; // Already a code
+  }
+  
+  // If it's a name, look up the code
+  const [nameCheck] = await connection.execute(
+    `SELECT code FROM tabWarehouse WHERE name = ? LIMIT 1`,
+    [normalized]
+  );
+  
+  if (nameCheck.length > 0) {
+    console.log(`[Putaway] Normalized warehouse "${normalized}" (name) to code "${nameCheck[0].code}"`);
+    return nameCheck[0].code;
+  }
+  
+  // Fallback: try to find default warehouse
+  const [defaultWarehouse] = await connection.execute(
+    `SELECT code FROM tabWarehouse 
+     WHERE warehouse_type = 'Warehouse' 
+     ORDER BY code 
+     LIMIT 1`
+  );
+  
+  if (defaultWarehouse.length > 0) {
+    console.log(`[Putaway] Warning: Warehouse "${normalized}" not found, using default: "${defaultWarehouse[0].code}"`);
+    return defaultWarehouse[0].code;
+  }
+  
+  // Last resort: return as-is (but log warning)
+  console.warn(`[Putaway] Warning: Could not normalize warehouse "${normalized}", using as-is`);
+  return normalized;
+}
+
+/**
  * GET /api/putaway/tasks
  * Get list of putaway tasks with optional filters
  *
@@ -785,16 +845,16 @@ export const createTaskForRemainingItems = async (req, res) => {
  * }
  */
 export const assignRack = async (req, res) => {
-  const { putaway_task, carton_id, item_code, rack, bin, qty, user_id } =
+  const { putaway_task, carton_id, item_code, location_id, rack, bin, qty, user_id } =
     req.body;
 
-  // Validation
-  if (!putaway_task || !rack) {
+  // Validation: Accept either location_id (preferred) or rack (backward compatibility)
+  if (!putaway_task || (!location_id && !rack)) {
     return res.status(400).json({
       ok: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "putaway_task and rack are required",
+        message: "putaway_task and location_id (or rack) are required",
       },
     });
   }
@@ -822,23 +882,82 @@ export const assignRack = async (req, res) => {
       });
     }
 
+    let actualRack = rack;
+    let actualBin = bin;
+    let actualLocationId = location_id;
+
+    // If location_id is provided, look it up to get rack and bin
+    if (location_id) {
+      try {
+        const locationInfo = await lookupLocationFromId(connection, location_id);
+        actualRack = locationInfo.rack;
+        actualBin = locationInfo.bin;
+        actualLocationId = locationInfo.location_id;
+        console.log(
+          `[Putaway] Looked up location ${location_id}: rack="${actualRack}", bin="${actualBin}"`
+        );
+      } catch (error) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "LOCATION_NOT_FOUND",
+            message:
+              error.message ||
+              `Location ID "${location_id}" not found or not available`,
+          },
+        });
+      }
+    }
+
+    // Check if location_id column exists in tabPutawayLine
+    const [lineLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayLine' 
+      AND COLUMN_NAME = 'location_id'
+    `);
+    const hasLineLocationIdColumn = lineLocationColumns.length > 0;
+
     // Update or insert putaway line
     if (carton_id && item_code && qty !== undefined) {
       // Use empty string if bin is null (database column is NOT NULL)
-      const binValue = bin || "";
-      await connection.execute(
-        `
+      const binValue = actualBin || "";
+      
+      let insertQuery = `
         INSERT INTO tabPutawayLine 
-          (parent_title, carton_id, item_code, qty, rack, bin)
-        VALUES (?, ?, ?, ?, ?, ?)
+          (parent_title, carton_id, item_code, qty, rack, bin`;
+      const insertParams = [putaway_task, carton_id, item_code, qty, actualRack, binValue];
+      
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `, location_id`;
+        insertParams.push(actualLocationId);
+      }
+      
+      insertQuery += `)
+        VALUES (?, ?, ?, ?, ?, ?`;
+      
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `, ?`;
+      }
+      
+      insertQuery += `)
         ON DUPLICATE KEY UPDATE
           rack = VALUES(rack),
           bin = VALUES(bin),
-          qty = VALUES(qty),
-          updated_at = CURRENT_TIMESTAMP
-      `,
-        [putaway_task, carton_id, item_code, qty, rack, binValue]
-      );
+          qty = VALUES(qty)`;
+      
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `,
+          location_id = VALUES(location_id)`;
+      }
+      
+      insertQuery += `,
+          updated_at = CURRENT_TIMESTAMP`;
+      
+      await connection.execute(insertQuery, insertParams);
     } else {
       // Just update rack for the task (if no specific line)
       await connection.execute(
@@ -855,16 +974,16 @@ export const assignRack = async (req, res) => {
 
     res.json({
       ok: true,
-      message: "Rack assigned successfully",
+      message: "Location assigned successfully",
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Failed to assign rack:", error);
+    console.error("Failed to assign location:", error);
     res.status(500).json({
       ok: false,
       error: {
         code: "DATABASE_ERROR",
-        message: "Failed to assign rack",
+        message: "Failed to assign location",
         details: process.env.NODE_ENV === "development" ? error.message : null,
       },
     });
@@ -1053,10 +1172,68 @@ export const completePutaway = async (req, res) => {
       }
     }
 
+    // If items are provided in request body, validate they have carton_id
+    if (items && Array.isArray(items) && items.length > 0) {
+      const itemsWithoutCartonId = items.filter((item) => {
+        const cartonId = item.box_id || item.carton_id;
+        return !cartonId || (typeof cartonId === 'string' && cartonId.trim() === '');
+      });
+      
+      if (itemsWithoutCartonId.length > 0) {
+        await connection.rollback();
+        connection.release();
+        console.error(
+          `[Putaway] Validation failed: ${
+            itemsWithoutCartonId.length
+          } items in request missing carton_id: ${itemsWithoutCartonId
+            .map((i) => i.item_code || 'UNKNOWN')
+            .join(", ")}`
+        );
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Cannot complete putaway: some items in request are missing carton ID",
+            details: `Items without carton_id: ${itemsWithoutCartonId
+              .map((i) => i.item_code || 'UNKNOWN')
+              .join(", ")}. Please provide carton_id (or box_id) for all items in the request.`,
+          },
+        });
+      }
+    }
+
     // If items are provided in request body, use them to create/update putaway lines and process for stock
     // This allows completing putaway even if lines don't exist in database yet
     // IMPORTANT: Check if items already exist in putawayLines to prevent duplicate processing
     if (items && Array.isArray(items) && items.length > 0) {
+      // Validate that all items have carton_id (required for inventory tracking)
+      const itemsWithoutCartonId = items.filter((item) => {
+        const cartonId = item.box_id || item.carton_id;
+        return !cartonId || (typeof cartonId === 'string' && cartonId.trim() === '');
+      });
+      
+      if (itemsWithoutCartonId.length > 0) {
+        await connection.rollback();
+        connection.release();
+        console.error(
+          `[Putaway] Validation failed: ${
+            itemsWithoutCartonId.length
+          } items in request missing carton_id: ${itemsWithoutCartonId
+            .map((i) => i.item_code || 'UNKNOWN')
+            .join(", ")}`
+        );
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Cannot complete putaway: some items in request are missing carton ID",
+            details: `Items without carton_id: ${itemsWithoutCartonId
+              .map((i) => i.item_code || 'UNKNOWN')
+              .join(", ")}. Please provide carton_id (or box_id) for all items in the request.`,
+          },
+        });
+      }
+      
       // Validate that all items that should be processed have proper locations
       // Accept either header-level location_id, item-level location_id (preferred), or item-level target_bin (backward compatibility)
       // Check ALL items with qty > 0, not just completed ones, to catch missing locations early
@@ -1506,11 +1683,21 @@ export const completePutaway = async (req, res) => {
         uniqueLinesMap.set(key, line);
       } else {
         // If duplicate found, use MAX quantity (not sum) because they represent the same physical items
+        // Also prefer non-null carton_id if one exists
         // Duplicates can occur when items are in both DB lines and request body
         const existing = uniqueLinesMap.get(key);
         const existingQty = parseFloat(existing.qty) || 0;
         const newQty = parseFloat(line.qty) || 0;
         existing.qty = Math.max(existingQty, newQty);
+        
+        // Update carton_id if existing doesn't have one but new one does
+        if (!existing.carton_id && line.carton_id) {
+          existing.carton_id = line.carton_id;
+          console.log(
+            `[Putaway] Updated carton_id for ${line.item_code} from NULL to ${line.carton_id}`
+          );
+        }
+        
         console.log(
           `[Putaway] Deduplicating line: ${line.item_code} @ ${
             line.rack || ""
@@ -1530,6 +1717,42 @@ export const completePutaway = async (req, res) => {
         `[Putaway] Deduplicated ${originalLength} lines to ${putawayLines.length} unique items`
       );
     }
+    
+    // Refresh putawayLines from database to ensure we have the latest carton_id values
+    // This is important if items were provided in request and updated the lines
+    if (items && Array.isArray(items) && items.length > 0) {
+      const [refreshedLines] = await connection.execute(
+        `
+        SELECT 
+          pl.item_code,
+          pl.qty,
+          pl.rack,
+          pl.bin,
+          pl.carton_id,
+          ${locationIdSelect}
+        FROM tabPutawayLine pl
+        WHERE pl.parent_title = ?
+          AND pl.item_code IS NOT NULL
+          AND pl.qty > 0
+        `,
+        [putaway_task]
+      );
+      
+      // Update putawayLines with refreshed carton_id values
+      for (const refreshedLine of refreshedLines) {
+        const existingLine = putawayLines.find(
+          (l) => l.item_code === refreshedLine.item_code &&
+                 (l.rack || "") === (refreshedLine.rack || "") &&
+                 (l.bin || "") === (refreshedLine.bin || "")
+        );
+        if (existingLine && refreshedLine.carton_id) {
+          existingLine.carton_id = refreshedLine.carton_id;
+          console.log(
+            `[Putaway] Refreshed carton_id for ${refreshedLine.item_code}: ${refreshedLine.carton_id}`
+          );
+        }
+      }
+    }
 
     // Get warehouse from ASN or use default
     const [taskInfo] = await connection.execute(
@@ -1537,7 +1760,9 @@ export const completePutaway = async (req, res) => {
       [putaway_task]
     );
 
-    let warehouse = "Main Warehouse"; // Default warehouse
+    // Get warehouse from ASN or use default
+    // CRITICAL: Normalize warehouse to CODE (not name) for stock ledger consistency
+    let warehouse = null;
     if (taskInfo.length > 0 && taskInfo[0].advance_shipping_notice) {
       // Check if warehouse column exists in tabAdvanceShippingNotice
       const [columns] = await connection.execute(`
@@ -1559,17 +1784,10 @@ export const completePutaway = async (req, res) => {
           warehouse = warehouseRows[0].warehouse;
         }
       }
-
-      // If no warehouse from ASN, try to get default warehouse from tabWarehouse
-      if (warehouse === "Main Warehouse") {
-        const [defaultWarehouse] = await connection.execute(
-          `SELECT name FROM tabWarehouse WHERE warehouse_type = 'Warehouse' OR name LIKE '%Main%' OR name LIKE '%WH-MAIN%' LIMIT 1`
-        );
-        if (defaultWarehouse.length > 0) {
-          warehouse = defaultWarehouse[0].name;
-        }
-      }
     }
+    
+    // Normalize warehouse to CODE (not name) - CRITICAL for stock ledger consistency
+    warehouse = await normalizeWarehouseToCode(connection, warehouse);
 
     // Validate that all putaway lines have proper locations before processing stock
     const linesWithoutLocation = putawayLines.filter((line) => {
@@ -1617,22 +1835,84 @@ export const completePutaway = async (req, res) => {
       });
     }
 
-    // Check if qty_before and qty_reduced columns exist (check once, outside loop)
+    // Validate that all putaway lines being processed have carton_id before processing stock
+    // CRITICAL: Carton ID is required for proper inventory tracking
+    // IMPORTANT: If items are provided in request, only validate those items (partial completion)
+    // If no items provided, validate all lines (full completion)
+    let linesToValidate = putawayLines;
+    if (items && Array.isArray(items) && items.length > 0) {
+      // Only validate lines that match items in the request (partial completion)
+      const requestedItemCodes = new Set(items.map(item => item.item_code));
+      linesToValidate = putawayLines.filter(line => requestedItemCodes.has(line.item_code));
+      console.log(
+        `[Putaway] Partial completion: Validating ${linesToValidate.length} line(s) from request (${putawayLines.length} total lines in task)`
+      );
+    } else {
+      // No items in request - validate all lines (full completion)
+      console.log(
+        `[Putaway] Full completion: Validating all ${putawayLines.length} line(s) in task`
+      );
+    }
+    
+    const linesWithoutCartonId = linesToValidate.filter((line) => {
+      const cartonId = line.carton_id;
+      return !cartonId || (typeof cartonId === 'string' && cartonId.trim() === '');
+    });
+
+    if (linesWithoutCartonId.length > 0) {
+      await connection.rollback();
+      connection.release();
+      console.error(
+        `[Putaway] Validation failed: ${
+          linesWithoutCartonId.length
+        } items missing carton_id: ${linesWithoutCartonId
+          .map((l) => l.item_code)
+          .join(", ")}`
+      );
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Cannot complete putaway: some items are missing carton ID",
+          details: `Items without carton_id: ${linesWithoutCartonId
+            .map((l) => l.item_code)
+            .join(
+              ", "
+            )}. Please ensure all items have a carton_id before completing putaway. Carton ID is required for proper inventory tracking.`,
+        },
+      });
+    }
+    
+    // Filter putawayLines to only include lines being processed (for stock updates)
+    // This ensures we only process stock for items in the request (if provided)
+    // Note: Create a new array instead of reassigning const variable
+    let linesToProcess = [...putawayLines]; // Create a copy
+    if (items && Array.isArray(items) && items.length > 0) {
+      const requestedItemCodes = new Set(items.map(item => item.item_code));
+      const originalCount = linesToProcess.length;
+      linesToProcess = linesToProcess.filter(line => requestedItemCodes.has(line.item_code));
+      console.log(
+        `[Putaway] Filtered putawayLines: ${originalCount} -> ${linesToProcess.length} (only processing items from request)`
+      );
+    }
+
+    // Check if qty_before, qty_reduced, and carton_id columns exist (check once, outside loop)
     const [stockLedgerColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = DATABASE() 
       AND TABLE_NAME = 'tabStockLedger' 
-      AND COLUMN_NAME IN ('qty_before', 'qty_reduced')
+      AND COLUMN_NAME IN ('qty_before', 'qty_reduced', 'carton_id')
     `);
     const hasQtyBefore = stockLedgerColumns.some(col => col.COLUMN_NAME === 'qty_before');
     const hasQtyReduced = stockLedgerColumns.some(col => col.COLUMN_NAME === 'qty_reduced');
+    const hasStockLedgerCartonIdColumn = stockLedgerColumns.some(col => col.COLUMN_NAME === 'carton_id');
 
     // Update stock ledger for each putaway line
     // CRITICAL: Use a Set to track processed item+location combinations to prevent duplicate stock updates
     const processedStockKeys = new Set();
     const stockUpdates = [];
-    for (const line of putawayLines) {
+    for (const line of linesToProcess) {
       const itemCode = line.item_code;
       const qty = parseFloat(line.qty) || 0;
       const rack = (line.rack || "").trim() || null;
@@ -1697,7 +1977,11 @@ export const completePutaway = async (req, res) => {
       const qtyBefore = currentQty;
       const qtyReduced = qty; // Positive for putaway (stock increase)
 
-      // Build INSERT/UPDATE query with optional qty_before and qty_reduced
+      // Extract carton_id from putaway line
+      const cartonId = line.carton_id || null;
+      const cartonIdValue = cartonId && cartonId.trim() !== '' ? cartonId.trim() : null;
+      
+      // Build INSERT/UPDATE query with optional qty_before, qty_reduced, and carton_id
       let insertFields = `item_code, warehouse, bin_location, qty, reserved_qty`;
       let insertValues = `?, ?, ?, ?, ?`;
       let insertParams = [itemCode, warehouse, binLocation, newQty, currentReservedQty];
@@ -1719,6 +2003,16 @@ export const completePutaway = async (req, res) => {
         insertParams.push(qtyReduced);
         updateFields += `, qty_reduced = ?`;
         updateParams.push(qtyReduced);
+      }
+      
+      // Include carton_id in stock ledger if column exists and carton_id is provided
+      if (hasStockLedgerCartonIdColumn && cartonIdValue) {
+        insertFields += `, carton_id`;
+        insertValues += `, ?`;
+        insertParams.push(cartonIdValue);
+        updateFields += `, carton_id = ?`;
+        updateParams.push(cartonIdValue);
+        console.log(`[Putaway] 📦 Including carton_id in stock ledger: ${cartonIdValue} for ${itemCode} @ ${binLocation}`);
       }
       
       insertFields += `, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at`;
@@ -1746,34 +2040,121 @@ export const completePutaway = async (req, res) => {
         [...insertParams, ...updateParams]
       );
 
+      // Update tabCartonStock if carton_id is provided (for carton-level inventory tracking)
+      // Note: cartonId was already extracted above
+      if (cartonIdValue) {
+        // Check if tabCartonStock table exists
+        const [cartonStockTable] = await connection.execute(`
+          SELECT TABLE_NAME 
+          FROM INFORMATION_SCHEMA.TABLES 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabCartonStock'
+        `);
+        
+        if (cartonStockTable.length > 0 && binLocation) {
+          try {
+            // Get current carton stock at this location
+            const [currentCartonStock] = await connection.execute(
+              `SELECT qty FROM tabCartonStock 
+               WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?`,
+              [cartonIdValue, itemCode, warehouse, binLocation]
+            );
+            
+            const currentCartonQty = currentCartonStock.length > 0 
+              ? parseFloat(currentCartonStock[0].qty) || 0 
+              : 0;
+            const newCartonQty = currentCartonQty + qty;
+            
+            // Update or insert carton stock
+            // Note: created_on has DEFAULT CURRENT_TIMESTAMP, so we don't set it manually
+            await connection.execute(`
+              INSERT INTO tabCartonStock 
+                (carton_id, item_code, warehouse, bin_location, qty, status)
+              VALUES 
+                (?, ?, ?, ?, ?, 'PUTAWAY')
+              ON DUPLICATE KEY UPDATE
+                qty = VALUES(qty),
+                updated_at = NOW(),
+                status = 'PUTAWAY',
+                bin_location = VALUES(bin_location)
+            `, [cartonIdValue, itemCode, warehouse, binLocation, newCartonQty]);
+            
+            console.log(`[Putaway] 📦 Updated tabCartonStock: carton_id=${cartonIdValue}, item=${itemCode}, qty=${currentCartonQty} → ${newCartonQty}, bin=${binLocation}`);
+          } catch (cartonStockError) {
+            console.warn(`[Putaway] ⚠️ Could not update tabCartonStock: ${cartonStockError.message}`);
+            // Don't fail the transaction - stock ledger is already updated
+          }
+        }
+      }
+
       // Insert stock transaction log
-      await connection.execute(
-        `
-        INSERT INTO tabStockTransaction 
-          (transaction_date, transaction_type, reference_doc_type, reference_doc,
-           item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
-           source_bin, target_bin, performed_by, created_at)
-        VALUES 
-          (NOW(), 'Putaway', 'Putaway Task', ?,
-           ?, ?, ?, ?, ?, ?,
-           NULL, ?, ?, NOW())
-      `,
-        [
-          putaway_task,
-          itemCode,
-          warehouse,
-          binLocation,
-          qty,
-          currentQty,
-          newQty,
-          binLocation,
-          performed_by || "SYSTEM",
-        ]
-      );
+      // Check if carton_id column exists in tabStockTransaction
+      const [stockTransactionColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabStockTransaction' 
+        AND COLUMN_NAME = 'carton_id'
+      `);
+      const hasStockTransactionCartonId = stockTransactionColumns.length > 0;
+      
+      if (hasStockTransactionCartonId && cartonIdValue) {
+        // Include carton_id in stock transaction log
+        await connection.execute(
+          `
+          INSERT INTO tabStockTransaction 
+            (transaction_date, transaction_type, reference_doc_type, reference_doc,
+             item_code, warehouse, bin_location, carton_id, qty_change, qty_before, qty_after,
+             source_bin, target_bin, performed_by, created_at)
+          VALUES 
+            (NOW(), 'Putaway', 'Putaway Task', ?,
+             ?, ?, ?, ?, ?, ?, ?,
+             NULL, ?, ?, NOW())
+        `,
+          [
+            putaway_task,
+            itemCode,
+            warehouse,
+            binLocation,
+            cartonIdValue,
+            qty,
+            currentQty,
+            newQty,
+            binLocation,
+            performed_by || "SYSTEM",
+          ]
+        );
+      } else {
+        // Standard stock transaction log without carton_id
+        await connection.execute(
+          `
+          INSERT INTO tabStockTransaction 
+            (transaction_date, transaction_type, reference_doc_type, reference_doc,
+             item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+             source_bin, target_bin, performed_by, created_at)
+          VALUES 
+            (NOW(), 'Putaway', 'Putaway Task', ?,
+             ?, ?, ?, ?, ?, ?,
+             NULL, ?, ?, NOW())
+        `,
+          [
+            putaway_task,
+            itemCode,
+            warehouse,
+            binLocation,
+            qty,
+            currentQty,
+            newQty,
+            binLocation,
+            performed_by || "SYSTEM",
+          ]
+        );
+      }
 
       stockUpdates.push({
         item_code: itemCode,
         location: binLocation || "Warehouse",
+        carton_id: cartonIdValue || null,
         qty_added: qty,
         qty_before: currentQty,
         qty_after: newQty,
@@ -1781,20 +2162,62 @@ export const completePutaway = async (req, res) => {
     }
 
     // Update tabItem.stock_qty (sum of all locations for each item)
-    const itemCodes = [...new Set(putawayLines.map((line) => line.item_code))];
+    // CRITICAL: If carton stock exists, use it; otherwise use stock ledger
+    const itemCodes = [...new Set(linesToProcess.map((line) => line.item_code))];
+    
+    // Check if tabCartonStock table exists
+    const [cartonStockTable] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabCartonStock'
+    `);
+    const hasCartonStockTable = cartonStockTable.length > 0;
+    
     for (const itemCode of itemCodes) {
+      let stockQty = 0;
+      
+      if (hasCartonStockTable) {
+        // Check if item has carton stock - if yes, use sum from carton stock
+        const [cartonStockSum] = await connection.execute(
+          `SELECT COALESCE(SUM(qty), 0) as total_qty
+           FROM tabCartonStock 
+           WHERE item_code = ? AND qty > 0`,
+          [itemCode]
+        );
+        
+        if (cartonStockSum.length > 0 && parseFloat(cartonStockSum[0].total_qty) > 0) {
+          // Item has carton stock - use sum from carton stock
+          stockQty = parseFloat(cartonStockSum[0].total_qty) || 0;
+          console.log(`[Putaway] 📦 Using carton stock sum for ${itemCode}: ${stockQty}`);
+        } else {
+          // No carton stock - use sum from stock ledger
+          const [ledgerSum] = await connection.execute(
+            `SELECT COALESCE(SUM(qty), 0) as total_qty
+             FROM tabStockLedger 
+             WHERE item_code = ?`,
+            [itemCode]
+          );
+          stockQty = ledgerSum.length > 0 ? parseFloat(ledgerSum[0].total_qty) || 0 : 0;
+          console.log(`[Putaway] 📊 Using stock ledger sum for ${itemCode}: ${stockQty}`);
+        }
+      } else {
+        // No carton stock table - use sum from stock ledger
+        const [ledgerSum] = await connection.execute(
+          `SELECT COALESCE(SUM(qty), 0) as total_qty
+           FROM tabStockLedger 
+           WHERE item_code = ?`,
+          [itemCode]
+        );
+        stockQty = ledgerSum.length > 0 ? parseFloat(ledgerSum[0].total_qty) || 0 : 0;
+      }
+      
       await connection.execute(
-        `
-        UPDATE tabItem
-        SET stock_qty = (
-          SELECT COALESCE(SUM(qty), 0)
-          FROM tabStockLedger 
-          WHERE item_code = ?
-        ),
-        updated_at = NOW()
-        WHERE code = ?
-      `,
-        [itemCode, itemCode]
+        `UPDATE tabItem
+         SET stock_qty = ?,
+             updated_at = NOW()
+         WHERE code = ?`,
+        [stockQty, itemCode]
       );
     }
 
@@ -1837,9 +2260,9 @@ export const completePutaway = async (req, res) => {
     if (taskBoxInfo.length > 0 && hasTaskBoxId && taskBoxInfo[0].box_id) {
       const boxId = taskBoxInfo[0].box_id;
       const taskRack =
-        (hasTaskRack && taskBoxInfo[0].rack) || putawayLines[0]?.rack || null;
+        (hasTaskRack && taskBoxInfo[0].rack) || (linesToProcess.length > 0 ? linesToProcess[0].rack : null) || null;
       const taskBin =
-        (hasTaskBin && taskBoxInfo[0].bin) || putawayLines[0]?.bin || null;
+        (hasTaskBin && taskBoxInfo[0].bin) || (linesToProcess.length > 0 ? linesToProcess[0].bin : null) || null;
 
       // Check if rack, bin, and timestamp columns exist in tabSortBox
       const [boxColumns] = await connection.execute(`
@@ -1888,7 +2311,7 @@ export const completePutaway = async (req, res) => {
     // Update location availability (mark as occupied/available based on your business logic)
     // For now, we'll mark it as available (is_available = 1) since items are being put away
     const uniqueLocations = [
-      ...new Set(putawayLines.map((line) => line.rack).filter((r) => r)),
+      ...new Set(linesToProcess.map((line) => line.rack).filter((r) => r)),
     ];
 
     // Check if updated_on or updated_at column exists in tabLocation
@@ -3203,8 +3626,9 @@ async function updatePutawayTaskLocation(
     }
 
     // Get warehouse from ASN or use default
+    // CRITICAL: Normalize warehouse to CODE (not name) for stock ledger consistency
     const taskInfo = tasks[0];
-    let warehouse = "Main Warehouse";
+    let warehouse = null;
     if (taskInfo.advance_shipping_notice) {
       // Check if warehouse column exists in tabAdvanceShippingNotice
       const [columns] = await connection.execute(`
@@ -3226,16 +3650,10 @@ async function updatePutawayTaskLocation(
         }
       }
 
-      // If no warehouse from ASN, try to get default warehouse from tabWarehouse
-      if (warehouse === "Main Warehouse") {
-        const [defaultWarehouse] = await connection.execute(
-          `SELECT name FROM tabWarehouse WHERE warehouse_type = 'Warehouse' OR name LIKE '%Main%' OR name LIKE '%WH-MAIN%' LIMIT 1`
-        );
-        if (defaultWarehouse.length > 0) {
-          warehouse = defaultWarehouse[0].name;
-        }
-      }
     }
+    
+    // Normalize warehouse to CODE (not name) - CRITICAL for stock ledger consistency
+    warehouse = await normalizeWarehouseToCode(connection, warehouse);
 
     // Update location/rack/bin only - DO NOT update stock here
     // Stock will be updated only when putaway is completed (status = "Completed")

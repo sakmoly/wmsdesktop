@@ -10,9 +10,17 @@ namespace Wms.Desktop.Services;
 
 /// <summary>
 /// Service for managing real-time stock ledger and stock transactions
+/// Supports both Bin-Level and Carton-Level inventory tracking modes
 /// </summary>
 public static class StockLedgerService
 {
+    /// <summary>
+    /// Check if carton-level inventory mode is enabled
+    /// </summary>
+    private static bool IsCartonLevelMode(WmsSettings settings)
+    {
+        return settings.InventoryTrackingMode == "CartonLevel";
+    }
     /// <summary>
     /// Update stock after Receiving Transaction completed
     /// Increases stock at warehouse level (dock, no bin yet)
@@ -91,7 +99,9 @@ public static class StockLedgerService
                     wmsTransactionTitle: wmsTransactionTitle,
                     sourceBin: item.SourceBin ?? "DOCK-01",
                     targetBin: null,
-                    performedBy: null
+                    performedBy: null,
+                    cartonId: null,
+                    settings: settings
                 );
             }
 
@@ -123,8 +133,12 @@ public static class StockLedgerService
             await connection.OpenAsync();
 
             // Get all completed items from Putaway Transaction
-            var itemsSql = @"
-                SELECT item_code, qty, source_bin, target_bin, uom
+            // Try to get carton_id from putaway lines if available
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabWmsTransactionDetail", "carton_id");
+            var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
+            
+            var itemsSql = $@"
+                SELECT item_code, qty, source_bin, target_bin, uom{cartonIdSelect}
                 FROM tabWmsTransactionDetail
                 WHERE parent_title = @transactionTitle
                   AND assignment_status = 'Completed'
@@ -135,14 +149,19 @@ public static class StockLedgerService
             itemsCmd.Parameters.AddWithValue("@transactionTitle", wmsTransactionTitle);
             await using var itemsReader = await itemsCmd.ExecuteReaderAsync();
 
-            var items = new List<(string ItemCode, double Qty, string SourceBin, string TargetBin)>();
+            var items = new List<(string ItemCode, double Qty, string SourceBin, string TargetBin, string? CartonId)>();
             while (await itemsReader.ReadAsync())
             {
+                var cartonId = hasCartonIdColumn && !itemsReader.IsDBNull(5) 
+                    ? itemsReader.GetString(5) 
+                    : null;
+                
                 items.Add((
                     itemsReader.GetString(0),
                     Convert.ToDouble(itemsReader.GetDecimal(1)),
                     itemsReader.IsDBNull(2) ? "DOCK-01" : itemsReader.GetString(2),
-                    itemsReader.GetString(3)
+                    itemsReader.GetString(3),
+                    cartonId
                 ));
             }
             await itemsReader.CloseAsync();
@@ -171,6 +190,32 @@ public static class StockLedgerService
             // Update stock for each item (move from source to target bin)
             foreach (var item in items)
             {
+                // If carton-level mode and carton ID available, try to get from putaway lines
+                string? cartonId = item.CartonId;
+                if (IsCartonLevelMode(settings) && string.IsNullOrEmpty(cartonId))
+                {
+                    // Try to get carton_id from putaway lines
+                    var putawayLineSql = @"
+                        SELECT carton_id 
+                        FROM tabPutawayLine 
+                        WHERE parent_title = (
+                            SELECT reference_doc 
+                            FROM tabWmsTransaction 
+                            WHERE title = @transactionTitle
+                        )
+                        AND item_code = @itemCode
+                        LIMIT 1";
+                    
+                    await using var putawayCmd = new MySqlCommand(putawayLineSql, connection);
+                    putawayCmd.Parameters.AddWithValue("@transactionTitle", wmsTransactionTitle);
+                    putawayCmd.Parameters.AddWithValue("@itemCode", item.ItemCode);
+                    var cartonIdResult = await putawayCmd.ExecuteScalarAsync();
+                    if (cartonIdResult != null && cartonIdResult != DBNull.Value)
+                    {
+                        cartonId = cartonIdResult.ToString();
+                    }
+                }
+
                 // Decrease from source bin (warehouse-level or dock)
                 await UpdateStockAsync(
                     connection,
@@ -184,7 +229,9 @@ public static class StockLedgerService
                     wmsTransactionTitle: wmsTransactionTitle,
                     sourceBin: item.SourceBin,
                     targetBin: item.TargetBin,
-                    performedBy: null
+                    performedBy: null,
+                    cartonId: cartonId,
+                    settings: settings
                 );
 
                 // Increase in target bin
@@ -200,7 +247,9 @@ public static class StockLedgerService
                     wmsTransactionTitle: wmsTransactionTitle,
                     sourceBin: item.SourceBin,
                     targetBin: item.TargetBin,
-                    performedBy: null
+                    performedBy: null,
+                    cartonId: cartonId,
+                    settings: settings
                 );
             }
 
@@ -297,7 +346,9 @@ public static class StockLedgerService
                             wmsTransactionTitle: wmsTransactionTitle,
                             sourceBin: item.SourceBin,
                             targetBin: item.TargetBin,
-                            performedBy: null
+                            performedBy: null,
+                            cartonId: null,
+                            settings: settings
                         );
                     }
 
@@ -314,7 +365,9 @@ public static class StockLedgerService
                         wmsTransactionTitle: wmsTransactionTitle,
                         sourceBin: item.SourceBin,
                         targetBin: item.TargetBin,
-                        performedBy: null
+                        performedBy: null,
+                        cartonId: null,
+                        settings: settings
                     );
                 }
                 else
@@ -334,7 +387,9 @@ public static class StockLedgerService
                             wmsTransactionTitle: wmsTransactionTitle,
                             sourceBin: item.SourceBin,
                             targetBin: null,
-                            performedBy: null
+                            performedBy: null,
+                            cartonId: null,
+                            settings: settings
                         );
                     }
                 }
@@ -432,7 +487,9 @@ public static class StockLedgerService
                     wmsTransactionTitle: wmsTransactionTitle,
                     sourceBin: item.BinLocation, // Same bin (no movement)
                     targetBin: item.BinLocation, // Same bin (no movement)
-                    performedBy: null
+                    performedBy: null,
+                    cartonId: null,
+                    settings: settings
                 );
             }
 
@@ -448,6 +505,7 @@ public static class StockLedgerService
 
     /// <summary>
     /// Core stock update method - updates tabStockLedger and logs to tabStockTransaction
+    /// Supports both bin-level and carton-level modes
     /// </summary>
     private static async Task UpdateStockAsync(
         MySqlConnection connection,
@@ -461,8 +519,30 @@ public static class StockLedgerService
         string wmsTransactionTitle,
         string? sourceBin,
         string? targetBin,
-        string? performedBy)
+        string? performedBy,
+        string? cartonId = null,
+        WmsSettings? settings = null)
     {
+        // If carton-level mode and carton ID provided, use carton stock
+        if (settings != null && IsCartonLevelMode(settings) && !string.IsNullOrEmpty(cartonId) && !string.IsNullOrEmpty(binLocation))
+        {
+            await UpdateCartonStockAsync(
+                settings,
+                cartonId,
+                itemCode,
+                warehouse,
+                binLocation,
+                qtyChange,
+                transactionType,
+                referenceDocType,
+                referenceDoc,
+                wmsTransactionTitle,
+                sourceBin,
+                targetBin,
+                performedBy);
+            return;
+        }
+
         await using var transaction = await connection.BeginTransactionAsync();
         
         try
@@ -529,15 +609,20 @@ public static class StockLedgerService
             await updateStockCmd.ExecuteNonQueryAsync();
 
             // Insert stock transaction log
-            var insertTransactionSql = @"
+            // Check if carton_id column exists
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockTransaction", "carton_id");
+            var cartonIdColumn = hasCartonIdColumn ? ", carton_id" : "";
+            var cartonIdValue = hasCartonIdColumn ? ", @cartonId" : "";
+
+            var insertTransactionSql = $@"
                 INSERT INTO tabStockTransaction 
                     (transaction_date, transaction_type, reference_doc_type, reference_doc, wms_transaction_title,
                      item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
-                     source_bin, target_bin, performed_by, created_at)
+                     source_bin, target_bin, performed_by{cartonIdColumn}, created_at)
                 VALUES 
                     (NOW(), @transactionType, @referenceDocType, @referenceDoc, @wmsTransactionTitle,
                      @itemCode, @warehouse, @binLocation, @qtyChange, @currentQty, @newQty,
-                     @sourceBin, @targetBin, @performedBy, NOW())";
+                     @sourceBin, @targetBin, @performedBy{cartonIdValue}, NOW())";
 
             await using var insertTransactionCmd = new MySqlCommand(insertTransactionSql, connection, transaction);
             insertTransactionCmd.Parameters.AddWithValue("@transactionType", transactionType);
@@ -553,6 +638,10 @@ public static class StockLedgerService
             insertTransactionCmd.Parameters.AddWithValue("@sourceBin", sourceBin ?? (object)DBNull.Value);
             insertTransactionCmd.Parameters.AddWithValue("@targetBin", targetBin ?? (object)DBNull.Value);
             insertTransactionCmd.Parameters.AddWithValue("@performedBy", performedBy ?? (object)DBNull.Value);
+            if (hasCartonIdColumn && !string.IsNullOrEmpty(cartonId))
+            {
+                insertTransactionCmd.Parameters.AddWithValue("@cartonId", cartonId);
+            }
             
             await insertTransactionCmd.ExecuteNonQueryAsync();
 
@@ -635,11 +724,15 @@ public static class StockLedgerService
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            var sql = @"
+            // Check if carton_id column exists in tabStockLedger
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
+            var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
+            
+            var sql = $@"
                 SELECT item_code, warehouse, bin_location, qty, reserved_qty,
                        qty_before, qty_reduced,
                        last_transaction_date, last_transaction_type, last_transaction_ref,
-                       updated_at, created_at
+                       updated_at, created_at{cartonIdSelect}
                 FROM tabStockLedger
                 WHERE item_code = @itemCode
                   AND warehouse = @warehouse
@@ -652,20 +745,74 @@ public static class StockLedgerService
             await using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
+                var cartonIdIndex = 12; // Index after created_at (11)
+                var cartonId = hasCartonIdColumn && !reader.IsDBNull(cartonIdIndex) 
+                    ? reader.GetString(cartonIdIndex) 
+                    : null;
+                
+                // Calculate values based on user requirements:
+                // - Qty = Transaction Qty (the quantity involved in the transaction)
+                // - Available Qty = Qty after Deduction of this Transaction (stock after transaction)
+                // - Qty Before = Stock before deduction of this transaction
+                // - Qty +/- = Current transaction qty (negative for picking/reduction)
+                
+                var remainingStock = Convert.ToDouble(reader.GetDecimal(3)); // Remaining stock after transaction
+                var reservedQty = Convert.ToDouble(reader.GetDecimal(4));
+                var qtyBefore = reader.IsDBNull(5) ? (double?)null : Convert.ToDouble(reader.GetDecimal(5));
+                var qtyReduced = reader.IsDBNull(6) ? (double?)null : Convert.ToDouble(reader.GetDecimal(6));
+                
+                // Calculate transaction quantity
+                // IMPORTANT: qty_reduced should be negative for picking (e.g., -2.00)
+                // If qty_reduced is positive and large (e.g., 100.00), it's likely an old record with wrong value
+                // In that case, we should NOT use it as transaction qty
+                double transactionQty;
+                if (qtyReduced.HasValue)
+                {
+                    // For picking: qty_reduced should be negative (e.g., -2.00)
+                    // For old records: qty_reduced might be positive 100.00 (wrong)
+                    // Use absolute value, but if it's suspiciously large, try to calculate from qty_before
+                    var absQtyReduced = Math.Abs(qtyReduced.Value);
+                    
+                    // If qty_before is valid and qty_reduced seems wrong (positive and large), use qty_before calculation
+                    if (qtyBefore.HasValue && qtyBefore.Value > 0 && qtyReduced.Value > 0 && absQtyReduced > 10)
+                    {
+                        // Likely old record with wrong qty_reduced, calculate from qty_before
+                        transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                    }
+                    else
+                    {
+                        // Use qty_reduced (absolute value)
+                        transactionQty = absQtyReduced;
+                    }
+                }
+                else if (qtyBefore.HasValue && qtyBefore.Value > 0)
+                {
+                    // Calculate from before/after if qty_before is valid
+                    transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                }
+                else
+                {
+                    // Fallback: If no valid transaction data, show 0 (can't determine transaction qty)
+                    // This is better than showing wrong value
+                    transactionQty = 0;
+                }
+                
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
                     Warehouse = reader.GetString(1),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    Qty = Convert.ToDouble(reader.GetDecimal(3)),
-                    ReservedQty = Convert.ToDouble(reader.GetDecimal(4)),
-                    QtyBefore = reader.IsDBNull(5) ? null : Convert.ToDouble(reader.GetDecimal(5)),
-                    QtyReduced = reader.IsDBNull(6) ? null : Convert.ToDouble(reader.GetDecimal(6)),
+                    Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
+                    ReservedQty = reservedQty,
+                    RemainingStock = remainingStock, // Remaining stock after transaction
+                    QtyBefore = qtyBefore, // Stock before deduction of this transaction
+                    QtyReduced = qtyReduced, // Current transaction qty (negative for picking, positive for increase)
                     LastTransactionDate = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
                     LastTransactionType = reader.IsDBNull(8) ? null : reader.GetString(8),
                     LastTransactionRef = reader.IsDBNull(9) ? null : reader.GetString(9),
                     UpdatedAt = reader.GetDateTime(10),
-                    CreatedAt = reader.GetDateTime(11)
+                    CreatedAt = reader.GetDateTime(11),
+                    CartonId = cartonId
                 });
             }
         }
@@ -795,15 +942,57 @@ public static class StockLedgerService
             await using var reader = await cmd.ExecuteReaderAsync();
             while (await reader.ReadAsync())
             {
+                // Calculate values based on user requirements:
+                // - Qty = Transaction Qty (the quantity involved in the transaction)
+                // - Available Qty = Qty after Deduction of this Transaction (stock after transaction)
+                // - Qty Before = Stock before deduction of this transaction
+                // - Qty +/- = Current transaction qty (negative for picking/reduction)
+                
+                var remainingStock = Convert.ToDouble(reader.GetDecimal(3)); // Remaining stock after transaction
+                var reservedQty = Convert.ToDouble(reader.GetDecimal(4));
+                var qtyBefore = reader.IsDBNull(5) ? (double?)null : Convert.ToDouble(reader.GetDecimal(5));
+                var qtyReduced = reader.IsDBNull(6) ? (double?)null : Convert.ToDouble(reader.GetDecimal(6));
+                
+                // Calculate transaction quantity
+                // IMPORTANT: qty_reduced should be negative for picking (e.g., -2.00)
+                // If qty_reduced is positive and large (e.g., 100.00), it's likely an old record with wrong value
+                double transactionQty;
+                if (qtyReduced.HasValue)
+                {
+                    var absQtyReduced = Math.Abs(qtyReduced.Value);
+                    
+                    // If qty_before is valid and qty_reduced seems wrong (positive and large), use qty_before calculation
+                    if (qtyBefore.HasValue && qtyBefore.Value > 0 && qtyReduced.Value > 0 && absQtyReduced > 10)
+                    {
+                        // Likely old record with wrong qty_reduced, calculate from qty_before
+                        transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                    }
+                    else
+                    {
+                        // Use qty_reduced (absolute value)
+                        transactionQty = absQtyReduced;
+                    }
+                }
+                else if (qtyBefore.HasValue && qtyBefore.Value > 0)
+                {
+                    transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                }
+                else
+                {
+                    // Fallback: Show 0 if no valid transaction data
+                    transactionQty = 0;
+                }
+                
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
                     Warehouse = reader.GetString(1),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    Qty = Convert.ToDouble(reader.GetDecimal(3)),
-                    ReservedQty = Convert.ToDouble(reader.GetDecimal(4)),
-                    QtyBefore = reader.IsDBNull(5) ? null : Convert.ToDouble(reader.GetDecimal(5)),
-                    QtyReduced = reader.IsDBNull(6) ? null : Convert.ToDouble(reader.GetDecimal(6)),
+                    Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
+                    ReservedQty = reservedQty,
+                    RemainingStock = remainingStock, // Remaining stock after transaction
+                    QtyBefore = qtyBefore, // Stock before deduction of this transaction
+                    QtyReduced = qtyReduced, // Current transaction qty (negative for picking, positive for increase)
                     LastTransactionDate = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
                     LastTransactionType = reader.IsDBNull(8) ? null : reader.GetString(8),
                     LastTransactionRef = reader.IsDBNull(9) ? null : reader.GetString(9),
@@ -928,15 +1117,57 @@ public static class StockLedgerService
             var stockList = new List<StockLedger>();
             while (await reader.ReadAsync())
             {
+                // Calculate values based on user requirements:
+                // - Qty = Transaction Qty (the quantity involved in the transaction)
+                // - Available Qty = Qty after Deduction of this Transaction (stock after transaction)
+                // - Qty Before = Stock before deduction of this transaction
+                // - Qty +/- = Current transaction qty (negative for picking/reduction)
+                
+                var remainingStock = Convert.ToDouble(reader.GetDecimal(3)); // Remaining stock after transaction
+                var reservedQty = Convert.ToDouble(reader.GetDecimal(4));
+                var qtyBefore = reader.IsDBNull(5) ? (double?)null : Convert.ToDouble(reader.GetDecimal(5));
+                var qtyReduced = reader.IsDBNull(6) ? (double?)null : Convert.ToDouble(reader.GetDecimal(6));
+                
+                // Calculate transaction quantity
+                // IMPORTANT: qty_reduced should be negative for picking (e.g., -2.00)
+                // If qty_reduced is positive and large (e.g., 100.00), it's likely an old record with wrong value
+                double transactionQty;
+                if (qtyReduced.HasValue)
+                {
+                    var absQtyReduced = Math.Abs(qtyReduced.Value);
+                    
+                    // If qty_before is valid and qty_reduced seems wrong (positive and large), use qty_before calculation
+                    if (qtyBefore.HasValue && qtyBefore.Value > 0 && qtyReduced.Value > 0 && absQtyReduced > 10)
+                    {
+                        // Likely old record with wrong qty_reduced, calculate from qty_before
+                        transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                    }
+                    else
+                    {
+                        // Use qty_reduced (absolute value)
+                        transactionQty = absQtyReduced;
+                    }
+                }
+                else if (qtyBefore.HasValue && qtyBefore.Value > 0)
+                {
+                    transactionQty = Math.Abs(qtyBefore.Value - remainingStock);
+                }
+                else
+                {
+                    // Fallback: Show 0 if no valid transaction data
+                    transactionQty = 0;
+                }
+                
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
                     Warehouse = reader.GetString(1),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    Qty = Convert.ToDouble(reader.GetDecimal(3)),
-                    ReservedQty = Convert.ToDouble(reader.GetDecimal(4)),
-                    QtyBefore = reader.IsDBNull(5) ? null : Convert.ToDouble(reader.GetDecimal(5)),
-                    QtyReduced = reader.IsDBNull(6) ? null : Convert.ToDouble(reader.GetDecimal(6)),
+                    Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
+                    ReservedQty = reservedQty,
+                    RemainingStock = remainingStock, // Remaining stock after transaction
+                    QtyBefore = qtyBefore, // Stock before deduction of this transaction
+                    QtyReduced = qtyReduced, // Current transaction qty (negative for picking, positive for increase)
                     LastTransactionDate = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
                     LastTransactionType = reader.IsDBNull(8) ? null : reader.GetString(8),
                     LastTransactionRef = reader.IsDBNull(9) ? null : reader.GetString(9),
@@ -976,6 +1207,131 @@ public static class StockLedgerService
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Check if a column exists in a table
+    /// </summary>
+    private static async Task<bool> CheckColumnExistsAsync(MySqlConnection connection, string tableName, string columnName)
+    {
+        try
+        {
+            var sql = @"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND LOWER(TABLE_NAME) = LOWER(@tableName)
+                AND LOWER(COLUMN_NAME) = LOWER(@columnName)";
+            
+            await using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@tableName", tableName);
+            cmd.Parameters.AddWithValue("@columnName", columnName);
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            return count > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Update carton-level stock (when carton mode is enabled)
+    /// </summary>
+    private static async Task UpdateCartonStockAsync(
+        WmsSettings settings,
+        string cartonId,
+        string itemCode,
+        string warehouse,
+        string binLocation,
+        double qtyChange,
+        string transactionType,
+        string? referenceDocType,
+        string referenceDoc,
+        string wmsTransactionTitle,
+        string? sourceBin,
+        string? targetBin,
+        string? performedBy)
+    {
+        try
+        {
+            // Update carton stock using CartonDataService
+            var success = await CartonDataService.UpdateCartonStockAsync(
+                settings,
+                cartonId,
+                itemCode,
+                warehouse,
+                binLocation,
+                qtyChange,
+                uom: null,
+                batchNo: null,
+                status: transactionType == "Putaway" ? "PUTAWAY" : 
+                       transactionType == "Picking" ? "PICKED" : "PUTAWAY");
+
+            if (!success)
+            {
+                ErrorLogService.LogError($"StockLedgerService: Failed to update carton stock for {cartonId}");
+                return;
+            }
+
+            // Also update carton location if moving between bins
+            if (!string.IsNullOrEmpty(sourceBin) && !string.IsNullOrEmpty(targetBin) && sourceBin != targetBin)
+            {
+                await CartonDataService.MoveCartonToBinAsync(settings, cartonId, targetBin, warehouse);
+            }
+
+            // Log to stock transaction (with carton_id)
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Get current carton stock for qty_before/qty_after
+            var currentStock = await CartonDataService.GetCartonStockAsync(settings, cartonId, itemCode, warehouse, binLocation);
+            var currentQty = currentStock.FirstOrDefault()?.Qty ?? 0;
+            var newQty = currentQty; // Already updated by CartonDataService
+
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockTransaction", "carton_id");
+            var cartonIdColumn = hasCartonIdColumn ? ", carton_id" : "";
+            var cartonIdValue = hasCartonIdColumn ? ", @cartonId" : "";
+
+            var insertTransactionSql = $@"
+                INSERT INTO tabStockTransaction 
+                    (transaction_date, transaction_type, reference_doc_type, reference_doc, wms_transaction_title,
+                     item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                     source_bin, target_bin, performed_by{cartonIdColumn}, created_at)
+                VALUES 
+                    (NOW(), @transactionType, @referenceDocType, @referenceDoc, @wmsTransactionTitle,
+                     @itemCode, @warehouse, @binLocation, @qtyChange, @qtyBefore, @qtyAfter,
+                     @sourceBin, @targetBin, @performedBy{cartonIdValue}, NOW())";
+
+            await using var cmd = new MySqlCommand(insertTransactionSql, connection);
+            cmd.Parameters.AddWithValue("@transactionType", transactionType);
+            cmd.Parameters.AddWithValue("@referenceDocType", referenceDocType ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@referenceDoc", referenceDoc);
+            cmd.Parameters.AddWithValue("@wmsTransactionTitle", wmsTransactionTitle);
+            cmd.Parameters.AddWithValue("@itemCode", itemCode);
+            cmd.Parameters.AddWithValue("@warehouse", warehouse);
+            cmd.Parameters.AddWithValue("@binLocation", binLocation);
+            cmd.Parameters.AddWithValue("@qtyChange", qtyChange);
+            cmd.Parameters.AddWithValue("@qtyBefore", currentQty - qtyChange);
+            cmd.Parameters.AddWithValue("@qtyAfter", newQty);
+            cmd.Parameters.AddWithValue("@sourceBin", sourceBin ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@targetBin", targetBin ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@performedBy", performedBy ?? (object)DBNull.Value);
+            if (hasCartonIdColumn)
+            {
+                cmd.Parameters.AddWithValue("@cartonId", cartonId);
+            }
+
+            await cmd.ExecuteNonQueryAsync();
+
+            ErrorLogService.LogInfo($"StockLedgerService: Updated carton stock for {cartonId} @ {warehouse}/{binLocation}: {currentQty - qtyChange} → {newQty} (change: {qtyChange:+0.00;-0.00})");
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"StockLedgerService: Error updating carton stock for {cartonId}", ex);
+            throw;
         }
     }
 }

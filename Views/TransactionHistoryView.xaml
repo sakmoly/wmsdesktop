@@ -1,0 +1,194 @@
+<UserControl x:Class="Wms.Desktop.Views.TransactionHistoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:TransactionHistoryViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Transaction History (Audit Trail)"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Complete history of all stock movements by Item, Location, Carton with filtering and Excel export"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <!-- Filter Controls -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="16"
+                Margin="0,0,0,12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- First Row of Filters -->
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Item Code:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="1" Text="{Binding SearchItemCode, UpdateSourceTrigger=PropertyChanged}" 
+                             VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="2" Text="Warehouse:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="3" Text="{Binding SearchWarehouse, UpdateSourceTrigger=PropertyChanged}" 
+                             VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="4" Text="Bin Location:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="5" Text="{Binding SearchBinLocation, UpdateSourceTrigger=PropertyChanged}" 
+                             VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="6" Text="Carton ID:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBox Grid.Column="7" Text="{Binding SearchCartonId, UpdateSourceTrigger=PropertyChanged}" 
+                             VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <Button Grid.Column="9" Content="Search" Command="{Binding SearchCommand}" 
+                            Padding="16,6" Margin="0,0,8,0" Background="#3B82F6" Foreground="White" 
+                            BorderThickness="0" Cursor="Hand" />
+                    <Button Grid.Column="10" Content="Clear" Command="{Binding ClearFiltersCommand}" 
+                            Padding="16,6" Background="#6B7280" Foreground="White" 
+                            BorderThickness="0" Cursor="Hand" Margin="0,0,8,0" />
+                    <Button Grid.Column="11" Content="Load All" Command="{Binding LoadAllCommand}" 
+                            Padding="16,6" Background="#8B5CF6" Foreground="White" 
+                            BorderThickness="0" Cursor="Hand" />
+                </Grid>
+
+                <!-- Second Row of Filters -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="150" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="Transaction Type:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding TransactionTypes}" 
+                              SelectedItem="{Binding SelectedTransactionType}" 
+                              VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="2" Text="Stock Direction:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <ComboBox Grid.Column="3" ItemsSource="{Binding StockDirections}" 
+                              SelectedItem="{Binding SelectedStockDirection}" 
+                              VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="4" Text="From Date:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <DatePicker Grid.Column="5" SelectedDate="{Binding FromDate}" 
+                               VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="6" Text="To Date:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <DatePicker Grid.Column="7" SelectedDate="{Binding ToDate}" 
+                               VerticalAlignment="Center" Padding="8,4" Margin="0,0,16,0" />
+
+                    <Button Grid.Column="9" Content="Export to Excel" Command="{Binding ExportToExcelCommand}" 
+                            Padding="16,6" Background="#10B981" Foreground="White" 
+                            BorderThickness="0" Cursor="Hand" />
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Data Grid -->
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="TransactionHistoryGrid"
+                      ItemsSource="{Binding Transactions}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="All">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Transaction #" Binding="{Binding TransactionNumber, TargetNullValue=''}" Width="150" />
+                    <DataGridTextColumn Header="Date" Binding="{Binding TransactionDate, StringFormat='yyyy-MM-dd HH:mm', TargetNullValue=''}" Width="140" />
+                    <DataGridTextColumn Header="Type" Binding="{Binding TransactionType, TargetNullValue=''}" Width="100" />
+                    <DataGridTextColumn Header="Item Code" Binding="{Binding ItemCode, TargetNullValue=''}" Width="150" />
+                    <DataGridTextColumn Header="Item Name" Binding="{Binding ItemName, TargetNullValue=''}" Width="200" />
+                    <DataGridTextColumn Header="Warehouse" Binding="{Binding Warehouse, TargetNullValue=''}" Width="120" />
+                    <DataGridTextColumn Header="Bin Location" Binding="{Binding BinLocation, TargetNullValue=''}" Width="150" />
+                    <DataGridTextColumn Header="Carton ID" Binding="{Binding CartonId, TargetNullValue=''}" Width="120" />
+                    <DataGridTextColumn Header="Qty Change" Binding="{Binding QtyChange, StringFormat=N2}" Width="100" />
+                    <DataGridTextColumn Header="Direction" Binding="{Binding StockDirection, TargetNullValue=''}" Width="80" />
+                    <DataGridTextColumn Header="Qty Before" Binding="{Binding QtyBefore, StringFormat=N2}" Width="100" />
+                    <DataGridTextColumn Header="Qty After" Binding="{Binding QtyAfter, StringFormat=N2}" Width="100" />
+                    <DataGridTextColumn Header="Reference Doc" Binding="{Binding ReferenceDoc}" Width="150" />
+                    <DataGridTextColumn Header="Performed By" Binding="{Binding PerformedBy}" Width="120" />
+                    <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="200" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Footer -->
+        <Border Grid.Row="3"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,12,0,0"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding TotalCount, StringFormat='Total Records: {0:N0}'}"
+                           VerticalAlignment="Center"
+                           Foreground="#6B7280" />
+
+                <Button Grid.Column="1"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Padding="12,6"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand" />
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

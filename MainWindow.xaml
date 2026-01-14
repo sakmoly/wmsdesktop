@@ -289,6 +289,15 @@
                             HorizontalAlignment="Stretch"
                             Click="StockLedgerButton_OnClick" />
 
+                    <Button Content="Transaction History"
+                            Margin="8,4"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="TransactionHistoryButton_OnClick" />
+
                     <Button Content="Cycle Count"
                             Margin="8,4,8,16"
                             Padding="8"

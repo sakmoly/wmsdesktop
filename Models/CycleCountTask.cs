@@ -14,6 +14,7 @@ public sealed class CycleCountTask
     public TimeSpan? ScheduledStartTime { get; init; }
     public TimeSpan? ScheduledEndTime { get; init; }
     public bool FreezeStock { get; init; }
+    public bool IsOpeningStock { get; init; } // true if task contains opening stock items (expected_qty = 0 and actual_qty > 0)
     public string CreatedBy { get; init; } = string.Empty;
     public string? AssignedTo { get; init; }
     public int TotalItems { get; init; }
@@ -27,9 +28,13 @@ public sealed class CycleCountLine
 {
     public string ItemCode { get; init; } = string.Empty;
     public string? BinLocation { get; init; }
-    public double ExpectedQty { get; init; }
+    public string? CartonId { get; init; } // For carton-level inventory tracking
+    public double ExpectedQty { get; init; } // Use 0 for no previous history, > 0 for actual expected quantity
     public double? ActualQty { get; init; }
-    public double Discrepancy => (ActualQty ?? 0) - ExpectedQty;
+    // Use discrepancy from database (generated column) - always returns 0 instead of null
+    // When actual_qty is NULL (not counted), discrepancy = 0
+    // When actual_qty exists, discrepancy = actual_qty - expected_qty
+    public double Discrepancy { get; init; } = 0; // Always a number, defaults to 0 (not null)
     public string? CountedBy { get; init; }
     public DateTime? CountedOn { get; init; }
     public string? ReviewedBy { get; init; }

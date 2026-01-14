@@ -4,10 +4,17 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        xmlns:converters="clr-namespace:Wms.Desktop.Converters"
         mc:Ignorable="d"
         Title="Cycle Count Task Details"
-        Height="600" Width="1000"
-        WindowStartupLocation="CenterOwner">
+        Height="700" Width="1400"
+        WindowStartupLocation="CenterOwner"
+        MinWidth="1000" MinHeight="500">
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:HasExpectedQtyVisibilityConverter x:Key="HasExpectedQtyVisibilityConverter" />
+        <converters:HasDiscrepancyVisibilityConverter x:Key="HasDiscrepancyVisibilityConverter" />
+    </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -42,6 +49,7 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -102,12 +110,23 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,0,4">
-                    <TextBlock Text="Assigned To"
+                    <TextBlock Text="Opening Stock"
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />
-                    <TextBlock Text="{Binding CycleCountTask.AssignedTo}"
+                    <TextBlock Text="{Binding CycleCountTask.IsOpeningStock}"
                                FontSize="14"
-                               Foreground="#111827" />
+                               FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#10B981" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CycleCountTask.IsOpeningStock}" Value="False">
+                                        <Setter Property="Foreground" Value="#6B7280" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Grid.Column="2" Margin="8,0,0,4">
@@ -115,6 +134,15 @@
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />
                     <TextBlock Text="{Binding CycleCountTask.FreezeStock}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="2" Margin="8,0,0,0">
+                    <TextBlock Text="Assigned To"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.AssignedTo}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
@@ -159,58 +187,137 @@
                                Margin="16,0,0,0" />
                 </StackPanel>
 
-                <DataGrid Grid.Row="1"
-                          ItemsSource="{Binding CycleCountTask.Lines}"
-                          AutoGenerateColumns="False"
-                          HeadersVisibility="Column"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False"
-                          CanUserResizeRows="False"
-                          IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="Item Code"
-                                            Binding="{Binding ItemCode}"
-                                            Width="200" />
-                        <DataGridTextColumn Header="Bin Location"
-                                            Binding="{Binding BinLocation}"
-                                            Width="150" />
-                        <DataGridTextColumn Header="Expected Qty"
-                                            Binding="{Binding ExpectedQty, StringFormat=N2}"
-                                            Width="110" />
-                        <DataGridTextColumn Header="Actual Qty"
-                                            Binding="{Binding ActualQty, StringFormat=N2}"
-                                            Width="110" />
-                        <DataGridTextColumn Header="Discrepancy"
-                                            Binding="{Binding Discrepancy, StringFormat=N2}"
-                                            Width="110">
-                            <DataGridTextColumn.ElementStyle>
-                                <Style TargetType="TextBlock">
-                                    <Style.Triggers>
-                                        <Trigger Property="Text" Value="0">
-                                            <Setter Property="Foreground" Value="#10B981" />
-                                        </Trigger>
-                                        <DataTrigger Binding="{Binding ActualQty}" Value="{x:Null}">
-                                            <Setter Property="Foreground" Value="#6B7280" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                    <Setter Property="Foreground" Value="#DC2626" />
-                                </Style>
-                            </DataGridTextColumn.ElementStyle>
-                        </DataGridTextColumn>
-                        <DataGridTextColumn Header="Status"
-                                            Binding="{Binding Status}"
-                                            Width="100" />
-                        <DataGridTextColumn Header="Counted By"
-                                            Binding="{Binding CountedBy}"
-                                            Width="120" />
-                        <DataGridTextColumn Header="Counted On"
-                                            Binding="{Binding CountedOn, StringFormat=g}"
-                                            Width="150" />
-                        <DataGridTextColumn Header="Discrepancy Reason"
-                                            Binding="{Binding DiscrepancyReason}"
-                                            Width="*" />
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" MinWidth="300" />
+                    </Grid.ColumnDefinitions>
+
+                    <DataGrid Grid.Column="0"
+                              x:Name="CycleCountLinesGrid"
+                              ItemsSource="{Binding CycleCountTask.Lines}"
+                              AutoGenerateColumns="False"
+                              HeadersVisibility="Column"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserResizeRows="False"
+                              IsReadOnly="True"
+                              SelectionChanged="CycleCountLinesGrid_SelectionChanged"
+                              Margin="0,0,8,0"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Item Code"
+                                                Binding="{Binding ItemCode}"
+                                                Width="150" />
+                            <DataGridTextColumn Header="Bin Location"
+                                                Binding="{Binding BinLocation}"
+                                                Width="130" />
+                            <DataGridTextColumn Header="Carton ID"
+                                                Binding="{Binding CartonId}"
+                                                Width="120"
+                                                Visibility="{Binding IsCartonLevelMode, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <DataGridTextColumn Header="Expected Qty"
+                                                Binding="{Binding ExpectedQty, StringFormat=N2}"
+                                                Width="100"
+                                                Visibility="{Binding CycleCountTask.Lines, Converter={StaticResource HasExpectedQtyVisibilityConverter}}" />
+                            <DataGridTextColumn Header="Actual Qty"
+                                                Binding="{Binding ActualQty, StringFormat=N2}"
+                                                Width="100" />
+                            <DataGridTextColumn Header="Discrepancy"
+                                                Binding="{Binding Discrepancy, StringFormat=N2, TargetNullValue='0.00'}"
+                                                Width="100">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <Trigger Property="Text" Value="0.00">
+                                                <Setter Property="Foreground" Value="#10B981" />
+                                            </Trigger>
+                                            <DataTrigger Binding="{Binding ActualQty}" Value="{x:Null}">
+                                                <Setter Property="Foreground" Value="#6B7280" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                        <Setter Property="Foreground" Value="#DC2626" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Status"
+                                                Binding="{Binding Status}"
+                                                Width="90" />
+                            <DataGridTextColumn Header="Counted By"
+                                                Binding="{Binding CountedBy}"
+                                                Width="100" />
+                            <DataGridTextColumn Header="Counted On"
+                                                Binding="{Binding CountedOn, StringFormat=g}"
+                                                Width="140" />
+                            <DataGridTextColumn Header="Discrepancy Reason"
+                                                Binding="{Binding DiscrepancyReason}"
+                                                Width="200" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Expected Cartons Panel (shown when carton mode and bin selected) -->
+                    <Border Grid.Column="1"
+                            x:Name="ExpectedCartonsPanel"
+                            Background="#F9FAFB"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12"
+                            Visibility="{Binding IsCartonLevelMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Expected Cartons"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Margin="0,0,0,8"
+                                       Foreground="#111827" />
+                            
+                            <TextBlock x:Name="SelectedBinText"
+                                       Text="Select a line with Bin Location"
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       Margin="0,0,0,12"
+                                       TextWrapping="Wrap" />
+
+                            <Button x:Name="LoadCartonsButton"
+                                    Content="Load Expected Cartons"
+                                    Padding="8,4"
+                                    Margin="0,0,0,8"
+                                    Click="LoadCartonsButton_Click"
+                                    Visibility="Collapsed" />
+
+                            <DataGrid x:Name="ExpectedCartonsGrid"
+                                      AutoGenerateColumns="False"
+                                      HeadersVisibility="Column"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      CanUserResizeRows="False"
+                                      IsReadOnly="True"
+                                      MaxHeight="400"
+                                      Visibility="Collapsed">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Carton ID"
+                                                        Binding="{Binding CartonId}"
+                                                        Width="*" />
+                                    <DataGridTextColumn Header="Item Code"
+                                                        Binding="{Binding ItemCode}"
+                                                        Width="*" />
+                                    <DataGridTextColumn Header="Expected Qty"
+                                                        Binding="{Binding ExpectedQty, StringFormat=N2}"
+                                                        Width="100" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <TextBlock x:Name="NoCartonsText"
+                                       Text="No cartons found in this bin"
+                                       FontSize="11"
+                                       Foreground="#EF4444"
+                                       Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       Visibility="Collapsed" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Grid>
         </Border>
 
@@ -228,23 +335,48 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Only show Total Expected Qty if there are lines with ExpectedQty -->
                     <TextBlock Text="{Binding TotalExpectedQty, StringFormat='Total Expected Qty: {0:N2}'}"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="#111827"
-                               Margin="0,0,16,0" />
+                               Margin="0,0,16,0"
+                               Visibility="{Binding CycleCountTask.Lines, Converter={StaticResource HasExpectedQtyVisibilityConverter}}" />
                     <TextBlock Text="{Binding TotalActualQty, StringFormat='Total Actual Qty: {0:N2}'}"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="#111827"
                                Margin="0,0,16,0" />
+                    <!-- Only show Total Discrepancy if there are lines with Discrepancy -->
                     <TextBlock Text="{Binding TotalDiscrepancy, StringFormat='Total Discrepancy: {0:N2}'}"
+                               Visibility="{Binding CycleCountTask.Lines, Converter={StaticResource HasDiscrepancyVisibilityConverter}}"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="#DC2626" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Refresh"
+                            Command="{Binding RefreshCommand}"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Background="#6B7280"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold"
+                            ToolTip="Refresh data from database" />
+                    <Button Content="Start"
+                            Command="{Binding StartCycleCountCommand}"
+                            IsEnabled="{Binding CanStart}"
+                            Padding="16,8"
+                            Margin="0,0,8,0"
+                            Background="#8B5CF6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold"
+                            ToolTip="Start the cycle count task (change status to In Progress)" />
                     <Button Content="Submit"
                             Command="{Binding SubmitCycleCountCommand}"
                             IsEnabled="{Binding CanSubmit}"

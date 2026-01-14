@@ -8,6 +8,7 @@ import { authenticateToken } from '../middleware/auth.js';
 const router = express.Router();
 
 // POST /api/events/batch - Batch insert scan events
+// Supports update_mode: if true, updates existing quantities instead of adding new events
 router.post('/batch', authenticateToken, batchEvents);
 
 export default router;

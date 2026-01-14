@@ -1,0 +1,216 @@
+[2026-01-09 11:59:27] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:27] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:27] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:29] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:29] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:29] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:29] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:30] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:30] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:30] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:31] ERROR: Error starting Cycle Count Task CC-A1-R01-L1-B1-MK6N4JU5
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.CycleCountApiService.StartCycleCountAsync(WmsSettings settings, String title, String startedBy) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\CycleCountApiService.cs:line 41
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:35] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:35] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:35] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:35] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:36] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:36] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 11:59:36] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 11:59:36] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 11:59:39] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 11:59:39] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 1, ItemsWithDiscrepancy: 1, Lines: 1
+[2026-01-09 11:59:39] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 1 → 1, ItemsWithDiscrepancy: 1 → 1, Lines: 1 → 1
+[2026-01-09 11:59:41] ERROR: Error starting Cycle Count Task CC-A1-R01-L1-B1-MK6MZ1UR
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.CycleCountApiService.StartCycleCountAsync(WmsSettings settings, String title, String startedBy) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\CycleCountApiService.cs:line 41
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-09 11:59:47] ERROR: Error starting Cycle Count Task CC-A1-R01-L1-B1-MK6MZ1UR
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.CycleCountApiService.StartCycleCountAsync(WmsSettings settings, String title, String startedBy) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\CycleCountApiService.cs:line 41
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-09 12:00:20] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:20] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:20] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:23] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:23] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:23] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:28] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:28] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:28] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:35] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:35] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:35] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:39] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:39] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:39] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:39] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:39] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:00:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:00:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:00:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:01:16] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:01:16] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:01:16] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:50] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:50] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:50] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:53] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:53] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:53] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:55] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:55] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:04:55] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:04:55] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:05:17] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:05:17] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:05:17] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:07:53] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:07:53] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:07:53] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:11:14] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:11:14] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:11:14] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:12:26] ERROR: Error starting Cycle Count Task CC-A1-R01-L1-B1-MK6MZ1UR
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.CycleCountApiService.StartCycleCountAsync(WmsSettings settings, String title, String startedBy) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\CycleCountApiService.cs:line 41
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-09 12:12:30] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6N4JU5
+[2026-01-09 12:12:31] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6N4JU5 - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-09 12:12:31] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6N4JU5 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-09 12:18:06] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:18:06] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:18:06] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:25:24] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:25:24] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:25:24] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:34:59] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:34:59] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:34:59] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:35:02] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:35:02] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:35:02] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-SHOES-101-WHT-42, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Inventory mode is BinLevel
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Found 2 entries in warehouse 'Main Warehouse'
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Found 2 stock ledger entries for SKU-SHOES-101-WHT-42 in warehouse 'Main Warehouse'
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Parsed bin_location='R-03-B-10' -> rack='R-03-B', bin='10'
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Could not find location_id for bin_location='R-03-B-10', using as fallback
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Using bin_location as fallback location_id: 'R-03-B-10' (rack='R-03-B', bin='10')
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Parsed bin_location='R-04-B-15' -> rack='R-04-B', bin='15'
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Could not find location_id for bin_location='R-04-B-15', using as fallback
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Using bin_location as fallback location_id: 'R-04-B-15' (rack='R-04-B', bin='15')
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Added location R-03-B-10 (Zone: Main Warehouse, Rack: R-03-B, Bin: 10, Qty: 50)
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Added location R-04-B-15 (Zone: Main Warehouse, Rack: R-04-B, Bin: 15, Qty: 100)
+[2026-01-09 12:35:25] INFO: ItemLocationBreakdownViewModel: Final count - Added 2 locations, Total Qty: 150, Collection Count: 2
+[2026-01-09 12:35:38] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:35:38] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:35:38] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:36:02] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 12:36:02] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 12:36:02] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-JACKET-201-BLK-L, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Inventory mode is BinLevel
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Found 1 entries in warehouse 'Main Warehouse'
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Found 1 stock ledger entries for SKU-JACKET-201-BLK-L in warehouse 'Main Warehouse'
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L1-B1 for bin_location=A1-R01-L1-B1
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L1-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 2)
+[2026-01-09 12:36:12] INFO: ItemLocationBreakdownViewModel: Final count - Added 1 locations, Total Qty: 2, Collection Count: 1
+[2026-01-09 14:26:12] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6MZ1UR
+[2026-01-09 14:26:12] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6MZ1UR - TotalItems: 15, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 14:26:12] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6MZ1UR - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 14:27:25] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6SK143
+[2026-01-09 14:27:25] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6SK143 - TotalItems: 17, CountedItems: 2, ItemsWithDiscrepancy: 0, Lines: 2
+[2026-01-09 14:27:25] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6SK143 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 0 → 0, Lines: 2 → 2
+[2026-01-09 14:55:24] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK6THT8C
+[2026-01-09 14:55:24] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK6THT8C - TotalItems: 16, CountedItems: 1, ItemsWithDiscrepancy: 0, Lines: 1
+[2026-01-09 14:55:24] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK6THT8C - CountedItems: 1 → 1, ItemsWithDiscrepancy: 0 → 0, Lines: 1 → 1

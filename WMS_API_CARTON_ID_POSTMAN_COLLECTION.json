@@ -1,0 +1,2172 @@
+{
+  "info": {
+    "_postman_id": "wms-carton-id-api-collection",
+    "name": "WMS API - Carton ID Support",
+    "description": "Complete WMS API collection with carton_id support. Includes: Authentication, ASN, Transfer Orders, Transfer In, Transfer Cartons, Inbound Operations, Putaway, Picking, Cycle Count, Stock Transactions, Master Data, Box Operations, Carton Operations, Warehouse Operations, and Event Operations.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "wms-api"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.token) {",
+                  "        pm.environment.set(\"auth_token\", jsonData.token);",
+                  "        console.log(\"✅ Token saved to environment\");",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login to get authentication token"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Putaway Operations",
+      "item": [
+        {
+          "name": "Get Putaway Tasks",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/putaway/tasks?status=In Progress",
+              "host": ["{{base_url}}"],
+              "path": ["api", "putaway", "tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "In Progress"
+                }
+              ]
+            },
+            "description": "Get list of putaway tasks. Response includes carton_id in lines."
+          }
+        },
+        {
+          "name": "Complete Putaway (with Carton ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has ok: true\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.ok).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test(\"Carton stock updated\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.stock_updates) {",
+                  "        const hasCartonId = jsonData.data.stock_updates.some(update => update.carton_id);",
+                  "        console.log(\"Carton ID in updates:\", hasCartonId);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"putaway_task\": \"PUT-20250120-0001\",\n    \"performed_by\": \"USER-002\",\n    \"location_id\": \"A1-R01-L1-B1\",\n    \"items\": [\n        {\n            \"item_code\": \"SKU-001\",\n            \"qty\": 50.00,\n            \"carton_id\": \"CARTON-001\",\n            \"source_bin\": \"DOCK-01\",\n            \"location_id\": \"A1-R01-L1-B1\",\n            \"completed\": true\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/putaway/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "putaway", "complete"]
+            },
+            "description": "Complete putaway task with carton_id. Uses location_id (header-level or item-level) instead of rack/bin. Updates tabCartonStock when carton_id is provided."
+          }
+        },
+        {
+          "name": "Assign Location (with Carton ID)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"putaway_task\": \"PUT-20250120-0001\",\n    \"carton_id\": \"CARTON-001\",\n    \"item_code\": \"SKU-001\",\n    \"location_id\": \"A1-R01-L1-B1\",\n    \"qty\": 50.00,\n    \"user_id\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/putaway/assign-rack",
+              "host": ["{{base_url}}"],
+              "path": ["api", "putaway", "assign-rack"]
+            },
+            "description": "Assign location_id to putaway items with carton_id. API accepts location_id (preferred) or rack/bin (backward compatibility)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Picking Operations (Material Request)",
+      "item": [
+        {
+          "name": "Get Material Requests",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/material-requests?status=Submitted",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Submitted"
+                }
+              ]
+            },
+            "description": "Get list of Material Requests"
+          }
+        },
+        {
+          "name": "Get Material Request by Title",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001"]
+            },
+            "description": "Get single Material Request details"
+          }
+        },
+        {
+          "name": "Pick Items (with Carton ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has ok: true\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.ok).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test(\"Carton stock updated flag present\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data) {",
+                  "        pm.expect(jsonData.data).to.have.property(\"carton_stock_updated\");",
+                  "        console.log(\"Carton stock updated:\", jsonData.data.carton_stock_updated);",
+                  "    }",
+                  "});",
+                  "",
+                  "pm.test(\"Stock updates include carton_id\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.stock_updates) {",
+                  "        const stockUpdate = jsonData.data.stock_updates[0];",
+                  "        if (stockUpdate) {",
+                  "            console.log(\"Carton ID in stock update:\", stockUpdate.carton_id);",
+                  "            pm.expect(stockUpdate).to.have.property(\"carton_id\");",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"item_code\": \"SKU-HAT-301-GRN-OS\",\n            \"picked_qty\": 20.00,\n            \"source_bin\": \"A1-R01-L1-B1\",\n            \"carton_id\": \"CARTON-001\"\n        }\n    ],\n    \"warehouse\": \"WH-MAIN\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001/pick-items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001", "pick-items"]
+            },
+            "description": "Pick items from Material Request with carton_id. Validates carton exists and is in correct bin. Updates tabCartonStock."
+          }
+        },
+        {
+          "name": "Pick Items (Bin Level - No Carton ID)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"item_code\": \"SKU-HAT-301-GRN-OS\",\n            \"picked_qty\": 20.00,\n            \"source_bin\": \"A1-R01-L1-B1\"\n        }\n    ],\n    \"warehouse\": \"WH-MAIN\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001/pick-items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001", "pick-items"]
+            },
+            "description": "Pick items without carton_id (bin-level mode). Updates tabStockLedger."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cycle Count Operations",
+      "item": [
+        {
+          "name": "Get Cycle Count Tasks",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/cycle-count?status=In Progress",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cycle-count"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "In Progress"
+                }
+              ]
+            },
+            "description": "Get list of Cycle Count Tasks"
+          }
+        },
+        {
+          "name": "Get Cycle Count Task by Title",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/cycle-count/CC-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cycle-count", "CC-0001"]
+            },
+            "description": "Get Cycle Count Task details. Response includes carton_id in lines."
+          }
+        },
+        {
+          "name": "Submit Count Lines (with Carton ID)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has ok: true\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.ok).to.eql(true);",
+                  "});",
+                  "",
+                  "pm.test(\"Lines include carton_id\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.lines) {",
+                  "        const line = jsonData.data.lines[0];",
+                  "        if (line) {",
+                  "            console.log(\"Carton ID in line:\", line.carton_id);",
+                  "            pm.expect(line).to.have.property(\"carton_id\");",
+                  "        }",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"counted_by\": \"USER-001\",\n    \"lines\": [\n        {\n            \"line_id\": \"LINE-1\",\n            \"item_code\": \"SKU-001\",\n            \"bin_location\": \"A1-R01-L1-B1\",\n            \"carton_id\": \"CARTON-001\",\n            \"expected_qty\": 50.00,\n            \"actual_qty\": 48.00,\n            \"counted_qty\": 48.00,\n            \"discrepancy_reason\": \"Damaged items found\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/cycle-count/CC-0001/count",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cycle-count", "CC-0001", "count"]
+            },
+            "description": "Submit cycle count lines with carton_id. Stores carton_id in tabCycleCountLine."
+          }
+        },
+        {
+          "name": "Submit Count Lines (Bin Level - No Carton ID)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"counted_by\": \"USER-001\",\n    \"lines\": [\n        {\n            \"line_id\": \"LINE-1\",\n            \"item_code\": \"SKU-001\",\n            \"bin_location\": \"A1-R01-L1-B1\",\n            \"expected_qty\": 50.00,\n            \"actual_qty\": 48.00,\n            \"counted_qty\": 48.00,\n            \"discrepancy_reason\": \"Damaged items found\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/cycle-count/CC-0001/count",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cycle-count", "CC-0001", "count"]
+            },
+            "description": "Submit cycle count lines without carton_id (bin-level mode)"
+          }
+        },
+        {
+          "name": "Delete Cycle Count Task",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/cycle-count/CC-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cycle-count", "CC-0001"]
+            },
+            "description": "Delete a Cycle Count Task and all its lines. Works for any status (Draft, In Progress, etc.). Returns 404 if task not found."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stock Transactions",
+      "item": [
+        {
+          "name": "Get Stock Transactions (All)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-transactions?limit=100",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-transactions"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Get all stock transactions. Response includes carton_id when available."
+          }
+        },
+        {
+          "name": "Get Stock Transactions (Filter by Item)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-transactions?item_code=SKU-001&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-transactions"],
+              "query": [
+                {
+                  "key": "item_code",
+                  "value": "SKU-001"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get stock transactions filtered by item_code"
+          }
+        },
+        {
+          "name": "Get Stock Transactions (Filter by Transaction Type)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-transactions?transaction_type=Putaway&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-transactions"],
+              "query": [
+                {
+                  "key": "transaction_type",
+                  "value": "Putaway"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get stock transactions filtered by transaction_type (Putaway, Picking, CycleCount, etc.)"
+          }
+        },
+        {
+          "name": "Get Stock Transactions (Filter by Date Range)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is array\", function () {",
+                  "    pm.expect(pm.response.json()).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test(\"Transactions include carton_id\", function () {",
+                  "    const transactions = pm.response.json();",
+                  "    if (transactions.length > 0) {",
+                  "        const transaction = transactions[0];",
+                  "        pm.expect(transaction).to.have.property(\"carton_id\");",
+                  "        console.log(\"Carton ID in transaction:\", transaction.carton_id);",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-transactions?from_date=2025-01-01&to_date=2025-01-31&limit=100",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-transactions"],
+              "query": [
+                {
+                  "key": "from_date",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "to_date",
+                  "value": "2025-01-31"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Get stock transactions filtered by date range. Response includes carton_id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "ASN Operations",
+      "item": [
+        {
+          "name": "Get All ASNs",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/asns",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "asns"]
+            },
+            "description": "Get list of all Advance Shipping Notices (ASNs)"
+          }
+        },
+        {
+          "name": "Get ASN by Number",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/asn/ASN-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "asn", "ASN-0001"]
+            },
+            "description": "Get single ASN details with cartons and items"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfer Order Operations",
+      "item": [
+        {
+          "name": "Get All Transfer Orders",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/transfer-orders",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "transfer-orders"]
+            },
+            "description": "Get list of all Transfer Orders"
+          }
+        },
+        {
+          "name": "Get Transfer Order by ASN",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-order/by-asn/ASN-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-order", "by-asn", "ASN-0001"]
+            },
+            "description": "Get Transfer Order for a specific ASN"
+          }
+        },
+        {
+          "name": "Update Transfer Order Quantities",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-orders/TO-0001/update-quantities",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-orders", "TO-0001", "update-quantities"]
+            },
+            "description": "Update sorted_qty and packed_qty for a specific Transfer Order"
+          }
+        },
+        {
+          "name": "Update All Transfer Order Quantities",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-orders/update-all-quantities",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-orders", "update-all-quantities"]
+            },
+            "description": "Update sorted_qty and packed_qty for all Transfer Orders"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfer In Operations",
+      "item": [
+        {
+          "name": "Get All Transfer Ins",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-in?status=Submitted",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-in"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Submitted"
+                }
+              ]
+            },
+            "description": "Get list of Transfer In documents"
+          }
+        },
+        {
+          "name": "Get Transfer In by Title",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-in/TI-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-in", "TI-0001"]
+            },
+            "description": "Get single Transfer In document details"
+          }
+        },
+        {
+          "name": "Create Transfer In",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"TI-0001\",\n    \"from_showroom\": \"SHOWROOM-001\",\n    \"to_warehouse\": \"WH-MAIN\",\n    \"transfer_date\": \"2025-01-20\",\n    \"expected_arrival_date\": \"2025-01-21\",\n    \"prepared_by\": \"USER-001\",\n    \"items\": [\n        {\n            \"item_code\": \"SKU-001\",\n            \"qty\": 50.00,\n            \"uom\": \"EA\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transfer-in",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-in"]
+            },
+            "description": "Create a new Transfer In document"
+          }
+        },
+        {
+          "name": "Submit Transfer In",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-in/TI-0001/submit",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-in", "TI-0001", "submit"]
+            },
+            "description": "Submit a Transfer In document"
+          }
+        },
+        {
+          "name": "Receive Transfer In Line",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"line_id\": 1,\n    \"received_qty\": 50.00,\n    \"received_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transfer-in/TI-0001/receive-line",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-in", "TI-0001", "receive-line"]
+            },
+            "description": "Receive a line item in Transfer In"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfer Carton Operations",
+      "item": [
+        {
+          "name": "Get All Transfer Cartons",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-cartons?asn=ASN-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-cartons"],
+              "query": [
+                {
+                  "key": "asn",
+                  "value": "ASN-0001"
+                }
+              ]
+            },
+            "description": "Get list of Transfer Cartons with optional filters"
+          }
+        },
+        {
+          "name": "Get Transfer Carton by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/transfer-cartons/TC-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-cartons", "TC-0001"]
+            },
+            "description": "Get single Transfer Carton with contents"
+          }
+        },
+        {
+          "name": "Create Transfer Carton",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tc_id\": \"TC-0001\",\n    \"asn_no\": \"ASN-0001\",\n    \"to_no\": \"TO-0001\",\n    \"store\": \"WH-MAIN\",\n    \"user_id\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transfer-cartons/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-cartons", "create"]
+            },
+            "description": "Create a new Transfer Carton"
+          }
+        },
+        {
+          "name": "Seal Transfer Carton",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tc_id\": \"TC-0001\",\n    \"sealed_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transfer-cartons/seal",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-cartons", "seal"]
+            },
+            "description": "Seal a Transfer Carton"
+          }
+        },
+        {
+          "name": "Dispatch Transfer Carton",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"tc_id\": \"TC-0001\",\n    \"dispatched_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/transfer-cartons/dispatch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "transfer-cartons", "dispatch"]
+            },
+            "description": "Dispatch a Transfer Carton"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inbound Operations",
+      "item": [
+        {
+          "name": "Get Inbound Sessions",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/inbound/sessions?status=Active",
+              "host": ["{{base_url}}"],
+              "path": ["api", "inbound", "sessions"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "Active"
+                }
+              ]
+            },
+            "description": "Get list of Inbound Sessions"
+          }
+        },
+        {
+          "name": "Receive Lines",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"parent_title\": \"SESSION-001\",\n    \"receive_lines\": [\n        {\n            \"carton_id\": \"CARTON-001\",\n            \"item_code\": \"SKU-001\",\n            \"expected_qty\": 50.00,\n            \"received_qty\": 50.00,\n            \"condition\": \"Good\",\n            \"remarks\": null\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/inbound/receive-lines",
+              "host": ["{{base_url}}"],
+              "path": ["api", "inbound", "receive-lines"]
+            },
+            "description": "Receive lines in an Inbound Session"
+          }
+        },
+        {
+          "name": "Create Unload Line",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"parent_title\": \"SESSION-001\",\n    \"unit_type\": \"Carton\",\n    \"unit_id\": \"CARTON-001\",\n    \"scanned_by\": \"USER-001\",\n    \"scanned_on\": \"2025-01-20T10:30:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/inbound/unload-line",
+              "host": ["{{base_url}}"],
+              "path": ["api", "inbound", "unload-line"]
+            },
+            "description": "Create an unload line in Inbound Session"
+          }
+        },
+        {
+          "name": "Update Inbound Session",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"inbound_session\": \"SESSION-001\",\n    \"asn_no\": \"ASN-0001\",\n    \"status\": \"Active\",\n    \"transfer_order\": \"TO-0001\",\n    \"user_id\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/inbound/update",
+              "host": ["{{base_url}}"],
+              "path": ["api", "inbound", "update"]
+            },
+            "description": "Update an Inbound Session"
+          }
+        },
+        {
+          "name": "Complete Inbound Session",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"inbound_session\": \"SESSION-001\",\n    \"completed_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/inbound/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "inbound", "complete"]
+            },
+            "description": "Complete an Inbound Session"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Master Data Operations",
+      "item": [
+        {
+          "name": "Get All Boxes",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/boxes",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "boxes"]
+            },
+            "description": "Get list of all Sort Boxes"
+          }
+        },
+        {
+          "name": "Get All Warehouses",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/warehouses",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "warehouses"]
+            },
+            "description": "Get list of all Warehouses"
+          }
+        },
+        {
+          "name": "Get Warehouses and Stores",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/warehouses-stores",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "warehouses-stores"]
+            },
+            "description": "Get list of Warehouses and Stores"
+          }
+        },
+        {
+          "name": "Get All Locations",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/locations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "locations"]
+            },
+            "description": "Get list of all Locations"
+          }
+        },
+        {
+          "name": "Get All Users",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "users"]
+            },
+            "description": "Get list of all Users"
+          }
+        },
+        {
+          "name": "Get All Items",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "items"]
+            },
+            "description": "Get list of all Items"
+          }
+        },
+        {
+          "name": "Get Bin Master",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/bin-master",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "bin-master"]
+            },
+            "description": "Get Bin Master data"
+          }
+        },
+        {
+          "name": "Get Bin by Code",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/bin-master/A1-R01-L1-B1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "bin-master", "A1-R01-L1-B1"]
+            },
+            "description": "Get Bin details by bin code"
+          }
+        },
+        {
+          "name": "Get Stock Ledger Master",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/stock-ledger",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "stock-ledger"]
+            },
+            "description": "Get Stock Ledger Master data"
+          }
+        },
+        {
+          "name": "Get Item Barcode Map",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/item-barcode-map",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "item-barcode-map"]
+            },
+            "description": "Get Item to Barcode mapping"
+          }
+        },
+        {
+          "name": "Get Warehouse Racks",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/master/warehouse-racks",
+              "host": ["{{base_url}}"],
+              "path": ["api", "master", "warehouse-racks"]
+            },
+            "description": "Get Warehouse Racks data"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Box Operations",
+      "item": [
+        {
+          "name": "Get All Boxes",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/boxes?asn=ASN-0001&store=WAREHOUSE&status=Open",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes"],
+              "query": [
+                {
+                  "key": "asn",
+                  "value": "ASN-0001",
+                  "description": "ASN number (required)"
+                },
+                {
+                  "key": "store",
+                  "value": "WAREHOUSE",
+                  "description": "Store identifier (required)"
+                },
+                {
+                  "key": "status",
+                  "value": "Open",
+                  "description": "Filter by status (optional: Open, Filling, Closed)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get boxes filtered by ASN and store. Query parameters: asn (required), store (required), status (optional)"
+          }
+        },
+        {
+          "name": "Get Box by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/boxes/BOX-0001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "BOX-0001"]
+            },
+            "description": "Get single Box details by box_id. Note: Box must exist in database. Create a box first using POST /api/boxes/create, or check existing boxes using GET /api/boxes?asn=...&store=..."
+          }
+        },
+        {
+          "name": "Create Box",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"asn_no\": \"ASN-0001\",\n    \"to_no\": \"TO-0001\",\n    \"store\": \"STORE-001\",\n    \"user_id\": \"USER-001\",\n    \"purpose\": \"STORE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "create"]
+            },
+            "description": "Create a new Sort Box. Required fields: asn_no (or advance_shipping_notice), store, user_id (or created_by). Optional: to_no (or transfer_order), box_id, purpose (default: STORE)"
+          }
+        },
+        {
+          "name": "Close Box",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"box_id\": \"BOX-0001\",\n    \"closed_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/close",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "close"]
+            },
+            "description": "Close a Sort Box"
+          }
+        },
+        {
+          "name": "Print Box",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"box_id\": \"BOX-0001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/print",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "print"]
+            },
+            "description": "Print Box label"
+          }
+        },
+        {
+          "name": "Delete Box",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"box_id\": \"BOX-0001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/boxes/delete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "boxes", "delete"]
+            },
+            "description": "Delete a Sort Box"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Carton Operations",
+      "item": [
+        {
+          "name": "Lock Carton",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"carton_id\": \"CARTON-001\",\n    \"locked_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/carton/lock",
+              "host": ["{{base_url}}"],
+              "path": ["api", "carton", "lock"]
+            },
+            "description": "Lock a carton"
+          }
+        },
+        {
+          "name": "Complete Carton",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"carton_id\": \"CARTON-001\",\n    \"completed_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/carton/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "carton", "complete"]
+            },
+            "description": "Complete a carton"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Carton Status Operations",
+      "item": [
+        {
+          "name": "Update Carton Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"carton_id\": \"CARTON-001\",\n    \"status\": \"PUTAWAY\",\n    \"updated_by\": \"USER-001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/cartons/update-status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "cartons", "update-status"]
+            },
+            "description": "Update carton status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stock Ledger Operations",
+      "item": [
+        {
+          "name": "Get Stock Ledger",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-ledger?warehouse=Main Warehouse",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-ledger"],
+              "query": [
+                {
+                  "key": "warehouse",
+                  "value": "Main Warehouse",
+                  "description": "Warehouse name (not code). Use exact name from database (e.g., 'Main Warehouse' not 'WH-MAIN')"
+                }
+              ]
+            },
+            "description": "Get Stock Ledger entries. Note: Use warehouse NAME (e.g., 'Main Warehouse'), not warehouse CODE (e.g., 'WH-MAIN')"
+          }
+        },
+        {
+          "name": "Get Stock Ledger by Item",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/stock-ledger/SKU-001/Main Warehouse",
+              "host": ["{{base_url}}"],
+              "path": ["api", "stock-ledger", "SKU-001", "WH-MAIN"]
+            },
+            "description": "Get Stock Ledger for specific item and warehouse. Note: Use warehouse NAME (e.g., 'Main Warehouse'), not warehouse CODE (e.g., 'WH-MAIN')"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Warehouse Operations",
+      "item": [
+        {
+          "name": "Get Warehouses and Stores",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/warehouses/stores",
+              "host": ["{{base_url}}"],
+              "path": ["api", "warehouses", "stores"]
+            },
+            "description": "Get list of Warehouses and Stores"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Event Operations",
+      "item": [
+        {
+          "name": "Batch Events",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"events\": [\n        {\n            \"offline_uuid\": \"550e8400-e29b-41d4-a716-446655440001\",\n            \"event_type\": \"RECEIVE_ITEM_SCAN\",\n            \"event_time\": \"2024-12-25T10:35:00Z\",\n            \"device_id\": \"DEVICE-001\",\n            \"user_id\": \"USER-172188\",\n            \"advance_shipping_notice\": \"ASN-0001\",\n            \"inbound_session\": \"SESSION-001\",\n            \"carton_id\": \"CTN-0101\",\n            \"item_code\": \"SKU-001\",\n            \"qty\": 50,\n            \"notes\": \"Item received\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/events/batch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "events", "batch"]
+            },
+            "description": "Submit batch events. Required fields for each event: offline_uuid, event_type, event_time, device_id, user_id. Common event types: RECEIVE_ITEM_SCAN, UNLOAD_SCAN, SORT_TO_BOX, PACK_BOX_TO_TC, PUTAWAY_CONFIRM"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Error Testing",
+      "item": [
+        {
+          "name": "Pick Items - Carton Not Found",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Error code is CARTON_NOT_FOUND\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"CARTON_NOT_FOUND\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"item_code\": \"SKU-001\",\n            \"picked_qty\": 20.00,\n            \"source_bin\": \"A1-R01-L1-B1\",\n            \"carton_id\": \"INVALID-CARTON-999\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001/pick-items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001", "pick-items"]
+            },
+            "description": "Test error handling when carton_id doesn't exist"
+          }
+        },
+        {
+          "name": "Pick Items - Carton Bin Mismatch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Error code is CARTON_BIN_MISMATCH\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"CARTON_BIN_MISMATCH\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"item_code\": \"SKU-001\",\n            \"picked_qty\": 20.00,\n            \"source_bin\": \"A1-R01-L1-B1\",\n            \"carton_id\": \"CARTON-001\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001/pick-items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001", "pick-items"]
+            },
+            "description": "Test error handling when carton is not in the specified bin"
+          }
+        },
+        {
+          "name": "Pick Items - Insufficient Carton Stock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test(\"Error code is INSUFFICIENT_CARTON_STOCK\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.error.code).to.eql(\"INSUFFICIENT_CARTON_STOCK\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{auth_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"items\": [\n        {\n            \"item_code\": \"SKU-001\",\n            \"picked_qty\": 1000.00,\n            \"source_bin\": \"A1-R01-L1-B1\",\n            \"carton_id\": \"CARTON-001\"\n        }\n    ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/material-requests/MR-0001/pick-items",
+              "host": ["{{base_url}}"],
+              "path": ["api", "material-requests", "MR-0001", "pick-items"]
+            },
+            "description": "Test error handling when carton doesn't have enough stock"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set auth token if available",
+          "if (!pm.environment.get(\"auth_token\")) {",
+          "    console.log(\"⚠️ No auth token found. Please run Login request first.\");",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test: Check if response time is acceptable",
+          "pm.test(\"Response time is less than 5000ms\", function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

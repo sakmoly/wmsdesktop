@@ -1,5 +1,5 @@
 // WMS API Server - Bundled Build
-// Built: 2026-01-05T13:05:55.486Z
+// Built: 2026-01-11T10:25:25.524Z
 
 var __create = Object.create;
 var __defProp = Object.defineProperty;
@@ -18175,18 +18175,18 @@ var require_router = __commonJS({
     var toString = Object.prototype.toString;
     var proto = module2.exports = function(options) {
       var opts = options || {};
-      function router16(req, res, next) {
-        router16.handle(req, res, next);
+      function router17(req, res, next) {
+        router17.handle(req, res, next);
       }
-      __name(router16, "router");
-      setPrototypeOf(router16, proto);
-      router16.params = {};
-      router16._params = [];
-      router16.caseSensitive = opts.caseSensitive;
-      router16.mergeParams = opts.mergeParams;
-      router16.strict = opts.strict;
-      router16.stack = [];
-      return router16;
+      __name(router17, "router");
+      setPrototypeOf(router17, proto);
+      router17.params = {};
+      router17._params = [];
+      router17.caseSensitive = opts.caseSensitive;
+      router17.mergeParams = opts.mergeParams;
+      router17.strict = opts.strict;
+      router17.stack = [];
+      return router17;
     };
     proto.param = /* @__PURE__ */ __name(function param(name, fn) {
       if (typeof name === "function") {
@@ -20956,17 +20956,17 @@ var require_application = __commonJS({
       }
     }, "lazyrouter");
     app2.handle = /* @__PURE__ */ __name(function handle(req, res, callback) {
-      var router16 = this._router;
+      var router17 = this._router;
       var done = callback || finalhandler(req, res, {
         env: this.get("env"),
         onerror: logerror.bind(this)
       });
-      if (!router16) {
+      if (!router17) {
         debug("no routes defined on app");
         done();
         return;
       }
-      router16.handle(req, res, done);
+      router17.handle(req, res, done);
     }, "handle");
     app2.use = /* @__PURE__ */ __name(function use(fn) {
       var offset = 0;
@@ -20986,15 +20986,15 @@ var require_application = __commonJS({
         throw new TypeError("app.use() requires a middleware function");
       }
       this.lazyrouter();
-      var router16 = this._router;
+      var router17 = this._router;
       fns.forEach(function(fn2) {
         if (!fn2 || !fn2.handle || !fn2.set) {
-          return router16.use(path2, fn2);
+          return router17.use(path2, fn2);
         }
         debug(".use app under %s", path2);
         fn2.mountpath = path2;
         fn2.parent = this;
-        router16.use(path2, /* @__PURE__ */ __name(function mounted_app(req, res, next) {
+        router17.use(path2, /* @__PURE__ */ __name(function mounted_app(req, res, next) {
           var orig = req.app;
           fn2.handle(req, res, function(err) {
             setPrototypeOf(req, orig.request);
@@ -27890,14 +27890,14 @@ var init_updateTransferOrderQuantities = __esm({
 });
 
 // src/server.js
-var import_express16 = __toESM(require_express2(), 1);
+var import_express17 = __toESM(require_express2(), 1);
 var import_cors = __toESM(require_lib3(), 1);
 var import_dotenv3 = __toESM(require_main(), 1);
 var import_os = __toESM(require("os"), 1);
 var import_http = __toESM(require("http"), 1);
 
 // src/routes/index.js
-var import_express15 = __toESM(require_express2(), 1);
+var import_express16 = __toESM(require_express2(), 1);
 
 // src/routes/masterRoutes.js
 var import_express = __toESM(require_express2(), 1);
@@ -28537,6 +28537,305 @@ var getAllLocations = /* @__PURE__ */ __name(async (req, res) => {
     connection.release();
   }
 }, "getAllLocations");
+var getBinMaster = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT 
+        location_id,
+        warehouse,
+        zone,
+        aisle,
+        parent_rack,
+        level,
+        bin_id,
+        location_type,
+        location_type_detailed,
+        is_available,
+        capacity_volume_weight,
+        created_at,
+        updated_at
+      FROM tabLocation
+      ORDER BY warehouse, zone, aisle, parent_rack, level, bin_id
+    `);
+    const bins = rows.map((row) => ({
+      location_id: row.location_id,
+      bin_code: row.location_id,
+      // Mobile app uses bin_code to match location_id
+      bin_id: row.bin_id || null,
+      warehouse: row.warehouse,
+      zone: row.zone || null,
+      aisle: row.aisle || null,
+      parent_rack: row.parent_rack || null,
+      rack: row.parent_rack || null,
+      // Alias for mobile app compatibility
+      level: row.level || null,
+      location_type: row.location_type || null,
+      location_type_detailed: row.location_type_detailed || null,
+      is_available: Boolean(row.is_available),
+      capacity_volume_weight: row.capacity_volume_weight ? parseFloat(row.capacity_volume_weight) : null,
+      created_at: row.created_at ? row.created_at.toISOString() : null,
+      updated_at: row.updated_at ? row.updated_at.toISOString() : null
+    }));
+    console.log(`[Bin Master] Returning ${bins.length} bins to client`);
+    console.log(`[Bin Master] First bin: ${bins[0]?.bin_code || "N/A"}, Last bin: ${bins[bins.length - 1]?.bin_code || "N/A"}`);
+    console.log(`[Bin Master] Response size: ${JSON.stringify(bins).length} bytes`);
+    if (bins.length !== rows.length) {
+      console.error(`[Bin Master] WARNING: Bin count mismatch! Rows: ${rows.length}, Bins: ${bins.length}`);
+    }
+    res.json(bins);
+  } catch (error) {
+    console.error("Failed to fetch bin master:", error);
+    res.status(500).json({
+      code: "DATABASE_ERROR",
+      message: "Failed to fetch bin master",
+      details: process.env.NODE_ENV === "development" ? error.message : null
+    });
+  } finally {
+    connection.release();
+  }
+}, "getBinMaster");
+var getStockLedgerMaster = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { warehouse, item_code, bin_location } = req.query;
+    let query = `
+      SELECT 
+        id,
+        item_code,
+        warehouse,
+        bin_location,
+        qty,
+        reserved_qty,
+        available_qty,
+        last_transaction_date,
+        last_transaction_type,
+        last_transaction_ref,
+        updated_at,
+        created_at
+      FROM tabStockLedger
+      WHERE 1=1
+    `;
+    const params = [];
+    if (warehouse) {
+      query += " AND warehouse = ?";
+      params.push(warehouse);
+    }
+    if (item_code) {
+      query += " AND item_code = ?";
+      params.push(item_code);
+    }
+    if (bin_location !== void 0) {
+      if (bin_location === null || bin_location === "null" || bin_location === "") {
+        query += " AND bin_location IS NULL";
+      } else {
+        query += " AND bin_location = ?";
+        params.push(bin_location);
+      }
+    }
+    query += " ORDER BY last_transaction_date DESC, warehouse, item_code, bin_location IS NULL, bin_location";
+    const [rows] = await connection.execute(query, params);
+    const stockLedger = rows.map((row) => ({
+      id: row.id,
+      item_code: row.item_code,
+      warehouse: row.warehouse,
+      bin_location: row.bin_location || null,
+      qty: parseFloat(row.qty) || 0,
+      reserved_qty: parseFloat(row.reserved_qty) || 0,
+      available_qty: parseFloat(row.available_qty) || 0,
+      last_transaction_date: row.last_transaction_date ? row.last_transaction_date.toISOString() : null,
+      last_transaction_type: row.last_transaction_type || null,
+      last_transaction_ref: row.last_transaction_ref || null,
+      updated_at: row.updated_at ? row.updated_at.toISOString() : null,
+      created_at: row.created_at ? row.created_at.toISOString() : null
+    }));
+    res.json(stockLedger);
+  } catch (error) {
+    console.error("Failed to fetch stock ledger:", error);
+    res.status(500).json({
+      code: "DATABASE_ERROR",
+      message: "Failed to fetch stock ledger",
+      details: process.env.NODE_ENV === "development" ? error.message : null
+    });
+  } finally {
+    connection.release();
+  }
+}, "getStockLedgerMaster");
+var getBinByCode = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { bin_code } = req.params;
+    const [rows] = await connection.execute(`
+      SELECT 
+        location_id,
+        warehouse,
+        zone,
+        aisle,
+        parent_rack,
+        level,
+        bin_id,
+        location_type,
+        location_type_detailed,
+        is_available,
+        capacity_volume_weight,
+        created_at,
+        updated_at
+      FROM tabLocation
+      WHERE location_id = ?
+    `, [bin_code]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        code: "NOT_FOUND",
+        message: `Bin "${bin_code}" not found in system`
+      });
+    }
+    const row = rows[0];
+    const bin = {
+      location_id: row.location_id,
+      bin_code: row.location_id,
+      // Mobile app uses bin_code
+      bin_id: row.bin_id || null,
+      warehouse: row.warehouse,
+      zone: row.zone || null,
+      aisle: row.aisle || null,
+      parent_rack: row.parent_rack || null,
+      rack: row.parent_rack || null,
+      level: row.level || null,
+      location_type: row.location_type || null,
+      location_type_detailed: row.location_type_detailed || null,
+      is_available: Boolean(row.is_available),
+      capacity_volume_weight: row.capacity_volume_weight ? parseFloat(row.capacity_volume_weight) : null,
+      created_at: row.created_at ? row.created_at.toISOString() : null,
+      updated_at: row.updated_at ? row.updated_at.toISOString() : null
+    };
+    res.json(bin);
+  } catch (error) {
+    console.error("Failed to fetch bin by code:", error);
+    res.status(500).json({
+      code: "DATABASE_ERROR",
+      message: "Failed to fetch bin by code",
+      details: process.env.NODE_ENV === "development" ? error.message : null
+    });
+  } finally {
+    connection.release();
+  }
+}, "getBinByCode");
+var getItemBarcodeMap = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const [rows] = await connection.execute(`
+      SELECT 
+        code as item_code,
+        name as item_name,
+        barcode
+      FROM tabItem
+      WHERE barcode IS NOT NULL AND barcode != ''
+      ORDER BY code
+    `);
+    const barcodeMap = rows.map((row) => ({
+      item_code: row.item_code,
+      barcode: row.barcode,
+      item_name: row.item_name || null
+    }));
+    res.json(barcodeMap);
+  } catch (error) {
+    console.error("Failed to fetch item barcode map:", error);
+    res.status(500).json({
+      code: "DATABASE_ERROR",
+      message: "Failed to fetch item barcode map",
+      details: process.env.NODE_ENV === "development" ? error.message : null
+    });
+  } finally {
+    connection.release();
+  }
+}, "getItemBarcodeMap");
+var lookupItem = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { barcode, item_code } = req.query;
+    if (!barcode && !item_code) {
+      return res.status(400).json({
+        found: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Either barcode or item_code query parameter is required"
+        }
+      });
+    }
+    let query = `
+      SELECT 
+        code as item_code,
+        name as item_name,
+        item_group,
+        brand,
+        default_uom,
+        stock_uom,
+        barcode,
+        maintain_stock,
+        stock_qty,
+        reserved_qty,
+        updated_on,
+        created_at,
+        updated_at
+      FROM tabItem
+      WHERE 1=1
+    `;
+    const params = [];
+    if (barcode) {
+      query += ` AND (barcode = ? OR code = ?)`;
+      params.push(barcode, barcode);
+    }
+    if (item_code) {
+      query += ` AND code = ?`;
+      params.push(item_code);
+    }
+    query += ` LIMIT 1`;
+    const [rows] = await connection.execute(query, params);
+    if (rows.length > 0) {
+      const item = rows[0];
+      res.json({
+        found: true,
+        item: {
+          item_code: item.item_code,
+          code: item.item_code,
+          // Backward compatibility
+          item_name: item.item_name,
+          name: item.item_name,
+          // Backward compatibility
+          item_group: item.item_group || null,
+          brand: item.brand || null,
+          default_uom: item.default_uom || null,
+          stock_uom: item.stock_uom || null,
+          barcode: item.barcode || item.item_code,
+          // Use item_code as barcode if barcode is null
+          maintain_stock: Boolean(item.maintain_stock),
+          stock_qty: parseFloat(item.stock_qty) || 0,
+          reserved_qty: parseFloat(item.reserved_qty) || 0,
+          updated_on: item.updated_on ? item.updated_on.toISOString() : null,
+          created_at: item.created_at ? item.created_at.toISOString() : null,
+          updated_at: item.updated_at ? item.updated_at.toISOString() : null
+        }
+      });
+    } else {
+      res.json({
+        found: false,
+        message: barcode ? `Barcode '${barcode}' not found in system` : `Item code '${item_code}' not found in system`
+      });
+    }
+  } catch (error) {
+    console.error("Failed to lookup item:", error);
+    res.status(500).json({
+      found: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to lookup item",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "lookupItem");
 
 // src/middleware/auth.js
 var import_jsonwebtoken = __toESM(require_jsonwebtoken(), 1);
@@ -28574,6 +28873,11 @@ router.get("/warehouses-stores", authenticateToken, getWarehousesStores);
 router.get("/locations", authenticateToken, getAllLocations);
 router.get("/users", authenticateToken, getAllUsers);
 router.get("/items", authenticateToken, getAllItems);
+router.get("/bin-master/:bin_code", authenticateToken, getBinByCode);
+router.get("/bin-master", authenticateToken, getBinMaster);
+router.get("/stock-ledger", authenticateToken, getStockLedgerMaster);
+router.get("/item-barcode-map", authenticateToken, getItemBarcodeMap);
+router.get("/items/lookup", authenticateToken, lookupItem);
 var masterRoutes_default = router;
 
 // src/routes/authRoutes.js
@@ -30399,7 +30703,7 @@ async function processPutawayEvent(connection, event) {
       [tc_id]
     );
     for (const item of itemEvents) {
-      const itemCode = item.item_code;
+      const itemCode2 = item.item_code;
       const boxId = item.box_id || item.carton_id || null;
       const itemQty = parseFloat(item.total_qty) || 0;
       const rackValue = rack || "";
@@ -30411,12 +30715,12 @@ async function processPutawayEvent(connection, event) {
            AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
            AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
            AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))`,
-        [putawayTaskTitle, itemCode, boxId, boxId, rackValue, rackValue, rackValue, binValue, binValue, binValue]
+        [putawayTaskTitle, itemCode2, boxId, boxId, rackValue, rackValue, rackValue, binValue, binValue, binValue]
       );
       if (lineExists.length > 0) {
         const existingQty = parseFloat(lineExists[0].qty) || 0;
         if (Math.abs(existingQty - itemQty) > 0.01) {
-          console.log(`[Putaway Event] Updating quantity for existing line: ${itemCode} @ ${rack}/${bin || ""} (${existingQty} -> ${itemQty})`);
+          console.log(`[Putaway Event] Updating quantity for existing line: ${itemCode2} @ ${rack}/${bin || ""} (${existingQty} -> ${itemQty})`);
           await connection.execute(
             `UPDATE tabPutawayLine 
              SET qty = ?, updated_at = CURRENT_TIMESTAMP 
@@ -30424,7 +30728,7 @@ async function processPutawayEvent(connection, event) {
             [itemQty, lineExists[0].id]
           );
         } else {
-          console.log(`[Putaway Event] Line already exists with same quantity: ${itemCode} @ ${rack}/${bin || ""}`);
+          console.log(`[Putaway Event] Line already exists with same quantity: ${itemCode2} @ ${rack}/${bin || ""}`);
         }
       } else {
         const [existingDifferentLocation] = await connection.execute(
@@ -30436,15 +30740,15 @@ async function processPutawayEvent(connection, event) {
                (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
                AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))
              )`,
-          [putawayTaskTitle, itemCode, boxId, boxId, rackValue, rackValue, rackValue, binValue2, binValue2, binValue2]
+          [putawayTaskTitle, itemCode2, boxId, boxId, rackValue, rackValue, rackValue, binValue2, binValue2, binValue2]
         );
         if (existingDifferentLocation.length > 0) {
-          console.warn(`[Putaway Event] WARNING: Carton ${boxId || "NULL"} with item ${itemCode} already put away to different location: ${existingDifferentLocation[0].rack}/${existingDifferentLocation[0].bin || ""}. Creating new line for ${rack}/${bin || ""}`);
+          console.warn(`[Putaway Event] WARNING: Carton ${boxId || "NULL"} with item ${itemCode2} already put away to different location: ${existingDifferentLocation[0].rack}/${existingDifferentLocation[0].bin || ""}. Creating new line for ${rack}/${bin || ""}`);
         }
         const binValue2 = bin || "";
         await connection.execute(
           `INSERT INTO tabPutawayLine (parent_title, carton_id, item_code, qty, rack, bin, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-          [putawayTaskTitle, boxId, itemCode, itemQty, rack, binValue2]
+          [putawayTaskTitle, boxId, itemCode2, itemQty, rack, binValue2]
         );
       }
     }
@@ -30520,7 +30824,7 @@ async function processPutawayCompletionEvent(connection, event) {
     }
   }
   for (const line of putawayLines) {
-    const itemCode = line.item_code;
+    const itemCode2 = line.item_code;
     const lineQty = parseFloat(line.qty) || 0;
     const lineRack = line.rack || null;
     const lineBin = line.bin || null;
@@ -30530,11 +30834,11 @@ async function processPutawayCompletionEvent(connection, event) {
     } else if (lineRack) {
       binLocation = lineRack;
     }
-    if (!itemCode || lineQty <= 0)
+    if (!itemCode2 || lineQty <= 0)
       continue;
     const [currentStock] = await connection.execute(
       `SELECT qty, reserved_qty FROM tabStockLedger WHERE item_code = ? AND warehouse = ? AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))`,
-      [itemCode, warehouse, binLocation, binLocation]
+      [itemCode2, warehouse, binLocation, binLocation]
     );
     const currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
     const currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
@@ -30543,19 +30847,19 @@ async function processPutawayCompletionEvent(connection, event) {
       `INSERT INTO tabStockLedger (item_code, warehouse, bin_location, qty, reserved_qty, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at)
        VALUES (?, ?, ?, ?, ?, NOW(), 'Putaway', ?, NOW(), NOW())
        ON DUPLICATE KEY UPDATE qty = ?, last_transaction_date = NOW(), last_transaction_type = 'Putaway', last_transaction_ref = ?, updated_at = NOW()`,
-      [itemCode, warehouse, binLocation, newQty, currentReservedQty, putawayTaskTitle, newQty, putawayTaskTitle]
+      [itemCode2, warehouse, binLocation, newQty, currentReservedQty, putawayTaskTitle, newQty, putawayTaskTitle]
     );
     await connection.execute(
       `INSERT INTO tabStockTransaction (transaction_date, transaction_type, reference_doc_type, reference_doc, item_code, warehouse, bin_location, qty_change, qty_before, qty_after, source_bin, target_bin, performed_by, created_at)
        VALUES (NOW(), 'Putaway', 'Putaway Task', ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NOW())`,
-      [putawayTaskTitle, itemCode, warehouse, binLocation, lineQty, currentQty, newQty, binLocation, user_id || "SYSTEM"]
+      [putawayTaskTitle, itemCode2, warehouse, binLocation, lineQty, currentQty, newQty, binLocation, user_id || "SYSTEM"]
     );
   }
   const itemCodes = [...new Set(putawayLines.map((line) => line.item_code))];
-  for (const itemCode of itemCodes) {
+  for (const itemCode2 of itemCodes) {
     await connection.execute(
       `UPDATE tabItem SET stock_qty = (SELECT COALESCE(SUM(qty), 0) FROM tabStockLedger WHERE item_code = ?), updated_at = NOW() WHERE code = ?`,
-      [itemCode, itemCode]
+      [itemCode2, itemCode2]
     );
   }
   await connection.execute(
@@ -30746,27 +31050,14 @@ async function isWarehouseStore(connection, storeCode) {
 __name(isWarehouseStore, "isWarehouseStore");
 var getTasks = /* @__PURE__ */ __name(async (req, res) => {
   const { status, source_type, advance_shipping_notice, transfer_in } = req.query;
+  console.log("\u{1F4CB} GET /api/putaway/tasks - Query params:", {
+    status,
+    source_type,
+    advance_shipping_notice,
+    transfer_in
+  });
   const connection = await getConnection();
   try {
-    const conditions = [];
-    const params = [];
-    if (status) {
-      conditions.push("pt.status = ?");
-      params.push(status);
-    }
-    if (source_type) {
-      conditions.push('COALESCE(pt.source_type, "ASN") = ?');
-      params.push(source_type);
-    }
-    if (advance_shipping_notice) {
-      conditions.push("pt.advance_shipping_notice = ?");
-      params.push(advance_shipping_notice);
-    }
-    if (transfer_in) {
-      conditions.push("pt.transfer_in = ?");
-      params.push(transfer_in);
-    }
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const [columns] = await connection.execute(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
@@ -30780,6 +31071,49 @@ var getTasks = /* @__PURE__ */ __name(async (req, res) => {
     const hasTransferIn = columns.some(
       (col) => col.COLUMN_NAME === "transfer_in"
     );
+    const conditions = [];
+    const params = [];
+    if (status) {
+      const statusValues = status.split(",").map((s) => s.trim()).filter((s) => s);
+      if (statusValues.length > 0) {
+        const placeholders = statusValues.map(() => "?").join(",");
+        conditions.push(`pt.status IN (${placeholders})`);
+        params.push(...statusValues);
+      }
+    }
+    if (source_type) {
+      if (hasSourceType) {
+        conditions.push('COALESCE(pt.source_type, "ASN") = ?');
+        params.push(source_type);
+      } else {
+        if (source_type !== "ASN") {
+          res.json({
+            ok: true,
+            data: []
+          });
+          connection.release();
+          return;
+        }
+      }
+    }
+    if (advance_shipping_notice) {
+      conditions.push("pt.advance_shipping_notice = ?");
+      params.push(advance_shipping_notice);
+    }
+    if (transfer_in) {
+      if (hasTransferIn) {
+        conditions.push("pt.transfer_in = ?");
+        params.push(transfer_in);
+      } else {
+        res.json({
+          ok: true,
+          data: []
+        });
+        connection.release();
+        return;
+      }
+    }
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const sourceTypeSelect = hasSourceType ? 'COALESCE(pt.source_type, "ASN") as source_type' : '"ASN" as source_type';
     const transferInSelect = hasTransferIn ? "pt.transfer_in" : "NULL as transfer_in";
     const [taskColumns] = await connection.execute(`
@@ -30886,8 +31220,10 @@ var getTasks = /* @__PURE__ */ __name(async (req, res) => {
             headerLocationId = firstLocationId;
           }
         }
-        return {
+        const responseTask = {
           putaway_task: task.title,
+          title: task.title,
+          // Add title field for mobile app compatibility
           box_id: task.box_id || null,
           tc_id: task.tc_id || null,
           asn_no: task.advance_shipping_notice || null,
@@ -30898,17 +31234,39 @@ var getTasks = /* @__PURE__ */ __name(async (req, res) => {
           status: task.status,
           source_type: task.source_type || "ASN",
           created_on: task.created_at ? task.created_at.toISOString() : null,
+          created_at: task.created_at ? task.created_at.toISOString() : null,
+          // Add created_at for compatibility
           created_by: task.created_by || null,
           lines_count: taskLines.length,
+          item_count: taskLines.length,
+          // Add item_count alias for mobile app
           items: taskLines
           // Items already include location_id at line level
         };
+        if (task.source_type === "TransferIn" && task.transfer_in) {
+          responseTask.transfer_in = task.transfer_in;
+          responseTask.transfer_in_number = task.transfer_in;
+        }
+        return responseTask;
       });
+      console.log(`\u2705 GET /api/putaway/tasks - Returning ${formattedTasks.length} task(s)`);
+      if (source_type === "TransferIn") {
+        console.log(`   Transfer In tasks: ${formattedTasks.length}`);
+        formattedTasks.forEach((task, index) => {
+          console.log(`   ${index + 1}. ${task.title} - Transfer In: ${task.transfer_in || "N/A"} - Status: ${task.status}`);
+        });
+      }
       res.json({
         ok: true,
         data: formattedTasks
       });
     } else {
+      console.log(`\u26A0\uFE0F GET /api/putaway/tasks - No tasks found with filters:`, {
+        status,
+        source_type,
+        advance_shipping_notice,
+        transfer_in
+      });
       res.json({
         ok: true,
         data: []
@@ -31249,13 +31607,13 @@ var createTaskForRemainingItems = /* @__PURE__ */ __name(async (req, res) => {
   }
 }, "createTaskForRemainingItems");
 var assignRack = /* @__PURE__ */ __name(async (req, res) => {
-  const { putaway_task, carton_id, item_code, rack, bin, qty, user_id } = req.body;
-  if (!putaway_task || !rack) {
+  const { putaway_task, carton_id, item_code, location_id, rack, bin, qty, user_id } = req.body;
+  if (!putaway_task || !location_id && !rack) {
     return res.status(400).json({
       ok: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "putaway_task and rack are required"
+        message: "putaway_task and location_id (or rack) are required"
       }
     });
   }
@@ -31277,21 +31635,65 @@ var assignRack = /* @__PURE__ */ __name(async (req, res) => {
         }
       });
     }
+    let actualRack = rack;
+    let actualBin = bin;
+    let actualLocationId = location_id;
+    if (location_id) {
+      try {
+        const locationInfo = await lookupLocationFromId(connection, location_id);
+        actualRack = locationInfo.rack;
+        actualBin = locationInfo.bin;
+        actualLocationId = locationInfo.location_id;
+        console.log(
+          `[Putaway] Looked up location ${location_id}: rack="${actualRack}", bin="${actualBin}"`
+        );
+      } catch (error) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "LOCATION_NOT_FOUND",
+            message: error.message || `Location ID "${location_id}" not found or not available`
+          }
+        });
+      }
+    }
+    const [lineLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayLine' 
+      AND COLUMN_NAME = 'location_id'
+    `);
+    const hasLineLocationIdColumn = lineLocationColumns.length > 0;
     if (carton_id && item_code && qty !== void 0) {
-      const binValue = bin || "";
-      await connection.execute(
-        `
+      const binValue = actualBin || "";
+      let insertQuery = `
         INSERT INTO tabPutawayLine 
-          (parent_title, carton_id, item_code, qty, rack, bin)
-        VALUES (?, ?, ?, ?, ?, ?)
+          (parent_title, carton_id, item_code, qty, rack, bin`;
+      const insertParams = [putaway_task, carton_id, item_code, qty, actualRack, binValue];
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `, location_id`;
+        insertParams.push(actualLocationId);
+      }
+      insertQuery += `)
+        VALUES (?, ?, ?, ?, ?, ?`;
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `, ?`;
+      }
+      insertQuery += `)
         ON DUPLICATE KEY UPDATE
           rack = VALUES(rack),
           bin = VALUES(bin),
-          qty = VALUES(qty),
-          updated_at = CURRENT_TIMESTAMP
-      `,
-        [putaway_task, carton_id, item_code, qty, rack, binValue]
-      );
+          qty = VALUES(qty)`;
+      if (hasLineLocationIdColumn && actualLocationId) {
+        insertQuery += `,
+          location_id = VALUES(location_id)`;
+      }
+      insertQuery += `,
+          updated_at = CURRENT_TIMESTAMP`;
+      await connection.execute(insertQuery, insertParams);
     } else {
       await connection.execute(
         `
@@ -31305,16 +31707,16 @@ var assignRack = /* @__PURE__ */ __name(async (req, res) => {
     await connection.commit();
     res.json({
       ok: true,
-      message: "Rack assigned successfully"
+      message: "Location assigned successfully"
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Failed to assign rack:", error);
+    console.error("Failed to assign location:", error);
     res.status(500).json({
       ok: false,
       error: {
         code: "DATABASE_ERROR",
-        message: "Failed to assign rack",
+        message: "Failed to assign location",
         details: process.env.NODE_ENV === "development" ? error.message : null
       }
     });
@@ -31397,6 +31799,15 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
     `,
       [putaway_task]
     );
+    const [lineLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayLine' 
+      AND COLUMN_NAME = 'location_id'
+    `);
+    const hasLineLocationIdColumn = lineLocationColumns.length > 0;
+    const locationIdSelect = hasLineLocationIdColumn ? "pl.location_id" : "NULL as location_id";
     const [putawayLines] = await connection.execute(
       `
       SELECT 
@@ -31404,7 +31815,8 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
         pl.qty,
         pl.rack,
         pl.bin,
-        pl.carton_id
+        pl.carton_id,
+        ${locationIdSelect}
       FROM tabPutawayLine pl
       WHERE pl.parent_title = ?
         AND pl.item_code IS NOT NULL
@@ -31546,28 +31958,38 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
             continue;
           }
           let itemCartonId = item.box_id || item.carton_id || null;
+          const [lineLocationColumns2] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabPutawayLine' 
+            AND COLUMN_NAME = 'location_id'
+          `);
+          const hasLineLocationIdColumn2 = lineLocationColumns2.length > 0;
           const rackValue = rack || "";
           const binValue = bin || "";
-          const [existingLine] = await connection.execute(
-            `SELECT id, carton_id, qty FROM tabPutawayLine 
+          let existingLineQuery = `SELECT id, carton_id, qty`;
+          if (hasLineLocationIdColumn2) {
+            existingLineQuery += `, location_id`;
+          }
+          existingLineQuery += ` FROM tabPutawayLine 
              WHERE parent_title = ? 
-               AND item_code = ? 
-               AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
-               AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))
-               AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
-             LIMIT 1`,
-            [
-              putaway_task,
-              item.item_code,
-              rackValue,
-              rackValue,
-              rackValue,
-              binValue,
-              binValue,
-              binValue,
-              itemCartonId,
-              itemCartonId
-            ]
+               AND item_code = ?`;
+          const existingLineParams = [putaway_task, item.item_code];
+          if (hasLineLocationIdColumn2 && itemLocationId) {
+            existingLineQuery += ` AND (location_id = ? OR (location_id IS NULL AND ? IS NULL))`;
+            existingLineParams.push(itemLocationId, itemLocationId);
+          } else {
+            existingLineQuery += ` AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
+               AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))`;
+            existingLineParams.push(rackValue, rackValue, rackValue, binValue, binValue, binValue);
+          }
+          existingLineQuery += ` AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
+             LIMIT 1`;
+          existingLineParams.push(itemCartonId, itemCartonId);
+          const [existingLine] = await connection.execute(
+            existingLineQuery,
+            existingLineParams
           );
           if (existingLine.length > 0) {
             const existingCartonId = existingLine[0].carton_id;
@@ -31577,14 +31999,18 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
             console.log(
               `[Putaway] Updating existing line ID ${existingLine[0].id}: ${item.item_code} @ ${rackValue || ""}/${binValue || ""} (qty: ${existingLine[0].qty} -> ${item.qty})`
             );
-            await connection.execute(
-              `UPDATE tabPutawayLine 
+            let updateQuery = `UPDATE tabPutawayLine 
                SET qty = ?, rack = ?, bin = ?, 
-                   carton_id = COALESCE(?, carton_id),
-                   updated_at = NOW()
-               WHERE id = ?`,
-              [item.qty, rackValue, binValue, itemCartonId, existingLine[0].id]
-            );
+                   carton_id = COALESCE(?, carton_id)`;
+            const updateParams = [item.qty, rackValue, binValue, itemCartonId];
+            if (hasLineLocationIdColumn2 && itemLocationId) {
+              updateQuery += `, location_id = ?`;
+              updateParams.push(itemLocationId);
+            }
+            updateQuery += `, updated_at = NOW()
+               WHERE id = ?`;
+            updateParams.push(existingLine[0].id);
+            await connection.execute(updateQuery, updateParams);
             console.log(
               `[Putaway] Skipping adding to putawayLines (already exists in DB with ID ${existingLine[0].id})`
             );
@@ -31605,20 +32031,18 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
               if (!itemCartonId && existingCartonId) {
                 itemCartonId = existingCartonId;
               }
-              await connection.execute(
-                `UPDATE tabPutawayLine 
+              let updateExistingQuery = `UPDATE tabPutawayLine 
                  SET qty = ?, rack = ?, bin = ?, 
-                     carton_id = COALESCE(?, carton_id),
-                     updated_at = NOW()
-                 WHERE id = ?`,
-                [
-                  item.qty,
-                  rackValue,
-                  binValue,
-                  itemCartonId,
-                  anyExistingLine[0].id
-                ]
-              );
+                     carton_id = COALESCE(?, carton_id)`;
+              const updateExistingParams = [item.qty, rackValue, binValue, itemCartonId];
+              if (hasLineLocationIdColumn2 && itemLocationId) {
+                updateExistingQuery += `, location_id = ?`;
+                updateExistingParams.push(itemLocationId);
+              }
+              updateExistingQuery += `, updated_at = NOW()
+                 WHERE id = ?`;
+              updateExistingParams.push(anyExistingLine[0].id);
+              await connection.execute(updateExistingQuery, updateExistingParams);
               console.log(
                 `[Putaway] Updated existing line ID ${anyExistingLine[0].id} with new location`
               );
@@ -31666,19 +32090,27 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
                 console.log(
                   `[Putaway] Inserting new line: ${item.item_code} @ ${rackValue || ""}/${binValue || ""} (carton: ${itemCartonId || "NULL"})`
                 );
-                await connection.execute(
-                  `INSERT INTO tabPutawayLine 
-                   (parent_title, carton_id, item_code, qty, rack, bin, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-                  [
-                    putaway_task,
-                    itemCartonId,
-                    item.item_code,
-                    item.qty,
-                    rackValue,
-                    binValue
-                  ]
-                );
+                let insertQuery = `INSERT INTO tabPutawayLine 
+                   (parent_title, carton_id, item_code, qty, rack, bin`;
+                const insertParams = [
+                  putaway_task,
+                  itemCartonId,
+                  item.item_code,
+                  item.qty,
+                  rackValue,
+                  binValue
+                ];
+                if (hasLineLocationIdColumn2 && itemLocationId) {
+                  insertQuery += `, location_id`;
+                  insertParams.push(itemLocationId);
+                }
+                insertQuery += `, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?`;
+                if (hasLineLocationIdColumn2 && itemLocationId) {
+                  insertQuery += `, ?`;
+                }
+                insertQuery += `, NOW(), NOW())`;
+                await connection.execute(insertQuery, insertParams);
               }
             }
           }
@@ -31793,15 +32225,24 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
         }
       });
     }
+    const [stockLedgerColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockLedger' 
+      AND COLUMN_NAME IN ('qty_before', 'qty_reduced')
+    `);
+    const hasQtyBefore = stockLedgerColumns.some((col) => col.COLUMN_NAME === "qty_before");
+    const hasQtyReduced = stockLedgerColumns.some((col) => col.COLUMN_NAME === "qty_reduced");
     const processedStockKeys = /* @__PURE__ */ new Set();
     const stockUpdates = [];
     for (const line of putawayLines) {
-      const itemCode = line.item_code;
+      const itemCode2 = line.item_code;
       const qty = parseFloat(line.qty) || 0;
       const rack = (line.rack || "").trim() || null;
       const bin = (line.bin || "").trim() || null;
       if (!rack && !bin) {
-        console.warn(`[Putaway] Skipping line without location: ${itemCode}`);
+        console.warn(`[Putaway] Skipping line without location: ${itemCode2}`);
         continue;
       }
       let binLocation = line.location_id || null;
@@ -31814,15 +32255,15 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
           binLocation = bin;
         }
       }
-      const stockKey = `${itemCode}|${binLocation || ""}`;
+      const stockKey = `${itemCode2}|${binLocation || ""}`;
       if (processedStockKeys.has(stockKey)) {
         console.warn(
-          `[Putaway] SKIPPING duplicate stock update: ${itemCode} @ ${binLocation || "NULL"} (already processed)`
+          `[Putaway] SKIPPING duplicate stock update: ${itemCode2} @ ${binLocation || "NULL"} (already processed)`
         );
         continue;
       }
       processedStockKeys.add(stockKey);
-      if (!itemCode || qty <= 0) {
+      if (!itemCode2 || qty <= 0) {
         continue;
       }
       const [currentStock] = await connection.execute(
@@ -31833,38 +32274,50 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
           AND warehouse = ?
           AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))
       `,
-        [itemCode, warehouse, binLocation, binLocation]
+        [itemCode2, warehouse, binLocation, binLocation]
       );
       const currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
       const currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
       const newQty = currentQty + qty;
+      const qtyBefore = currentQty;
+      const qtyReduced = qty;
+      let insertFields = `item_code, warehouse, bin_location, qty, reserved_qty`;
+      let insertValues = `?, ?, ?, ?, ?`;
+      let insertParams = [itemCode2, warehouse, binLocation, newQty, currentReservedQty];
+      let updateFields = `qty = ?`;
+      let updateParams = [newQty];
+      if (hasQtyBefore) {
+        insertFields += `, qty_before`;
+        insertValues += `, ?`;
+        insertParams.push(qtyBefore);
+        updateFields += `, qty_before = ?`;
+        updateParams.push(qtyBefore);
+      }
+      if (hasQtyReduced) {
+        insertFields += `, qty_reduced`;
+        insertValues += `, ?`;
+        insertParams.push(qtyReduced);
+        updateFields += `, qty_reduced = ?`;
+        updateParams.push(qtyReduced);
+      }
+      insertFields += `, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at`;
+      insertValues += `, NOW(), 'Putaway', ?, NOW(), NOW()`;
+      insertParams.push(putaway_task);
+      updateFields += `, last_transaction_date = NOW(), last_transaction_type = 'Putaway', last_transaction_ref = ?, updated_at = NOW()`;
+      updateParams.push(putaway_task);
+      console.log(`[Putaway] Updating stock: ${itemCode2} @ ${binLocation || "NULL"}`);
+      console.log(`  qty_before: ${qtyBefore}, qty_reduced: ${qtyReduced}, new_qty: ${newQty}`);
+      console.log(`  hasQtyBefore: ${hasQtyBefore}, hasQtyReduced: ${hasQtyReduced}`);
       await connection.execute(
         `
         INSERT INTO tabStockLedger 
-          (item_code, warehouse, bin_location, qty, reserved_qty, 
-           last_transaction_date, last_transaction_type, last_transaction_ref, 
-           updated_at, created_at)
+          (${insertFields})
         VALUES 
-          (?, ?, ?, ?, ?,
-           NOW(), 'Putaway', ?, 
-           NOW(), NOW())
+          (${insertValues})
         ON DUPLICATE KEY UPDATE
-          qty = ?,
-          last_transaction_date = NOW(),
-          last_transaction_type = 'Putaway',
-          last_transaction_ref = ?,
-          updated_at = NOW()
+          ${updateFields}
       `,
-        [
-          itemCode,
-          warehouse,
-          binLocation,
-          newQty,
-          currentReservedQty,
-          putaway_task,
-          newQty,
-          putaway_task
-        ]
+        [...insertParams, ...updateParams]
       );
       await connection.execute(
         `
@@ -31879,7 +32332,7 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
       `,
         [
           putaway_task,
-          itemCode,
+          itemCode2,
           warehouse,
           binLocation,
           qty,
@@ -31890,7 +32343,7 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
         ]
       );
       stockUpdates.push({
-        item_code: itemCode,
+        item_code: itemCode2,
         location: binLocation || "Warehouse",
         qty_added: qty,
         qty_before: currentQty,
@@ -31898,7 +32351,7 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
       });
     }
     const itemCodes = [...new Set(putawayLines.map((line) => line.item_code))];
-    for (const itemCode of itemCodes) {
+    for (const itemCode2 of itemCodes) {
       await connection.execute(
         `
         UPDATE tabItem
@@ -31910,7 +32363,7 @@ var completePutaway = /* @__PURE__ */ __name(async (req, res) => {
         updated_at = NOW()
         WHERE code = ?
       `,
-        [itemCode, itemCode]
+        [itemCode2, itemCode2]
       );
     }
     const [taskColumns] = await connection.execute(`
@@ -32668,13 +33121,13 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
     const updatedItems = [];
     const processedCartonItems = /* @__PURE__ */ new Set();
     for (const item of itemEvents) {
-      const itemCode = item.item_code;
+      const itemCode2 = item.item_code;
       const boxId = item.box_id || item.carton_id || null;
       const qty = parseFloat(item.total_qty) || 0;
-      const cartonItemKey = `${putawayTaskTitle}|${boxId || "NULL"}|${itemCode}`;
+      const cartonItemKey = `${putawayTaskTitle}|${boxId || "NULL"}|${itemCode2}`;
       if (processedCartonItems.has(cartonItemKey)) {
         console.log(
-          `[Putaway] Skipping duplicate carton+item: ${boxId || "NULL"} + ${itemCode}`
+          `[Putaway] Skipping duplicate carton+item: ${boxId || "NULL"} + ${itemCode2}`
         );
         continue;
       }
@@ -32693,7 +33146,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
       `,
         [
           putawayTaskTitle,
-          itemCode,
+          itemCode2,
           boxId,
           boxId,
           rackValue,
@@ -32708,7 +33161,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
         const existingQty = parseFloat(existingLines[0].qty) || 0;
         if (Math.abs(existingQty - qty) > 0.01) {
           console.log(
-            `[Putaway] Updating quantity for existing line: ${itemCode} @ ${rack2}/${binValue} (${existingQty} -> ${qty})`
+            `[Putaway] Updating quantity for existing line: ${itemCode2} @ ${rack2}/${binValue} (${existingQty} -> ${qty})`
           );
           await connection.execute(
             `
@@ -32721,7 +33174,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
           );
         } else {
           console.log(
-            `[Putaway] Line already exists with same quantity: ${itemCode} @ ${rack2}/${binValue}`
+            `[Putaway] Line already exists with same quantity: ${itemCode2} @ ${rack2}/${binValue}`
           );
         }
       } else {
@@ -32739,7 +33192,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
         `,
           [
             putawayTaskTitle,
-            itemCode,
+            itemCode2,
             boxId,
             boxId,
             rackValue,
@@ -32752,7 +33205,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
         );
         if (existingDifferentLocation.length > 0) {
           console.warn(
-            `[Putaway] WARNING: Carton ${boxId} with item ${itemCode} already put away to different location: ${existingDifferentLocation[0].rack}/${existingDifferentLocation[0].bin || ""}. Updating to new location ${rack2}/${bin2 || ""}`
+            `[Putaway] WARNING: Carton ${boxId} with item ${itemCode2} already put away to different location: ${existingDifferentLocation[0].rack}/${existingDifferentLocation[0].bin || ""}. Updating to new location ${rack2}/${bin2 || ""}`
           );
           await connection.execute(
             `
@@ -32770,7 +33223,7 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
           );
         } else {
           console.log(
-            `[Putaway] Inserting new line: ${itemCode} @ ${rackValue || ""}/${binValue || ""} (carton: ${boxId || "NULL"})`
+            `[Putaway] Inserting new line: ${itemCode2} @ ${rackValue || ""}/${binValue || ""} (carton: ${boxId || "NULL"})`
           );
           await connection.execute(
             `
@@ -32779,12 +33232,12 @@ var scanTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
             VALUES 
               (?, ?, ?, ?, ?, ?, NOW(), NOW())
           `,
-            [putawayTaskTitle, boxId, itemCode, qty, rackValue, binValue]
+            [putawayTaskTitle, boxId, itemCode2, qty, rackValue, binValue]
           );
         }
       }
       updatedItems.push({
-        item_code: itemCode,
+        item_code: itemCode2,
         box_id: boxId,
         carton_id: boxId,
         // For backward compatibility
@@ -32976,14 +33429,27 @@ async function updatePutawayTaskLocation(req, res, putawayTaskTitle, location_id
         }
       });
     }
+    const [lineLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayLine' 
+      AND COLUMN_NAME = 'location_id'
+    `);
+    const hasLineLocationIdColumn = lineLocationColumns.length > 0;
     const updatedItems = [];
     const rackValue = rack || "";
     const binValue = bin || "";
     for (const line of putawayLines) {
-      await connection.execute(
-        `UPDATE tabPutawayLine SET rack = ?, bin = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-        [rackValue, binValue, line.id]
-      );
+      let updateQuery = `UPDATE tabPutawayLine SET rack = ?, bin = ?`;
+      const updateParams = [rackValue, binValue];
+      if (hasLineLocationIdColumn && locationInfo && locationInfo.location_id) {
+        updateQuery += `, location_id = ?`;
+        updateParams.push(locationInfo.location_id);
+      }
+      updateQuery += `, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+      updateParams.push(line.id);
+      await connection.execute(updateQuery, updateParams);
       updatedItems.push({
         item_code: line.item_code,
         carton_id: line.carton_id,
@@ -33064,12 +33530,24 @@ async function updatePutawayTaskLocation(req, res, putawayTaskTitle, location_id
   }
 }
 __name(updatePutawayTaskLocation, "updatePutawayTaskLocation");
+var createTasks = /* @__PURE__ */ __name(async (req, res) => {
+  console.log("\u26A0\uFE0F POST /api/putaway/create-tasks called - Putaway Tasks are auto-created, no action needed");
+  res.json({
+    ok: true,
+    message: "Putaway Tasks are automatically created. No manual creation needed.",
+    data: {
+      note: "Putaway Tasks are created automatically when items are received. This endpoint is kept for backward compatibility.",
+      auto_created: true
+    }
+  });
+}, "createTasks");
 
 // src/routes/putawayRoutes.js
 var router7 = import_express7.default.Router();
 router7.get("/tasks", authenticateToken, getTasks);
 router7.get("/remaining-items", authenticateToken, getRemainingItems);
 router7.post("/create-task-for-remaining-items", authenticateToken, createTaskForRemainingItems);
+router7.post("/create-tasks", authenticateToken, createTasks);
 router7.post("/assign-rack", authenticateToken, assignRack);
 router7.post("/scan-transfer-carton", authenticateToken, scanTransferCarton);
 router7.post("/complete", authenticateToken, completePutaway);
@@ -33379,21 +33857,21 @@ var closeBox = /* @__PURE__ */ __name(async (req, res) => {
         linesCreated = 0;
         const linesErrors = [];
         for (const item of boxItems) {
-          const itemCode = item.item_code?.trim();
+          const itemCode2 = item.item_code?.trim();
           const cartonIdForLine = box_id;
           const qty = parseFloat(item.total_qty) || 0;
-          if (!itemCode || itemCode === "") {
+          if (!itemCode2 || itemCode2 === "") {
             console.warn(`[closeBox] \u26A0\uFE0F Skipping item with empty item_code in box ${box_id}`);
             continue;
           }
           if (qty <= 0) {
-            console.warn(`[closeBox] \u26A0\uFE0F Skipping item ${itemCode} with qty ${qty} <= 0 in box ${box_id}`);
+            console.warn(`[closeBox] \u26A0\uFE0F Skipping item ${itemCode2} with qty ${qty} <= 0 in box ${box_id}`);
             continue;
           }
           try {
             console.log(`[closeBox] \u{1F50D} Attempting to insert line:`, {
               parent_title: putawayTaskId,
-              item_code: itemCode,
+              item_code: itemCode2,
               carton_id: cartonIdForLine,
               qty
             });
@@ -33401,26 +33879,26 @@ var closeBox = /* @__PURE__ */ __name(async (req, res) => {
               INSERT INTO tabPutawayLine
               (parent_title, item_code, carton_id, qty, rack, bin, created_at, updated_at)
               VALUES (?, ?, ?, ?, '', '', NOW(), NOW())
-            `, [putawayTaskId, itemCode, cartonIdForLine, qty]);
+            `, [putawayTaskId, itemCode2, cartonIdForLine, qty]);
             if (insertResult[0]?.affectedRows > 0) {
               linesCreated++;
-              console.log(`[closeBox] \u2705 Created line: ${itemCode} (qty: ${qty}, carton_id: ${cartonIdForLine}) - Insert ID: ${insertResult[0].insertId}`);
+              console.log(`[closeBox] \u2705 Created line: ${itemCode2} (qty: ${qty}, carton_id: ${cartonIdForLine}) - Insert ID: ${insertResult[0].insertId}`);
               const [verifyRows] = await connection.execute(`
                 SELECT id, item_code, qty FROM tabPutawayLine 
                 WHERE parent_title = ? AND item_code = ? AND carton_id = ?
-              `, [putawayTaskId, itemCode, cartonIdForLine]);
+              `, [putawayTaskId, itemCode2, cartonIdForLine]);
               if (verifyRows.length === 0) {
                 console.error(`[closeBox] \u274C CRITICAL: Line insert reported success but line not found in database!`);
-                throw new Error(`Line insert failed verification for ${itemCode}`);
+                throw new Error(`Line insert failed verification for ${itemCode2}`);
               } else {
                 console.log(`[closeBox] \u2705 Verified line exists in database: ID ${verifyRows[0].id}`);
               }
             } else {
-              console.error(`[closeBox] \u274C Insert reported 0 affected rows for ${itemCode}`);
-              throw new Error(`INSERT affected 0 rows for ${itemCode}`);
+              console.error(`[closeBox] \u274C Insert reported 0 affected rows for ${itemCode2}`);
+              throw new Error(`INSERT affected 0 rows for ${itemCode2}`);
             }
           } catch (lineError) {
-            console.error(`[closeBox] \u274C ERROR inserting line for ${itemCode}:`, {
+            console.error(`[closeBox] \u274C ERROR inserting line for ${itemCode2}:`, {
               code: lineError.code,
               errno: lineError.errno,
               sqlState: lineError.sqlState,
@@ -33429,22 +33907,22 @@ var closeBox = /* @__PURE__ */ __name(async (req, res) => {
               stack: lineError.stack
             });
             if (lineError.code === "ER_DUP_ENTRY") {
-              console.warn(`[closeBox] \u26A0\uFE0F Line already exists for ${itemCode} in task ${putawayTaskId}, skipping`);
+              console.warn(`[closeBox] \u26A0\uFE0F Line already exists for ${itemCode2} in task ${putawayTaskId}, skipping`);
               const [existingRows] = await connection.execute(`
                 SELECT id FROM tabPutawayLine 
                 WHERE parent_title = ? AND item_code = ? AND carton_id = ?
-              `, [putawayTaskId, itemCode, cartonIdForLine]);
+              `, [putawayTaskId, itemCode2, cartonIdForLine]);
               if (existingRows.length > 0) {
                 linesCreated++;
                 console.log(`[closeBox] \u2705 Verified existing line: ID ${existingRows[0].id}`);
               } else {
                 console.error(`[closeBox] \u274C CRITICAL: Duplicate error but line doesn't exist!`);
-                linesErrors.push({ item_code: itemCode, error: `Duplicate entry but line not found: ${lineError.message}` });
+                linesErrors.push({ item_code: itemCode2, error: `Duplicate entry but line not found: ${lineError.message}` });
               }
             } else {
-              const errorMsg = `Failed to create line for ${itemCode}: ${lineError.message} (code: ${lineError.code})`;
+              const errorMsg = `Failed to create line for ${itemCode2}: ${lineError.message} (code: ${lineError.code})`;
               console.error(`[closeBox] \u274C ${errorMsg}`);
-              linesErrors.push({ item_code: itemCode, error: errorMsg });
+              linesErrors.push({ item_code: itemCode2, error: errorMsg });
             }
           }
         }
@@ -34578,7 +35056,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
           `\u{1F4E6} Dispatch: Found ${cartonItemsByBin.length} item-bin combination(s) in transfer carton ${tc_id} for Material Request ${materialRequest}`
         );
         for (const item of cartonItemsByBin) {
-          const itemCode = item.item_code;
+          const itemCode2 = item.item_code;
           const qty = parseFloat(item.total_qty) || 0;
           let sourceBin = item.source_bin;
           if (!sourceBin) {
@@ -34595,7 +35073,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
               ORDER BY event_time DESC
               LIMIT 1
             `,
-              [materialRequest, itemCode, endTime]
+              [materialRequest, itemCode2, endTime]
             );
             if (pickingEvents.length > 0) {
               sourceBin = pickingEvents[0].source_bin;
@@ -34610,7 +35088,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
                 AND warehouse = ?
                 AND bin_location = ?
             `,
-              [itemCode, warehouse, sourceBin]
+              [itemCode2, warehouse, sourceBin]
             );
             const currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
             const currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
@@ -34638,7 +35116,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
                   updated_at = NOW()
               `,
                 [
-                  itemCode,
+                  itemCode2,
                   warehouse,
                   sourceBin,
                   newQty,
@@ -34665,7 +35143,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
               `,
                 [
                   tc_id,
-                  itemCode,
+                  itemCode2,
                   warehouse,
                   sourceBin,
                   -qty,
@@ -34682,7 +35160,7 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
                 FROM tabStockLedger
                 WHERE item_code = ? AND warehouse = ?
               `,
-                [itemCode, warehouse]
+                [itemCode2, warehouse]
               );
               const totalStockQty = parseFloat(stockSum[0].total_qty) || 0;
               await connection.execute(
@@ -34692,19 +35170,19 @@ var dispatchTransferCarton = /* @__PURE__ */ __name(async (req, res) => {
                     updated_at = NOW()
                 WHERE code = ?
               `,
-                [totalStockQty, itemCode]
+                [totalStockQty, itemCode2]
               );
               console.log(
-                `\u2705 Dispatched: Reduced stock for ${itemCode} at ${sourceBin}: ${currentQty} \u2192 ${newQty} (Transfer Carton: ${tc_id})`
+                `\u2705 Dispatched: Reduced stock for ${itemCode2} at ${sourceBin}: ${currentQty} \u2192 ${newQty} (Transfer Carton: ${tc_id})`
               );
             } else {
               console.warn(
-                `\u26A0\uFE0F  Insufficient stock for ${itemCode} at ${sourceBin}. Available: ${currentQty}, Required: ${qty}`
+                `\u26A0\uFE0F  Insufficient stock for ${itemCode2} at ${sourceBin}. Available: ${currentQty}, Required: ${qty}`
               );
             }
           } else {
             console.warn(
-              `\u26A0\uFE0F  Cannot reduce stock for ${itemCode}: source_bin not found or qty is 0`
+              `\u26A0\uFE0F  Cannot reduce stock for ${itemCode2}: source_bin not found or qty is 0`
             );
           }
         }
@@ -35045,6 +35523,157 @@ var import_express10 = __toESM(require_express2(), 1);
 
 // src/modules/stock-ledger/stockLedgerController.js
 init_connection();
+var getStockLedgerByLocation = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { bin_location, carton_id, warehouse, item_code } = req.query;
+    if (!bin_location || typeof bin_location === "string" && bin_location.trim() === "") {
+      return res.status(400).json({
+        error: {
+          code: "INVALID_PARAMETER",
+          message: "bin_location parameter is required",
+          details: {
+            parameter: "bin_location",
+            value: bin_location || null,
+            expected: "string (non-empty)"
+          }
+        }
+      });
+    }
+    const normalizedBinLocation = typeof bin_location === "string" ? bin_location.trim() : String(bin_location);
+    const normalizedCartonId = carton_id && typeof carton_id === "string" ? carton_id.trim() : carton_id || null;
+    const normalizedWarehouse = warehouse && typeof warehouse === "string" ? warehouse.trim() : warehouse || null;
+    const normalizedItemCode = item_code && typeof item_code === "string" ? item_code.trim() : item_code || null;
+    const [locationCheck] = await connection.execute(`
+      SELECT location_id, warehouse, is_available
+      FROM tabLocation 
+      WHERE location_id = ?
+    `, [normalizedBinLocation]);
+    if (locationCheck.length === 0) {
+      return res.status(404).json({
+        error: {
+          code: "LOCATION_NOT_FOUND",
+          message: `Location "${normalizedBinLocation}" not found in tabLocation table`,
+          details: {
+            bin_location: normalizedBinLocation,
+            suggestion: "Please verify the location ID exists in the location master data (tabLocation)"
+          }
+        }
+      });
+    }
+    const locationInfo = locationCheck[0];
+    const [cartonStockTable] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabCartonStock'
+    `);
+    const hasCartonStockTable = cartonStockTable.length > 0;
+    let query;
+    let params = [];
+    if (normalizedCartonId && hasCartonStockTable) {
+      query = `
+        SELECT 
+          cs.item_code,
+          cs.qty,
+          cs.bin_location,
+          cs.carton_id,
+          cs.warehouse,
+          cs.warehouse as warehouse_id,
+          cs.batch_no,
+          cs.serial_no,
+          cs.status,
+          cs.updated_at as last_updated,
+          i.name as item_name,
+          i.barcode,
+          i.stock_uom as uom,
+          NULL as expiry_date
+        FROM tabCartonStock cs
+        LEFT JOIN tabItem i ON cs.item_code = i.code
+        WHERE UPPER(TRIM(cs.bin_location)) = UPPER(TRIM(?))
+          AND UPPER(TRIM(cs.carton_id)) = UPPER(TRIM(?))
+      `;
+      params.push(normalizedBinLocation, normalizedCartonId);
+      if (normalizedWarehouse) {
+        query += " AND UPPER(TRIM(cs.warehouse)) = UPPER(TRIM(?))";
+        params.push(normalizedWarehouse);
+      }
+      if (normalizedItemCode) {
+        query += " AND UPPER(TRIM(cs.item_code)) = UPPER(TRIM(?))";
+        params.push(normalizedItemCode);
+      }
+      query += " AND cs.qty > 0";
+      query += ` AND (cs.status IS NULL OR cs.status = '' OR cs.status = 'PUTAWAY')`;
+      query += " ORDER BY cs.item_code ASC";
+    } else {
+      query = `
+        SELECT 
+          sl.item_code,
+          sl.qty,
+          sl.bin_location,
+          NULL as carton_id,
+          sl.warehouse,
+          sl.warehouse as warehouse_id,
+          NULL as batch_no,
+          NULL as serial_no,
+          NULL as status,
+          sl.last_transaction_date as last_updated,
+          i.name as item_name,
+          i.barcode,
+          i.stock_uom as uom,
+          NULL as expiry_date
+        FROM tabStockLedger sl
+        LEFT JOIN tabItem i ON sl.item_code = i.code
+        WHERE UPPER(TRIM(sl.bin_location)) = UPPER(TRIM(?))
+      `;
+      params.push(normalizedBinLocation);
+      if (normalizedWarehouse) {
+        query += " AND UPPER(TRIM(sl.warehouse)) = UPPER(TRIM(?))";
+        params.push(normalizedWarehouse);
+      }
+      if (normalizedItemCode) {
+        query += " AND UPPER(TRIM(sl.item_code)) = UPPER(TRIM(?))";
+        params.push(normalizedItemCode);
+      }
+      query += " AND sl.qty > 0";
+      query += " ORDER BY sl.item_code ASC";
+    }
+    const [rows] = await connection.execute(query, params);
+    const stockLedger = rows.map((row) => ({
+      item_code: row.item_code,
+      item_name: row.item_name || null,
+      barcode: row.barcode || row.item_code,
+      // Use item_code as barcode if barcode is null
+      qty: parseFloat(row.qty) || 0,
+      bin_location: row.bin_location || normalizedBinLocation,
+      carton_id: row.carton_id || normalizedCartonId || null,
+      warehouse: row.warehouse || null,
+      warehouse_id: row.warehouse_id || row.warehouse || null,
+      uom: row.uom || "EA",
+      last_updated: row.last_updated ? row.last_updated.toISOString() : null,
+      batch_no: row.batch_no || null,
+      serial_no: row.serial_no || null,
+      expiry_date: row.expiry_date || null
+    }));
+    res.json({
+      data: stockLedger,
+      total: stockLedger.length,
+      bin_location: normalizedBinLocation,
+      carton_id: normalizedCartonId || null
+    });
+  } catch (error) {
+    console.error("Failed to fetch stock ledger by location:", error);
+    res.status(500).json({
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to query stock ledger",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "getStockLedgerByLocation");
 var getStockLedger = /* @__PURE__ */ __name(async (req, res) => {
   const connection = await getConnection();
   try {
@@ -35242,6 +35871,14 @@ var getStockTransactions = /* @__PURE__ */ __name(async (req, res) => {
   const connection = await getConnection();
   try {
     const { warehouse, item_code, transaction_type, reference_doc, from_date, to_date, limit } = req.query;
+    const [cartonIdColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockTransaction' 
+      AND COLUMN_NAME = 'carton_id'
+    `);
+    const hasCartonIdColumn = cartonIdColumn.length > 0;
     let query = `
       SELECT 
         id,
@@ -35258,6 +35895,7 @@ var getStockTransactions = /* @__PURE__ */ __name(async (req, res) => {
         qty_after,
         source_bin,
         target_bin,
+        ${hasCartonIdColumn ? "carton_id," : ""}
         performed_by,
         notes,
         created_at
@@ -35304,6 +35942,7 @@ var getStockTransactions = /* @__PURE__ */ __name(async (req, res) => {
       item_code: row.item_code,
       warehouse: row.warehouse,
       bin_location: row.bin_location || null,
+      carton_id: hasCartonIdColumn ? row.carton_id || null : null,
       qty_change: parseFloat(row.qty_change) || 0,
       qty_before: parseFloat(row.qty_before) || 0,
       qty_after: parseFloat(row.qty_after) || 0,
@@ -35375,35 +36014,40 @@ var getTransferIns = /* @__PURE__ */ __name(async (req, res) => {
     }
     query += " ORDER BY transfer_date DESC, title";
     const [rows] = await connection.execute(query, params);
-    const transferIns = await Promise.all(rows.map(async (row) => {
-      const [itemRows] = await connection.execute(`
+    const transferIns = await Promise.all(
+      rows.map(async (row) => {
+        const [itemRows] = await connection.execute(
+          `
         SELECT item_code, qty, carton_id, received_qty
         FROM tabTransferInItem
         WHERE parent_title = ?
         ORDER BY item_code
-      `, [row.title]);
-      const items = itemRows.map((item) => ({
-        item_code: item.item_code,
-        qty: parseFloat(item.qty) || 0,
-        carton_id: item.carton_id || null,
-        received_qty: parseFloat(item.received_qty) || 0
-      }));
-      return {
-        title: row.title,
-        status: row.status,
-        from_showroom: row.from_showroom,
-        to_warehouse: row.to_warehouse,
-        transfer_date: row.transfer_date ? row.transfer_date.toISOString().split("T")[0] : null,
-        expected_arrival_date: row.expected_arrival_date ? row.expected_arrival_date.toISOString().split("T")[0] : null,
-        prepared_by: row.prepared_by,
-        received_by: row.received_by || null,
-        received_on: row.received_on ? row.received_on.toISOString() : null,
-        total_qty: parseFloat(row.total_qty) || 0,
-        items,
-        created_at: row.created_at ? row.created_at.toISOString() : null,
-        updated_at: row.updated_at ? row.updated_at.toISOString() : null
-      };
-    }));
+      `,
+          [row.title]
+        );
+        const items = itemRows.map((item) => ({
+          item_code: item.item_code,
+          qty: parseFloat(item.qty) || 0,
+          carton_id: item.carton_id || null,
+          received_qty: parseFloat(item.received_qty) || 0
+        }));
+        return {
+          title: row.title,
+          status: row.status,
+          from_showroom: row.from_showroom,
+          to_warehouse: row.to_warehouse,
+          transfer_date: row.transfer_date ? row.transfer_date.toISOString().split("T")[0] : null,
+          expected_arrival_date: row.expected_arrival_date ? row.expected_arrival_date.toISOString().split("T")[0] : null,
+          prepared_by: row.prepared_by,
+          received_by: row.received_by || null,
+          received_on: row.received_on ? row.received_on.toISOString() : null,
+          total_qty: parseFloat(row.total_qty) || 0,
+          items,
+          created_at: row.created_at ? row.created_at.toISOString() : null,
+          updated_at: row.updated_at ? row.updated_at.toISOString() : null
+        };
+      })
+    );
     res.json(transferIns);
   } catch (error) {
     console.error("Failed to fetch Transfer Ins:", error);
@@ -35423,7 +36067,8 @@ var getTransferInByTitle = /* @__PURE__ */ __name(async (req, res) => {
   const connection = await getConnection();
   try {
     const { title } = req.params;
-    const [rows] = await connection.execute(`
+    const [rows] = await connection.execute(
+      `
       SELECT 
         title,
         status,
@@ -35439,7 +36084,9 @@ var getTransferInByTitle = /* @__PURE__ */ __name(async (req, res) => {
         updated_at
       FROM tabTransferIn
       WHERE title = ?
-    `, [title]);
+    `,
+      [title]
+    );
     if (rows.length === 0) {
       return res.status(404).json({
         ok: false,
@@ -35450,12 +36097,15 @@ var getTransferInByTitle = /* @__PURE__ */ __name(async (req, res) => {
       });
     }
     const row = rows[0];
-    const [itemRows] = await connection.execute(`
+    const [itemRows] = await connection.execute(
+      `
       SELECT item_code, qty, carton_id, received_qty
       FROM tabTransferInItem
       WHERE parent_title = ?
       ORDER BY item_code
-    `, [title]);
+    `,
+      [title]
+    );
     const items = itemRows.map((item) => ({
       item_code: item.item_code,
       qty: parseFloat(item.qty) || 0,
@@ -35494,7 +36144,15 @@ var getTransferInByTitle = /* @__PURE__ */ __name(async (req, res) => {
 var createTransferIn = /* @__PURE__ */ __name(async (req, res) => {
   const connection = await getConnection();
   try {
-    const { title, from_showroom, to_warehouse, transfer_date, expected_arrival_date, prepared_by, items } = req.body;
+    const {
+      title,
+      from_showroom,
+      to_warehouse,
+      transfer_date,
+      expected_arrival_date,
+      prepared_by,
+      items
+    } = req.body;
     if (!title || !from_showroom || !to_warehouse || !transfer_date || !prepared_by) {
       return res.status(400).json({
         ok: false,
@@ -35513,18 +36171,35 @@ var createTransferIn = /* @__PURE__ */ __name(async (req, res) => {
         }
       });
     }
-    const total_qty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0);
-    await connection.execute(`
+    const total_qty = items.reduce(
+      (sum, item) => sum + (parseFloat(item.qty) || 0),
+      0
+    );
+    await connection.execute(
+      `
       INSERT INTO tabTransferIn 
         (title, status, from_showroom, to_warehouse, transfer_date, expected_arrival_date, prepared_by, total_qty)
       VALUES (?, 'Draft', ?, ?, ?, ?, ?, ?)
-    `, [title, from_showroom, to_warehouse, transfer_date, expected_arrival_date || null, prepared_by, total_qty]);
+    `,
+      [
+        title,
+        from_showroom,
+        to_warehouse,
+        transfer_date,
+        expected_arrival_date || null,
+        prepared_by,
+        total_qty
+      ]
+    );
     for (const item of items) {
-      await connection.execute(`
+      await connection.execute(
+        `
         INSERT INTO tabTransferInItem 
           (parent_title, item_code, qty, carton_id, received_qty)
         VALUES (?, ?, ?, ?, 0)
-      `, [title, item.item_code, item.qty, item.carton_id || null]);
+      `,
+        [title, item.item_code, item.qty, item.carton_id || null]
+      );
     }
     res.status(201).json({
       ok: true,
@@ -35558,12 +36233,596 @@ var createTransferIn = /* @__PURE__ */ __name(async (req, res) => {
     connection.release();
   }
 }, "createTransferIn");
+var submitTransferIn = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const [rows] = await connection.execute(
+      `
+      SELECT status FROM tabTransferIn WHERE title = ?
+    `,
+      [title]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Transfer In ${title} not found`
+        }
+      });
+    }
+    if (rows[0].status !== "Draft") {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `Transfer In ${title} is already ${rows[0].status}. Only Draft Transfer Ins can be submitted.`
+        }
+      });
+    }
+    await connection.execute(
+      `
+      UPDATE tabTransferIn
+      SET status = 'Submitted',
+          updated_at = NOW()
+      WHERE title = ?
+    `,
+      [title]
+    );
+    res.json({
+      ok: true,
+      message: "Transfer In submitted successfully",
+      data: {
+        title,
+        status: "Submitted"
+      }
+    });
+  } catch (error) {
+    console.error("Failed to submit Transfer In:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to submit Transfer In",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "submitTransferIn");
+var receiveTransferInLine = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const { carton_id, item_code, received_qty, received_by } = req.body;
+    if (!received_by) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "received_by is required"
+        }
+      });
+    }
+    const [tiRows] = await connection.execute(
+      `
+      SELECT status, to_warehouse FROM tabTransferIn WHERE title = ?
+    `,
+      [title]
+    );
+    if (tiRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Transfer In ${title} not found`
+        }
+      });
+    }
+    const transferIn = tiRows[0];
+    if (transferIn.status === "Completed") {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: `Transfer In ${title} is already Completed`
+        }
+      });
+    }
+    await connection.beginTransaction();
+    try {
+      if (carton_id && !item_code) {
+        const [items] = await connection.execute(
+          `
+          SELECT item_code, qty, received_qty
+          FROM tabTransferInItem
+          WHERE parent_title = ?
+            AND carton_id = ?
+        `,
+          [title, carton_id]
+        );
+        if (items.length === 0) {
+          await connection.rollback();
+          return res.status(404).json({
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: `No items found with carton_id ${carton_id} in Transfer In ${title}`
+            }
+          });
+        }
+        let updatedCount = 0;
+        for (const item of items) {
+          const newReceivedQty = parseFloat(item.qty);
+          if (newReceivedQty > parseFloat(item.received_qty)) {
+            await connection.execute(
+              `
+              UPDATE tabTransferInItem
+              SET received_qty = ?,
+                  updated_at = NOW()
+              WHERE parent_title = ?
+                AND item_code = ?
+                AND carton_id = ?
+            `,
+              [newReceivedQty, title, item.item_code, carton_id]
+            );
+            updatedCount++;
+          }
+        }
+        const [remainingCarton] = await connection.execute(
+          `
+          SELECT COUNT(*) as count
+          FROM tabTransferInItem
+          WHERE parent_title = ?
+            AND received_qty < qty
+        `,
+          [title]
+        );
+        if (remainingCarton[0].count === 0) {
+          await connection.execute(
+            `
+            UPDATE tabTransferIn
+            SET status = 'Received',
+                received_by = ?,
+                received_on = NOW(),
+                updated_at = NOW()
+            WHERE title = ?
+          `,
+            [received_by, title]
+          );
+          await createPutawayTaskFromTransferIn(
+            connection,
+            title,
+            transferIn.to_warehouse
+          );
+        } else if (transferIn.status === "Submitted") {
+          await connection.execute(
+            `
+            UPDATE tabTransferIn
+            SET status = 'In Transit',
+                updated_at = NOW()
+            WHERE title = ?
+          `,
+            [title]
+          );
+        }
+        await connection.commit();
+        res.json({
+          ok: true,
+          message: `Received ${updatedCount} items from carton ${carton_id}`,
+          data: {
+            transfer_in: title,
+            carton_id,
+            items_received: updatedCount
+          }
+        });
+      } else if (item_code && !carton_id && received_qty !== void 0) {
+        if (parseFloat(received_qty) <= 0) {
+          await connection.rollback();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: "received_qty must be greater than 0"
+            }
+          });
+        }
+        const [items] = await connection.execute(
+          `
+          SELECT qty, received_qty
+          FROM tabTransferInItem
+          WHERE parent_title = ?
+            AND item_code = ?
+            AND carton_id IS NULL
+        `,
+          [title, item_code]
+        );
+        if (items.length === 0) {
+          await connection.rollback();
+          return res.status(404).json({
+            ok: false,
+            error: {
+              code: "NOT_FOUND",
+              message: `Item ${item_code} not found in Transfer In ${title} (or item has carton_id)`
+            }
+          });
+        }
+        const item = items[0];
+        const expectedQty = parseFloat(item.qty);
+        const currentReceivedQty = parseFloat(item.received_qty) || 0;
+        const newReceivedQty = parseFloat(received_qty);
+        if (currentReceivedQty + newReceivedQty > expectedQty) {
+          await connection.rollback();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "VALIDATION_ERROR",
+              message: `Cannot receive ${newReceivedQty}. Already received: ${currentReceivedQty}, Expected: ${expectedQty}. Maximum additional: ${expectedQty - currentReceivedQty}`
+            }
+          });
+        }
+        const finalReceivedQty = currentReceivedQty + newReceivedQty;
+        await connection.execute(
+          `
+          UPDATE tabTransferInItem
+          SET received_qty = ?,
+              updated_at = NOW()
+          WHERE parent_title = ?
+            AND item_code = ?
+            AND carton_id IS NULL
+        `,
+          [finalReceivedQty, title, item_code]
+        );
+        const [remainingLoose] = await connection.execute(
+          `
+          SELECT COUNT(*) as count
+          FROM tabTransferInItem
+          WHERE parent_title = ?
+            AND received_qty < qty
+        `,
+          [title]
+        );
+        if (remainingLoose[0].count === 0) {
+          await connection.execute(
+            `
+            UPDATE tabTransferIn
+            SET status = 'Received',
+                received_by = ?,
+                received_on = NOW(),
+                updated_at = NOW()
+            WHERE title = ?
+          `,
+            [received_by, title]
+          );
+          await createPutawayTaskFromTransferIn(
+            connection,
+            title,
+            transferIn.to_warehouse
+          );
+        } else if (transferIn.status === "Submitted") {
+          await connection.execute(
+            `
+            UPDATE tabTransferIn
+            SET status = 'In Transit',
+                updated_at = NOW()
+            WHERE title = ?
+          `,
+            [title]
+          );
+        }
+        await connection.commit();
+        res.json({
+          ok: true,
+          message: `Received ${newReceivedQty} units of ${item_code}`,
+          data: {
+            transfer_in: title,
+            item_code,
+            received_qty: finalReceivedQty,
+            expected_qty: expectedQty
+          }
+        });
+      } else {
+        await connection.rollback();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Either (carton_id) OR (item_code + received_qty) must be provided, but not both"
+          }
+        });
+      }
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error("Failed to receive Transfer In line:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to receive Transfer In line",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "receiveTransferInLine");
+async function createPutawayTaskFromTransferIn(connection, transferInTitle, warehouse) {
+  try {
+    console.log(
+      `\u{1F504} Creating Putaway Task for Transfer In ${transferInTitle} (warehouse: ${warehouse || "N/A"})`
+    );
+    const [sourceTypeCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME = 'source_type'
+    `);
+    const hasSourceType = sourceTypeCols.length > 0;
+    const [transferInCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME = 'transfer_in'
+    `);
+    const hasTransferIn = transferInCols.length > 0;
+    const [warehouseCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME = 'warehouse'
+    `);
+    const hasWarehouse = warehouseCols.length > 0;
+    const [inboundSessionCols] = await connection.execute(`
+      SELECT COLUMN_NAME, IS_NULLABLE
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME = 'inbound_session'
+    `);
+    const hasInboundSession = inboundSessionCols.length > 0;
+    const inboundSessionNullable = hasInboundSession && inboundSessionCols[0].IS_NULLABLE === "YES";
+    let inboundSession = null;
+    if (hasInboundSession && !inboundSessionNullable) {
+      const [transferInColCheck] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabInboundSession'
+          AND COLUMN_NAME = 'transfer_in'
+      `);
+      const hasTransferInInSession = transferInColCheck.length > 0;
+      const [startedColCheck] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabInboundSession'
+          AND COLUMN_NAME IN ('started_at', 'started_on')
+        LIMIT 1
+      `);
+      const startedColumn = startedColCheck.length > 0 ? startedColCheck[0].COLUMN_NAME : "started_at";
+      const [sessionIdColCheck] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabInboundSession'
+          AND COLUMN_NAME IN ('inbound_session', 'title')
+        LIMIT 1
+      `);
+      const sessionIdColumn = sessionIdColCheck.length > 0 ? sessionIdColCheck[0].COLUMN_NAME : "inbound_session";
+      if (hasTransferInInSession) {
+        const [sessionRows] = await connection.execute(
+          `SELECT ${sessionIdColumn} as inbound_session FROM tabInboundSession WHERE transfer_in = ? ORDER BY ${startedColumn} DESC LIMIT 1`,
+          [transferInTitle]
+        );
+        inboundSession = sessionRows.length > 0 ? sessionRows[0].inbound_session : null;
+      } else {
+        const [sessionRows] = await connection.execute(
+          `SELECT ${sessionIdColumn} as inbound_session FROM tabInboundSession WHERE asn_no = ? ORDER BY ${startedColumn} DESC LIMIT 1`,
+          [transferInTitle]
+        );
+        inboundSession = sessionRows.length > 0 ? sessionRows[0].inbound_session : null;
+      }
+      if (!inboundSession) {
+        inboundSession = "";
+      }
+    }
+    if (hasSourceType && hasTransferIn) {
+      const [existingTasks] = await connection.execute(
+        `
+        SELECT title FROM tabPutawayTask
+        WHERE source_type = 'TransferIn'
+          AND transfer_in = ?
+      `,
+        [transferInTitle]
+      );
+      if (existingTasks.length > 0) {
+        console.log(
+          `\u26A0\uFE0F Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
+        );
+        return;
+      }
+    } else if (hasSourceType) {
+      const [existingTasks] = await connection.execute(
+        `
+        SELECT title FROM tabPutawayTask
+        WHERE source_type = 'TransferIn'
+          AND advance_shipping_notice = ?
+      `,
+        [transferInTitle]
+      );
+      if (existingTasks.length > 0) {
+        console.log(
+          `\u26A0\uFE0F Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
+        );
+        return;
+      }
+    } else {
+      const [existingTasks] = await connection.execute(
+        `
+        SELECT title FROM tabPutawayTask
+        WHERE advance_shipping_notice = ?
+      `,
+        [transferInTitle]
+      );
+      if (existingTasks.length > 0) {
+        console.log(
+          `\u26A0\uFE0F Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
+        );
+        return;
+      }
+    }
+    const [items] = await connection.execute(
+      `
+      SELECT item_code, carton_id, received_qty
+      FROM tabTransferInItem
+      WHERE parent_title = ?
+        AND received_qty > 0
+      ORDER BY item_code
+    `,
+      [transferInTitle]
+    );
+    if (items.length === 0) {
+      console.log(
+        `\u26A0\uFE0F No items to put away for Transfer In ${transferInTitle} (all items have received_qty = 0)`
+      );
+      return;
+    }
+    console.log(
+      `\u{1F4E6} Found ${items.length} item(s) to put away for Transfer In ${transferInTitle}`
+    );
+    const dateStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
+    const [sequenceRows] = await connection.execute(
+      `
+      SELECT COUNT(*) + 1 as seq
+      FROM tabPutawayTask
+      WHERE title LIKE ?
+    `,
+      [`PUT-${dateStr}-%`]
+    );
+    const sequence = String(sequenceRows[0].seq).padStart(4, "0");
+    const putawayTaskTitle = `PUT-${dateStr}-${sequence}`;
+    console.log(
+      `\u{1F4DD} Generated Putaway Task title: ${putawayTaskTitle} (columns: source_type=${hasSourceType}, transfer_in=${hasTransferIn}, warehouse=${hasWarehouse})`
+    );
+    const insertFields = ["title", "status", "created_by", "created_at", "updated_at"];
+    const insertValues = [putawayTaskTitle, "Draft", "SYSTEM"];
+    const insertPlaceholders = ["?", "?", "?", "NOW()", "NOW()"];
+    if (hasSourceType) {
+      insertFields.push("source_type");
+      insertValues.push("TransferIn");
+      insertPlaceholders.push("?");
+    }
+    if (hasTransferIn) {
+      insertFields.push("transfer_in");
+      insertValues.push(transferInTitle);
+      insertPlaceholders.push("?");
+    }
+    if (hasWarehouse) {
+      insertFields.push("warehouse");
+      insertValues.push(warehouse);
+      insertPlaceholders.push("?");
+    }
+    insertFields.push("advance_shipping_notice");
+    insertValues.push(transferInTitle);
+    insertPlaceholders.push("?");
+    if (hasInboundSession) {
+      insertFields.push("inbound_session");
+      insertValues.push(inboundSession);
+      insertPlaceholders.push("?");
+    }
+    const sql = `
+      INSERT INTO tabPutawayTask
+        (${insertFields.join(", ")})
+      VALUES (${insertPlaceholders.join(", ")})
+    `;
+    await connection.execute(sql, insertValues);
+    const [statusColCheck] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayLine'
+        AND COLUMN_NAME = 'status'
+    `);
+    const hasStatusInLine = statusColCheck.length > 0;
+    for (const item of items) {
+      if (hasStatusInLine) {
+        await connection.execute(
+          `
+          INSERT INTO tabPutawayLine
+            (parent_title, item_code, carton_id, qty, rack, bin, status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'TBD', 'TBD', 'Pending', NOW(), NOW())
+        `,
+          [
+            putawayTaskTitle,
+            item.item_code,
+            item.carton_id || null,
+            item.received_qty
+          ]
+        );
+      } else {
+        await connection.execute(
+          `
+          INSERT INTO tabPutawayLine
+            (parent_title, item_code, carton_id, qty, rack, bin, created_at, updated_at)
+          VALUES (?, ?, ?, ?, 'TBD', 'TBD', NOW(), NOW())
+        `,
+          [
+            putawayTaskTitle,
+            item.item_code,
+            item.carton_id || null,
+            item.received_qty
+          ]
+        );
+      }
+    }
+    console.log(
+      `\u2705 Created Putaway Task ${putawayTaskTitle} for Transfer In ${transferInTitle} with ${items.length} items`
+    );
+    console.log(
+      `   - Putaway Task: ${putawayTaskTitle}`
+    );
+    console.log(
+      `   - Items: ${items.length}`
+    );
+    console.log(
+      `   - Warehouse: ${warehouse || "N/A"}`
+    );
+    console.log(
+      `   - Source Type: TransferIn`
+    );
+  } catch (error) {
+    console.error(
+      `\u274C Failed to create Putaway Task for Transfer In ${transferInTitle}:`,
+      error
+    );
+    console.error(
+      `   Error details:`,
+      {
+        message: error.message,
+        code: error.code,
+        sqlState: error.sqlState,
+        sql: error.sql
+      }
+    );
+  }
+}
+__name(createPutawayTaskFromTransferIn, "createPutawayTaskFromTransferIn");
 
 // src/routes/transferInRoutes.js
 var router12 = import_express12.default.Router();
 router12.get("/", authenticateToken, getTransferIns);
-router12.get("/:title", authenticateToken, getTransferInByTitle);
 router12.post("/", authenticateToken, createTransferIn);
+router12.post("/:title/submit", authenticateToken, submitTransferIn);
+router12.post("/:title/receive-line", authenticateToken, receiveTransferInLine);
+router12.get("/:title", authenticateToken, getTransferInByTitle);
 var transferInRoutes_default = router12;
 
 // src/routes/materialRequestRoutes.js
@@ -36125,8 +37384,15 @@ var pickMaterialRequestItems = /* @__PURE__ */ __name(async (req, res) => {
     try {
       let totalPickedQty = 0;
       const stockUpdates = [];
+      const [cartonTables] = await connection.execute(`
+        SELECT COUNT(*) as count
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME IN ('tabCarton', 'tabCartonItem', 'tabCartonStock', 'tabBin')
+      `);
+      const isCartonLevelMode = cartonTables[0].count === 4;
       for (const item of items) {
-        const { item_code, picked_qty, source_bin } = item;
+        const { item_code, picked_qty, source_bin, carton_id } = item;
         const pickedQty = parseFloat(picked_qty) || 0;
         if (!item_code || pickedQty <= 0) {
           continue;
@@ -36173,76 +37439,174 @@ var pickMaterialRequestItems = /* @__PURE__ */ __name(async (req, res) => {
         console.log(`\u2705 Updated picked_qty for ${item_code}: ${currentPickedQty} \u2192 ${newPickedQty} (added ${pickedQty}), status: ${itemStatus}`);
         totalPickedQty += pickedQty;
         if (source_bin) {
-          const [currentStock] = await connection.execute(`
-            SELECT qty, reserved_qty
-            FROM tabStockLedger
-            WHERE item_code = ?
-              AND warehouse = ?
-              AND bin_location = ?
-          `, [item_code, targetWarehouse, source_bin]);
-          const currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
-          const currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
-          if (currentQty < pickedQty) {
-            await connection.rollback();
-            return res.status(400).json({
-              ok: false,
-              error: {
-                code: "INSUFFICIENT_STOCK",
-                message: `Insufficient stock for ${item_code} at ${source_bin}. Available: ${currentQty}, Required: ${pickedQty}`
-              }
-            });
+          let currentQty = 0;
+          let currentReservedQty = 0;
+          let newQty = 0;
+          let cartonStockUpdated = false;
+          if (isCartonLevelMode && carton_id) {
+            const [cartonCheck] = await connection.execute(`
+              SELECT c.carton_id, c.current_bin_id, c.status, cs.qty
+              FROM tabCarton c
+              LEFT JOIN tabCartonStock cs ON cs.carton_id = c.carton_id 
+                AND cs.item_code = ? AND cs.bin_id = ?
+              WHERE c.carton_id = ?
+            `, [item_code, source_bin, carton_id]);
+            if (cartonCheck.length === 0) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "CARTON_NOT_FOUND",
+                  message: `Carton ${carton_id} not found`
+                }
+              });
+            }
+            const carton = cartonCheck[0];
+            if (carton.current_bin_id !== source_bin) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "CARTON_BIN_MISMATCH",
+                  message: `Carton ${carton_id} is not in bin ${source_bin}. Current bin: ${carton.current_bin_id || "N/A"}`
+                }
+              });
+            }
+            const cartonStockQty = carton.qty ? parseFloat(carton.qty) : 0;
+            if (cartonStockQty < pickedQty) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "INSUFFICIENT_CARTON_STOCK",
+                  message: `Insufficient stock in carton ${carton_id} for ${item_code}. Available: ${cartonStockQty}, Required: ${pickedQty}`
+                }
+              });
+            }
+            newQty = cartonStockQty - pickedQty;
+            currentQty = cartonStockQty;
+            await connection.execute(`
+              UPDATE tabCartonStock
+              SET qty = ?,
+                  last_updated = NOW()
+              WHERE carton_id = ? AND item_code = ? AND bin_id = ?
+            `, [newQty, carton_id, item_code, source_bin]);
+            if (newQty <= 0) {
+              await connection.execute(`
+                UPDATE tabCarton
+                SET status = 'PICKED',
+                    last_moved_on = NOW()
+                WHERE carton_id = ?
+              `, [carton_id]);
+            }
+            cartonStockUpdated = true;
+            console.log(`\u2705 Updated carton stock for ${carton_id}: ${currentQty} \u2192 ${newQty}`);
+          } else {
+            const [currentStock] = await connection.execute(`
+              SELECT qty, reserved_qty
+              FROM tabStockLedger
+              WHERE item_code = ?
+                AND warehouse = ?
+                AND bin_location = ?
+            `, [item_code, targetWarehouse, source_bin]);
+            currentQty = currentStock.length > 0 ? parseFloat(currentStock[0].qty) || 0 : 0;
+            currentReservedQty = currentStock.length > 0 ? parseFloat(currentStock[0].reserved_qty) || 0 : 0;
+            if (currentQty < pickedQty) {
+              await connection.rollback();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "INSUFFICIENT_STOCK",
+                  message: `Insufficient stock for ${item_code} at ${source_bin}. Available: ${currentQty}, Required: ${pickedQty}`
+                }
+              });
+            }
+            newQty = currentQty - pickedQty;
+            await connection.execute(`
+              INSERT INTO tabStockLedger 
+                (item_code, warehouse, bin_location, qty, reserved_qty,
+                 last_transaction_date, last_transaction_type, last_transaction_ref,
+                 updated_at, created_at)
+              VALUES (?, ?, ?, ?, ?,
+                      NOW(), 'Picking', ?,
+                      NOW(), NOW())
+              ON DUPLICATE KEY UPDATE
+                qty = ?,
+                last_transaction_date = NOW(),
+                last_transaction_type = 'Picking',
+                last_transaction_ref = ?,
+                updated_at = NOW()
+            `, [
+              item_code,
+              targetWarehouse,
+              source_bin,
+              newQty,
+              currentReservedQty,
+              title,
+              newQty,
+              title
+            ]);
           }
-          const newQty = currentQty - pickedQty;
-          await connection.execute(`
-            INSERT INTO tabStockLedger 
-              (item_code, warehouse, bin_location, qty, reserved_qty,
-               last_transaction_date, last_transaction_type, last_transaction_ref,
-               updated_at, created_at)
-            VALUES (?, ?, ?, ?, ?,
-                    NOW(), 'Picking', ?,
-                    NOW(), NOW())
-            ON DUPLICATE KEY UPDATE
-              qty = ?,
-              last_transaction_date = NOW(),
-              last_transaction_type = 'Picking',
-              last_transaction_ref = ?,
-              updated_at = NOW()
-          `, [
-            item_code,
-            targetWarehouse,
-            source_bin,
-            newQty,
-            currentReservedQty,
-            title,
-            newQty,
-            title
-          ]);
-          await connection.execute(`
-            INSERT INTO tabStockTransaction 
-              (transaction_date, transaction_type, reference_doc_type, reference_doc,
-               item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
-               source_bin, target_bin, performed_by, created_at)
-            VALUES 
-              (NOW(), 'Picking', 'Material Request', ?,
-               ?, ?, ?, ?, ?, ?,
-               ?, NULL, NULL, NOW())
-          `, [
-            title,
-            item_code,
-            targetWarehouse,
-            source_bin,
-            -pickedQty,
-            // Negative (decrease)
-            currentQty,
-            newQty,
-            source_bin
-          ]);
+          const [cartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabStockTransaction' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          const hasCartonIdColumn = cartonIdColumn.length > 0;
+          if (hasCartonIdColumn) {
+            await connection.execute(`
+              INSERT INTO tabStockTransaction 
+                (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                 item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                 source_bin, target_bin, carton_id, performed_by, created_at)
+              VALUES 
+                (NOW(), 'Picking', 'Material Request', ?,
+                 ?, ?, ?, ?, ?, ?,
+                 ?, NULL, ?, NULL, NOW())
+            `, [
+              title,
+              item_code,
+              targetWarehouse,
+              source_bin,
+              -pickedQty,
+              // Negative (decrease)
+              currentQty,
+              newQty,
+              source_bin,
+              carton_id || null
+            ]);
+          } else {
+            await connection.execute(`
+              INSERT INTO tabStockTransaction 
+                (transaction_date, transaction_type, reference_doc_type, reference_doc,
+                 item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+                 source_bin, target_bin, performed_by, created_at)
+              VALUES 
+                (NOW(), 'Picking', 'Material Request', ?,
+                 ?, ?, ?, ?, ?, ?,
+                 ?, NULL, NULL, NOW())
+            `, [
+              title,
+              item_code,
+              targetWarehouse,
+              source_bin,
+              -pickedQty,
+              // Negative (decrease)
+              currentQty,
+              newQty,
+              source_bin
+            ]);
+          }
           stockUpdates.push({
             item_code,
+            carton_id: carton_id || null,
             source_bin,
             qty_reduced: pickedQty,
             qty_before: currentQty,
-            qty_after: newQty
+            qty_after: newQty,
+            carton_stock_updated: cartonStockUpdated
           });
         }
       }
@@ -36344,19 +37708,19 @@ var pickMaterialRequestItems = /* @__PURE__ */ __name(async (req, res) => {
         `, [newStatus, title]);
       }
       const itemCodes = [...new Set(items.map((item) => item.item_code).filter(Boolean))];
-      for (const itemCode of itemCodes) {
+      for (const itemCode2 of itemCodes) {
         const [stockSum] = await connection.execute(`
           SELECT COALESCE(SUM(qty), 0) as total_qty
           FROM tabStockLedger
           WHERE item_code = ? AND warehouse = ?
-        `, [itemCode, targetWarehouse]);
+        `, [itemCode2, targetWarehouse]);
         const totalStockQty = parseFloat(stockSum[0].total_qty) || 0;
         await connection.execute(`
           UPDATE tabItem
           SET stock_qty = ?,
               updated_at = NOW()
           WHERE code = ?
-        `, [totalStockQty, itemCode]);
+        `, [totalStockQty, itemCode2]);
       }
       await connection.commit();
       res.json({
@@ -36366,7 +37730,8 @@ var pickMaterialRequestItems = /* @__PURE__ */ __name(async (req, res) => {
           material_request: title,
           status: newStatus,
           total_picked_qty: newTotalPicked,
-          items_picked: items.length,
+          items_picked: stockUpdates.length,
+          carton_stock_updated: stockUpdates.some((s) => s.carton_stock_updated),
           stock_updates: stockUpdates
         }
       });
@@ -36403,6 +37768,576 @@ var import_express14 = __toESM(require_express2(), 1);
 
 // src/modules/cycle-count/cycleCountController.js
 init_connection();
+async function lookupItemFromMasterData(connection, scannedValue) {
+  if (!scannedValue || typeof scannedValue === "string" && scannedValue.trim() === "") {
+    return null;
+  }
+  const normalizedValue = typeof scannedValue === "string" ? scannedValue.trim() : String(scannedValue);
+  try {
+    const [rows] = await connection.execute(`
+      SELECT 
+        code as item_code,
+        name as item_name,
+        barcode,
+        item_group,
+        brand,
+        default_uom,
+        stock_uom,
+        maintain_stock
+      FROM tabItem
+      WHERE barcode = ? OR code = ?
+      LIMIT 1
+    `, [normalizedValue, normalizedValue]);
+    if (rows.length > 0) {
+      const item = rows[0];
+      console.log(`[Cycle Count] \u2705 Found item in master data: scanned="${normalizedValue}", item_code="${item.item_code}", barcode="${item.barcode || "NULL"}"`);
+      return {
+        item_code: item.item_code,
+        item_name: item.item_name || null,
+        barcode: item.barcode || item.item_code,
+        // Use item_code as barcode if barcode is null
+        item_group: item.item_group || null,
+        brand: item.brand || null,
+        default_uom: item.default_uom || null,
+        stock_uom: item.stock_uom || null,
+        maintain_stock: Boolean(item.maintain_stock)
+      };
+    } else {
+      console.log(`[Cycle Count] \u26A0\uFE0F Item not found in master data: scanned="${normalizedValue}" (will allow ad-hoc counting)`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`[Cycle Count] \u274C Error looking up item in master data: ${error.message}`);
+    return null;
+  }
+}
+__name(lookupItemFromMasterData, "lookupItemFromMasterData");
+async function validateWarehouseFromMasterData(connection, warehouseCode) {
+  if (!warehouseCode || typeof warehouseCode === "string" && warehouseCode.trim() === "") {
+    return false;
+  }
+  const normalizedWarehouse = typeof warehouseCode === "string" ? warehouseCode.trim() : String(warehouseCode);
+  try {
+    const [rows] = await connection.execute(`
+      SELECT code
+      FROM tabWarehouse
+      WHERE code = ?
+      LIMIT 1
+    `, [normalizedWarehouse]);
+    if (rows.length > 0) {
+      console.log(`[Cycle Count] \u2705 Warehouse validated in master data: "${normalizedWarehouse}"`);
+      return true;
+    } else {
+      console.log(`[Cycle Count] \u274C Warehouse not found in master data: "${normalizedWarehouse}"`);
+      return false;
+    }
+  } catch (error) {
+    console.error(`[Cycle Count] \u274C Error validating warehouse in master data: ${error.message}`);
+    return false;
+  }
+}
+__name(validateWarehouseFromMasterData, "validateWarehouseFromMasterData");
+async function lookupExpectedQtyFromStock(connection, itemCode2, binLocation, cartonId = null, warehouse = null) {
+  try {
+    if (!itemCode2 || !binLocation) {
+      return 0;
+    }
+    const normalizedItemCode = String(itemCode2 || "").trim().toUpperCase();
+    const normalizedBinLocation = String(binLocation || "").trim().toUpperCase();
+    const normalizedCartonId = cartonId ? String(cartonId).trim().toUpperCase() : null;
+    const normalizedWarehouse = warehouse ? String(warehouse).trim().toUpperCase() : null;
+    if (normalizedCartonId) {
+      const [tableCheck] = await connection.execute(`
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabCartonStock'
+      `);
+      if (tableCheck.length > 0) {
+        let cartonQuery = `
+          SELECT qty
+          FROM tabCartonStock
+          WHERE UPPER(TRIM(item_code)) = ?
+            AND UPPER(TRIM(bin_location)) = ?
+            AND UPPER(TRIM(carton_id)) = ?
+            AND qty > 0
+        `;
+        const cartonParams = [normalizedItemCode, normalizedBinLocation, normalizedCartonId];
+        if (normalizedWarehouse) {
+          cartonQuery += " AND UPPER(TRIM(warehouse)) = ?";
+          cartonParams.push(normalizedWarehouse);
+        }
+        cartonQuery += ` AND (status IS NULL OR status = '' OR status = 'PUTAWAY')`;
+        cartonQuery += " LIMIT 1";
+        const [cartonRows] = await connection.execute(cartonQuery, cartonParams);
+        if (cartonRows.length > 0 && cartonRows[0].qty) {
+          const expectedQty = parseFloat(cartonRows[0].qty) || 0;
+          console.log(`[Cycle Count] \u{1F4E6} Found expected_qty from tabCartonStock: ${expectedQty} (item: ${normalizedItemCode}, bin: ${normalizedBinLocation}, carton: ${normalizedCartonId})`);
+          return expectedQty;
+        }
+      }
+    }
+    let ledgerQuery = `
+      SELECT qty
+      FROM tabStockLedger
+      WHERE UPPER(TRIM(item_code)) = ?
+        AND UPPER(TRIM(bin_location)) = ?
+        AND qty > 0
+    `;
+    const ledgerParams = [normalizedItemCode, normalizedBinLocation];
+    if (normalizedWarehouse) {
+      ledgerQuery += " AND UPPER(TRIM(warehouse)) = ?";
+      ledgerParams.push(normalizedWarehouse);
+    }
+    ledgerQuery += " LIMIT 1";
+    const [ledgerRows] = await connection.execute(ledgerQuery, ledgerParams);
+    if (ledgerRows.length > 0 && ledgerRows[0].qty) {
+      const expectedQty = parseFloat(ledgerRows[0].qty) || 0;
+      console.log(`[Cycle Count] \u{1F4CA} Found expected_qty from tabStockLedger: ${expectedQty} (item: ${normalizedItemCode}, bin: ${normalizedBinLocation})`);
+      return expectedQty;
+    }
+    console.log(`[Cycle Count] \u26A0\uFE0F No expected_qty found in stock ledger for item: ${normalizedItemCode}, bin: ${normalizedBinLocation}, carton: ${normalizedCartonId || "NULL"}`);
+    return 0;
+  } catch (error) {
+    console.error(`[Cycle Count] \u26A0\uFE0F Error looking up expected_qty from stock ledger: ${error.message}`);
+    return 0;
+  }
+}
+__name(lookupExpectedQtyFromStock, "lookupExpectedQtyFromStock");
+function formatCycleCountLine(line) {
+  const lineId = line.id;
+  const actualQty = line.actual_qty ? parseFloat(line.actual_qty) : null;
+  const expectedQty = line.expected_qty !== null && line.expected_qty !== void 0 && parseFloat(line.expected_qty) > 0 ? parseFloat(line.expected_qty) : 0;
+  let discrepancy = 0;
+  if (line.discrepancy !== null && line.discrepancy !== void 0) {
+    const parsedDiscrepancy = parseFloat(line.discrepancy);
+    discrepancy = !isNaN(parsedDiscrepancy) ? parsedDiscrepancy : 0;
+  } else if (actualQty !== null && actualQty !== void 0) {
+    discrepancy = actualQty - expectedQty;
+    if (isNaN(discrepancy)) {
+      discrepancy = 0;
+    }
+  } else {
+    discrepancy = 0;
+  }
+  if (discrepancy === null || discrepancy === void 0 || isNaN(discrepancy)) {
+    discrepancy = 0;
+  }
+  const formattedLine = {
+    // Mobile app fields
+    line_id: `LINE-${lineId}`,
+    // String format for mobile app
+    id: lineId,
+    // Keep numeric ID for compatibility
+    item_code: line.item_code,
+    barcode: line.item_code,
+    // Use item_code as barcode if not separate
+    uom: "EA",
+    // Default unit of measure
+    expected_qty: expectedQty,
+    // 0 for opening stock, > 0 for normal cycle count
+    actual_qty: actualQty,
+    counted_qty: actualQty,
+    // Alias for actual_qty
+    variance_qty: discrepancy,
+    // actual_qty - expected_qty (can be positive or negative, always 0 instead of null)
+    discrepancy,
+    // Alias for variance_qty (always 0 instead of null)
+    bin_location: line.bin_location || null,
+    carton_id: line.carton_id !== void 0 && line.carton_id !== null ? String(line.carton_id).trim() : null,
+    // Include carton_id in response (always present, even if null)
+    status: line.status || "Pending",
+    is_unexpected_item: false,
+    // Default, can be set later
+    reason_code: null,
+    // Can map from discrepancy_reason if needed
+    notes: line.discrepancy_reason || null,
+    discrepancy_reason: line.discrepancy_reason || null,
+    // Keep for backward compatibility
+    counted_by: line.counted_by || null,
+    counted_on: line.counted_on ? line.counted_on.toISOString() : null,
+    reviewed_by: line.reviewed_by || null,
+    reviewed_on: line.reviewed_on ? line.reviewed_on.toISOString() : null,
+    approval_required: Boolean(line.approval_required),
+    approved_by: line.approved_by || null,
+    approved_on: line.approved_on ? line.approved_on.toISOString() : null
+  };
+  return formattedLine;
+}
+__name(formatCycleCountLine, "formatCycleCountLine");
+async function updateStockFromCycleCount(connection, title, warehouse) {
+  let stockUpdated = false;
+  let stockUpdateCount = 0;
+  const [taskRows] = await connection.execute(`
+    SELECT items_with_discrepancy
+    FROM tabCycleCountTask WHERE title = ?
+  `, [title]);
+  if (taskRows.length === 0) {
+    return { stockUpdated: false, stockUpdateCount: 0 };
+  }
+  const itemsWithDiscrepancy = parseInt(taskRows[0].items_with_discrepancy) || 0;
+  const [stockLedgerTable] = await connection.execute(`
+    SELECT TABLE_NAME 
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'tabStockLedger'
+  `);
+  if (stockLedgerTable.length === 0) {
+    console.log(`[Cycle Count] \u26A0\uFE0F tabStockLedger table does not exist, skipping stock update`);
+    return { stockUpdated: false, stockUpdateCount: 0 };
+  }
+  const [allCountedLines] = await connection.execute(`
+    SELECT 
+      item_code,
+      bin_location,
+      expected_qty,
+      actual_qty,
+      discrepancy
+    FROM tabCycleCountLine
+    WHERE parent_title = ?
+      AND actual_qty IS NOT NULL
+  `, [title]);
+  console.log(`[Cycle Count] \u{1F50D} Debug: Found ${allCountedLines.length} total counted lines for task ${title}`);
+  allCountedLines.forEach((line, idx) => {
+    console.log(`[Cycle Count]   Line ${idx + 1}: item=${line.item_code}, expected=${line.expected_qty}, actual=${line.actual_qty}, discrepancy=${line.discrepancy !== null ? line.discrepancy : "NULL"}`);
+  });
+  const [cartonIdColumn] = await connection.execute(`
+    SELECT COLUMN_NAME 
+    FROM INFORMATION_SCHEMA.COLUMNS 
+    WHERE TABLE_SCHEMA = DATABASE() 
+    AND TABLE_NAME = 'tabCycleCountLine' 
+    AND COLUMN_NAME = 'carton_id'
+  `);
+  const hasCartonIdColumn = cartonIdColumn.length > 0;
+  const [linesWithDiscrepancy] = await connection.execute(`
+    SELECT 
+      item_code,
+      bin_location,
+      ${hasCartonIdColumn ? "carton_id," : ""}
+      expected_qty,
+      actual_qty,
+      discrepancy,
+      counted_by
+    FROM tabCycleCountLine
+    WHERE parent_title = ?
+      AND actual_qty > 0
+      AND discrepancy IS NOT NULL
+      AND discrepancy != 0
+  `, [title]);
+  console.log(`[Cycle Count] \u{1F4CA} Found ${linesWithDiscrepancy.length} lines needing stock update for task ${title} (items_with_discrepancy in DB: ${itemsWithDiscrepancy})`);
+  if (linesWithDiscrepancy.length === 0) {
+    console.log(`[Cycle Count] \u2139\uFE0F No lines need stock update for task ${title} - all items match expected quantities`);
+    return { stockUpdated: false, stockUpdateCount: 0 };
+  }
+  for (const line of linesWithDiscrepancy) {
+    const itemCode2 = line.item_code;
+    const binLocation = line.bin_location || null;
+    const cartonId = hasCartonIdColumn && line.carton_id ? String(line.carton_id).trim() : null;
+    const expectedQty = parseFloat(line.expected_qty) || 0;
+    const actualQty = parseFloat(line.actual_qty) || 0;
+    let discrepancy = actualQty - expectedQty;
+    if (line.discrepancy === null || line.discrepancy === void 0) {
+      discrepancy = actualQty - expectedQty;
+    } else {
+      discrepancy = parseFloat(line.discrepancy);
+    }
+    const countedBy = line.counted_by || null;
+    const [currentStock] = await connection.execute(`
+      SELECT qty, reserved_qty
+      FROM tabStockLedger
+      WHERE item_code = ? AND warehouse = ? 
+        AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))
+    `, [itemCode2, warehouse, binLocation, binLocation]);
+    let currentQty = 0;
+    let currentReservedQty = 0;
+    const isExistingRow = currentStock.length > 0;
+    if (isExistingRow) {
+      currentQty = parseFloat(currentStock[0].qty) || 0;
+      currentReservedQty = parseFloat(currentStock[0].reserved_qty) || 0;
+    }
+    const newQty = currentQty + discrepancy;
+    const qtyBefore = currentQty;
+    const qtyReduced = discrepancy;
+    const [qtyBeforeColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockLedger' 
+      AND COLUMN_NAME = 'qty_before'
+    `);
+    const hasQtyBeforeColumn = qtyBeforeColumn.length > 0;
+    const [qtyReducedColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockLedger' 
+      AND COLUMN_NAME = 'qty_reduced'
+    `);
+    const hasQtyReducedColumn = qtyReducedColumn.length > 0;
+    const [stockLedgerCartonIdColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockLedger' 
+      AND COLUMN_NAME = 'carton_id'
+    `);
+    const hasStockLedgerCartonIdColumn = stockLedgerCartonIdColumn.length > 0;
+    const [cartonStockTable] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabCartonStock'
+    `);
+    const hasCartonStockTable = cartonStockTable.length > 0;
+    let updateStockSql = `
+      INSERT INTO tabStockLedger 
+        (item_code, warehouse, bin_location, qty, reserved_qty, 
+         last_transaction_date, last_transaction_type, last_transaction_ref, 
+         updated_at, created_at`;
+    let valuesClause = ` VALUES (?, ?, ?, ?, ?,
+              NOW(), 'CycleCount', ?, NOW(), NOW()`;
+    let updateClause = ` ON DUPLICATE KEY UPDATE
+        qty = ?,
+        last_transaction_date = NOW(),
+        last_transaction_type = 'CycleCount',
+        last_transaction_ref = ?,
+        updated_at = NOW()`;
+    let params = [itemCode2, warehouse, binLocation, newQty, currentReservedQty, title];
+    if (hasQtyBeforeColumn) {
+      updateStockSql += `, qty_before`;
+      valuesClause += `, ?`;
+      updateClause += `, qty_before = ?`;
+      params.push(qtyBefore);
+    }
+    if (hasQtyReducedColumn) {
+      updateStockSql += `, qty_reduced`;
+      valuesClause += `, ?`;
+      updateClause += `, qty_reduced = ?`;
+      params.push(qtyReduced);
+    }
+    if (hasStockLedgerCartonIdColumn && cartonId) {
+      updateStockSql += `, carton_id`;
+      valuesClause += `, ?`;
+      updateClause += `, carton_id = ?`;
+      params.push(cartonId);
+      console.log(`[Cycle Count] \u{1F4E6} Including carton_id in tabStockLedger update: ${cartonId} for item ${itemCode2}`);
+    }
+    updateStockSql += `)` + valuesClause + `)` + updateClause;
+    params.push(newQty, title);
+    if (hasQtyBeforeColumn) {
+      params.push(currentQty);
+    }
+    if (hasQtyReducedColumn) {
+      params.push(discrepancy);
+    }
+    if (hasStockLedgerCartonIdColumn && cartonId) {
+      params.push(cartonId);
+    }
+    await connection.execute(updateStockSql, params);
+    console.log(`[Cycle Count] \u{1F4CA} Stock Ledger Update: item=${itemCode2}, qty_before=${qtyBefore}, qty_reduced=${qtyReduced}, new_qty=${newQty}, carton_id=${cartonId || "NULL"}`);
+    if (hasCartonStockTable && cartonId && binLocation) {
+      try {
+        await connection.execute(`
+          INSERT INTO tabCartonStock 
+            (carton_id, item_code, warehouse, bin_location, qty, status)
+          VALUES 
+            (?, ?, ?, ?, ?, 'PUTAWAY')
+          ON DUPLICATE KEY UPDATE
+            qty = VALUES(qty),
+            updated_at = NOW(),
+            status = 'PUTAWAY',
+            bin_location = VALUES(bin_location)
+        `, [cartonId, itemCode2, warehouse, binLocation, actualQty]);
+        console.log(`[Cycle Count] \u{1F4E6} Updated tabCartonStock: carton_id=${cartonId}, item=${itemCode2}, qty=${actualQty}, bin=${binLocation}`);
+      } catch (cartonStockError) {
+        console.warn(`[Cycle Count] \u26A0\uFE0F Could not update tabCartonStock: ${cartonStockError.message}`);
+      }
+    }
+    const [stockTransactionTable] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockTransaction'
+    `);
+    if (stockTransactionTable.length > 0) {
+      const [transactionCartonIdColumn] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabStockTransaction' 
+        AND COLUMN_NAME = 'carton_id'
+      `);
+      const hasTransactionCartonIdColumn = transactionCartonIdColumn.length > 0;
+      let transactionSql = `
+        INSERT INTO tabStockTransaction
+          (transaction_date, transaction_type, reference_doc_type, reference_doc,
+           item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
+           source_bin, target_bin, performed_by, created_at`;
+      let transactionValues = ` VALUES (NOW(), 'CycleCount', 'Cycle Count Task', ?,
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, NOW()`;
+      let transactionParams = [
+        title,
+        itemCode2,
+        warehouse,
+        binLocation,
+        discrepancy,
+        currentQty,
+        newQty,
+        binLocation,
+        binLocation,
+        countedBy
+      ];
+      if (hasTransactionCartonIdColumn && cartonId) {
+        transactionSql += `, carton_id`;
+        transactionValues += `, ?`;
+        transactionParams.push(cartonId);
+      }
+      transactionSql += `)` + transactionValues + `)`;
+      await connection.execute(transactionSql, transactionParams);
+      console.log(`[Cycle Count] \u{1F4DD} Stock Transaction logged: item=${itemCode2}, carton_id=${cartonId || "NULL"}`);
+    }
+    console.log(`[Cycle Count] \u2705 Updated stock for ${itemCode2} @ ${warehouse}/${binLocation || "NULL"}: ${currentQty} \u2192 ${newQty} (change: ${discrepancy > 0 ? "+" : ""}${discrepancy})`);
+    stockUpdateCount++;
+  }
+  if (stockUpdateCount > 0) {
+    try {
+      const [updatedItems] = await connection.execute(`
+        SELECT DISTINCT item_code
+        FROM tabCycleCountLine
+        WHERE parent_title = ?
+          AND actual_qty > 0
+          AND discrepancy IS NOT NULL
+          AND discrepancy != 0
+      `, [title]);
+      for (const item of updatedItems) {
+        const itemCode2 = item.item_code;
+        let totalQty = 0;
+        const [cartonStockTable] = await connection.execute(`
+          SELECT TABLE_NAME 
+          FROM INFORMATION_SCHEMA.TABLES 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabCartonStock'
+        `);
+        if (cartonStockTable.length > 0) {
+          try {
+            const [allCartons] = await connection.execute(`
+              SELECT carton_id, qty, status
+              FROM tabCartonStock
+              WHERE item_code = ?
+                AND qty > 0
+                AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
+              ORDER BY carton_id
+            `, [itemCode2]);
+            console.log(`[Cycle Count] \u{1F50D} Found ${allCartons.length} carton(s) for ${itemCode2}:`);
+            allCartons.forEach((carton, idx) => {
+              console.log(`[Cycle Count]   Carton ${idx + 1}: ${carton.carton_id} = ${carton.qty} (status: ${carton.status || "NULL"})`);
+            });
+            const [cartonStockTotal] = await connection.execute(`
+              SELECT COALESCE(SUM(qty), 0) as total_qty,
+                     COUNT(*) as carton_count
+              FROM tabCartonStock
+              WHERE item_code = ?
+                AND qty > 0
+                AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
+            `, [itemCode2]);
+            const cartonQty = parseFloat(cartonStockTotal[0].total_qty) || 0;
+            const cartonCount = parseInt(cartonStockTotal[0].carton_count) || 0;
+            console.log(`[Cycle Count] \u{1F4CA} Carton stock calculation for ${itemCode2}: ${cartonCount} carton(s) = ${cartonQty} total`);
+            if (cartonQty > 0) {
+              totalQty = cartonQty;
+              console.log(`[Cycle Count] \u{1F4E6} Using carton stock total for ${itemCode2}: ${cartonQty} (from ${cartonCount} carton(s))`);
+            }
+          } catch (cartonError) {
+            console.warn(`[Cycle Count] \u26A0\uFE0F Could not calculate carton stock total: ${cartonError.message}`);
+            console.error(`[Cycle Count] \u26A0\uFE0F Error details:`, cartonError);
+          }
+        }
+        if (totalQty === 0) {
+          const [stockLedgerTotal] = await connection.execute(`
+            SELECT COALESCE(SUM(qty), 0) as total_qty
+            FROM tabStockLedger
+            WHERE item_code = ?
+          `, [itemCode2]);
+          totalQty = parseFloat(stockLedgerTotal[0].total_qty) || 0;
+          console.log(`[Cycle Count] \u{1F4CA} Using stock ledger total for ${itemCode2}: ${totalQty}`);
+        }
+        await connection.execute(`
+          UPDATE tabItem
+          SET stock_qty = ?,
+              updated_at = NOW()
+          WHERE code = ?
+        `, [totalQty, itemCode2]);
+        console.log(`[Cycle Count] \u2705 Updated tabItem.stock_qty for ${itemCode2}: ${totalQty}`);
+      }
+    } catch (itemUpdateError) {
+      console.warn(`[Cycle Count] \u26A0\uFE0F Could not update tabItem.stock_qty: ${itemUpdateError.message}`);
+    }
+  }
+  stockUpdated = stockUpdateCount > 0;
+  return { stockUpdated, stockUpdateCount };
+}
+__name(updateStockFromCycleCount, "updateStockFromCycleCount");
+function formatCycleCountTask(row, lines = []) {
+  const countType = row.count_type;
+  const mobileCountType = countType === "Cycle" ? "Directed" : countType === "Full" ? "Adhoc" : countType;
+  const isBlindCount = lines.length > 0 && lines.every((line) => line.expected_qty === null || line.expected_qty === 0);
+  const isOpeningStock = lines.some((line) => {
+    const expectedQty = line.expected_qty === null || line.expected_qty === void 0 ? 0 : parseFloat(line.expected_qty);
+    const actualQty = line.actual_qty !== null && line.actual_qty !== void 0 ? parseFloat(line.actual_qty) : null;
+    return expectedQty === 0 && actualQty !== null && actualQty > 0;
+  });
+  const startedAt = row.status === "In Progress" && row.updated_at ? row.updated_at.toISOString() : null;
+  const startedBy = row.status === "In Progress" ? row.assigned_to || row.created_by : null;
+  const formattedLines = lines.map(formatCycleCountLine);
+  console.log(`[Cycle Count] \u{1F4CB} Task ${row.title}: is_blind_count=${isBlindCount}, is_opening_stock=${isOpeningStock}, lines=${lines.length}`);
+  return {
+    // Core fields
+    title: row.title,
+    status: row.status,
+    count_type: mobileCountType,
+    // Mobile app format
+    count_type_original: countType,
+    // Keep original for compatibility
+    // Warehouse and location
+    warehouse_id: row.warehouse,
+    // Mobile app field
+    warehouse: row.warehouse,
+    // Keep for backward compatibility
+    bin_code: row.zone || null,
+    // Mobile app uses bin_code
+    bin_id: row.zone || null,
+    // Mobile app uses bin_id (can be same as bin_code)
+    zone: row.zone || null,
+    // Keep for backward compatibility
+    // Dates and times
+    count_date: row.count_date ? row.count_date.toISOString().split("T")[0] : null,
+    scheduled_start_time: row.scheduled_start_time || null,
+    scheduled_end_time: row.scheduled_end_time || null,
+    started_at: startedAt,
+    started_by: startedBy,
+    created_at: row.created_at ? row.created_at.toISOString() : null,
+    updated_at: row.updated_at ? row.updated_at.toISOString() : null,
+    // Flags
+    is_blind_count: isBlindCount,
+    is_opening_stock: isOpeningStock,
+    // true if task contains opening stock items (expected_qty = 0 and actual_qty > 0)
+    freeze_stock: Boolean(row.freeze_stock),
+    // Users
+    created_by: row.created_by,
+    assigned_to: row.assigned_to || null,
+    // Statistics
+    total_items: parseInt(row.total_items) || 0,
+    counted_items: parseInt(row.counted_items) || 0,
+    items_with_discrepancy: parseInt(row.items_with_discrepancy) || 0,
+    // Lines - support both 'items' and 'lines' field names for mobile app compatibility
+    items: formattedLines,
+    // Mobile app primary field
+    lines: formattedLines
+    // Alternative field name
+  };
+}
+__name(formatCycleCountTask, "formatCycleCountTask");
 var getCycleCountTasks = /* @__PURE__ */ __name(async (req, res) => {
   const connection = await getConnection();
   try {
@@ -36430,8 +38365,11 @@ var getCycleCountTasks = /* @__PURE__ */ __name(async (req, res) => {
     `;
     const params = [];
     if (status) {
-      query += " AND status = ?";
-      params.push(status);
+      const statusList = status.split(",").map((s) => s.trim()).filter((s) => s);
+      if (statusList.length > 0) {
+        query += ` AND status IN (${statusList.map(() => "?").join(",")})`;
+        params.push(...statusList);
+      }
     }
     if (warehouse) {
       query += " AND warehouse = ?";
@@ -36448,65 +38386,12 @@ var getCycleCountTasks = /* @__PURE__ */ __name(async (req, res) => {
     query += " ORDER BY count_date DESC, title";
     const [rows] = await connection.execute(query, params);
     const cycleCountTasks = await Promise.all(rows.map(async (row) => {
-      const [lineRows] = await connection.execute(`
-        SELECT 
-          id,
-          item_code,
-          bin_location,
-          expected_qty,
-          actual_qty,
-          discrepancy,
-          counted_by,
-          counted_on,
-          reviewed_by,
-          reviewed_on,
-          approval_required,
-          approved_by,
-          approved_on,
-          discrepancy_reason,
-          status
-        FROM tabCycleCountLine
-        WHERE parent_title = ?
-        ORDER BY item_code, bin_location
-      `, [row.title]);
-      const lines = lineRows.map((line) => ({
-        id: line.id,
-        item_code: line.item_code,
-        bin_location: line.bin_location || null,
-        expected_qty: parseFloat(line.expected_qty) || 0,
-        actual_qty: line.actual_qty ? parseFloat(line.actual_qty) : null,
-        discrepancy: line.discrepancy ? parseFloat(line.discrepancy) : null,
-        counted_by: line.counted_by || null,
-        counted_on: line.counted_on ? line.counted_on.toISOString() : null,
-        reviewed_by: line.reviewed_by || null,
-        reviewed_on: line.reviewed_on ? line.reviewed_on.toISOString() : null,
-        approval_required: Boolean(line.approval_required),
-        approved_by: line.approved_by || null,
-        approved_on: line.approved_on ? line.approved_on.toISOString() : null,
-        discrepancy_reason: line.discrepancy_reason || null,
-        status: line.status
-      }));
-      return {
-        title: row.title,
-        status: row.status,
-        count_type: row.count_type,
-        warehouse: row.warehouse,
-        zone: row.zone || null,
-        count_date: row.count_date ? row.count_date.toISOString().split("T")[0] : null,
-        scheduled_start_time: row.scheduled_start_time || null,
-        scheduled_end_time: row.scheduled_end_time || null,
-        freeze_stock: Boolean(row.freeze_stock),
-        created_by: row.created_by,
-        assigned_to: row.assigned_to || null,
-        total_items: parseInt(row.total_items) || 0,
-        counted_items: parseInt(row.counted_items) || 0,
-        items_with_discrepancy: parseInt(row.items_with_discrepancy) || 0,
-        lines,
-        created_at: row.created_at ? row.created_at.toISOString() : null,
-        updated_at: row.updated_at ? row.updated_at.toISOString() : null
-      };
+      return formatCycleCountTask(row, []);
     }));
-    res.json(cycleCountTasks);
+    res.json({
+      ok: true,
+      data: cycleCountTasks
+    });
   } catch (error) {
     console.error("Failed to fetch Cycle Count Tasks:", error);
     res.status(500).json({
@@ -36556,11 +38441,38 @@ var getCycleCountTaskByTitle = /* @__PURE__ */ __name(async (req, res) => {
       });
     }
     const row = rows[0];
+    const [cartonIdColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabCycleCountLine' 
+      AND COLUMN_NAME = 'carton_id'
+    `);
+    const hasCartonIdColumn = cartonIdColumn.length > 0;
+    const { carton_id, counted_by } = req.query;
+    let whereClause = "WHERE parent_title = ? AND actual_qty IS NOT NULL";
+    const queryParams = [title];
+    if (carton_id !== void 0 && carton_id !== null && carton_id !== "") {
+      if (hasCartonIdColumn) {
+        whereClause += " AND carton_id = ?";
+        queryParams.push(carton_id);
+        console.log(`[Cycle Count] \u{1F50D} Filtering lines by carton_id: ${carton_id}`);
+      } else {
+        console.log(`[Cycle Count] \u26A0\uFE0F carton_id filter requested but column doesn't exist in database`);
+      }
+    }
+    if (counted_by !== void 0 && counted_by !== null && counted_by !== "") {
+      whereClause += " AND counted_by = ?";
+      queryParams.push(counted_by);
+      console.log(`[Cycle Count] \u{1F50D} Filtering lines by counted_by: ${counted_by}`);
+    }
+    console.log(`[Cycle Count] \u{1F4CB} Fetching lines for task ${title} (filters: carton_id=${carton_id || "none"}, counted_by=${counted_by || "none"})`);
     const [lineRows] = await connection.execute(`
       SELECT 
         id,
         item_code,
         bin_location,
+        ${hasCartonIdColumn ? "carton_id," : ""}
         expected_qty,
         actual_qty,
         discrepancy,
@@ -36574,44 +38486,30 @@ var getCycleCountTaskByTitle = /* @__PURE__ */ __name(async (req, res) => {
         discrepancy_reason,
         status
       FROM tabCycleCountLine
-      WHERE parent_title = ?
+      ${whereClause}
       ORDER BY item_code, bin_location
-    `, [title]);
-    const lines = lineRows.map((line) => ({
-      id: line.id,
-      item_code: line.item_code,
-      bin_location: line.bin_location || null,
-      expected_qty: parseFloat(line.expected_qty) || 0,
-      actual_qty: line.actual_qty ? parseFloat(line.actual_qty) : null,
-      discrepancy: line.discrepancy ? parseFloat(line.discrepancy) : null,
-      counted_by: line.counted_by || null,
-      counted_on: line.counted_on ? line.counted_on.toISOString() : null,
-      reviewed_by: line.reviewed_by || null,
-      reviewed_on: line.reviewed_on ? line.reviewed_on.toISOString() : null,
-      approval_required: Boolean(line.approval_required),
-      approved_by: line.approved_by || null,
-      approved_on: line.approved_on ? line.approved_on.toISOString() : null,
-      discrepancy_reason: line.discrepancy_reason || null,
-      status: line.status
-    }));
+    `, queryParams);
+    if (lineRows.length > 0) {
+      console.log(`[Cycle Count] \u{1F4CB} Retrieved ${lineRows.length} line(s) for task ${title}`);
+      lineRows.forEach((line, idx) => {
+        console.log(`[Cycle Count]   Line ${idx + 1}: item=${line.item_code}, carton_id=${line.carton_id || "NULL"}, hasCartonIdColumn=${hasCartonIdColumn}`);
+      });
+    }
+    const formattedTask = formatCycleCountTask(row, lineRows);
+    if (formattedTask.items && formattedTask.items.length > 0) {
+      console.log(`[Cycle Count] \u2705 Formatted ${formattedTask.items.length} line(s) for response`);
+      formattedTask.items.slice(0, 3).forEach((item, idx) => {
+        console.log(`[Cycle Count]   Formatted Line ${idx + 1}: item=${item.item_code}, carton_id=${item.carton_id || "NULL"}, is_opening_stock=${item.is_opening_stock !== void 0 ? item.is_opening_stock : "MISSING"}`);
+      });
+    }
+    const firstItem = formattedTask.items && formattedTask.items.length > 0 ? formattedTask.items[0] : null;
+    if (firstItem) {
+      console.log(`[Cycle Count] \u{1F50D} Final check - First item keys: ${Object.keys(firstItem).join(", ")}`);
+      console.log(`[Cycle Count] \u{1F50D} Final check - is_opening_stock value: ${firstItem.is_opening_stock !== void 0 ? firstItem.is_opening_stock : "UNDEFINED"}`);
+    }
     res.json({
-      title: row.title,
-      status: row.status,
-      count_type: row.count_type,
-      warehouse: row.warehouse,
-      zone: row.zone || null,
-      count_date: row.count_date ? row.count_date.toISOString().split("T")[0] : null,
-      scheduled_start_time: row.scheduled_start_time || null,
-      scheduled_end_time: row.scheduled_end_time || null,
-      freeze_stock: Boolean(row.freeze_stock),
-      created_by: row.created_by,
-      assigned_to: row.assigned_to || null,
-      total_items: parseInt(row.total_items) || 0,
-      counted_items: parseInt(row.counted_items) || 0,
-      items_with_discrepancy: parseInt(row.items_with_discrepancy) || 0,
-      lines,
-      created_at: row.created_at ? row.created_at.toISOString() : null,
-      updated_at: row.updated_at ? row.updated_at.toISOString() : null
+      ok: true,
+      data: formattedTask
     });
   } catch (error) {
     console.error("Failed to fetch Cycle Count Task:", error);
@@ -36640,27 +38538,30 @@ var createCycleCountTask = /* @__PURE__ */ __name(async (req, res) => {
         }
       });
     }
-    if (!lines || !Array.isArray(lines) || lines.length === 0) {
+    const warehouseValid = await validateWarehouseFromMasterData(connection, warehouse);
+    if (!warehouseValid) {
       return res.status(400).json({
         ok: false,
         error: {
-          code: "VALIDATION_ERROR",
-          message: "lines array is required and must not be empty"
+          code: "INVALID_WAREHOUSE",
+          message: `Warehouse "${warehouse}" not found in master data. Please use a valid warehouse code from tabWarehouse.`
         }
       });
     }
-    const total_items = lines.length;
+    const total_items = lines && Array.isArray(lines) && lines.length > 0 ? lines.length : 0;
     await connection.execute(`
       INSERT INTO tabCycleCountTask 
         (title, status, count_type, warehouse, zone, count_date, scheduled_start_time, scheduled_end_time, freeze_stock, created_by, assigned_to, total_items, counted_items, items_with_discrepancy)
       VALUES (?, 'Draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
     `, [title, count_type, warehouse, zone || null, count_date, scheduled_start_time || null, scheduled_end_time || null, freeze_stock || false, created_by, assigned_to || null, total_items]);
-    for (const line of lines) {
-      await connection.execute(`
-        INSERT INTO tabCycleCountLine 
-          (parent_title, item_code, bin_location, expected_qty, status)
-        VALUES (?, ?, ?, ?, 'Pending')
-      `, [title, line.item_code, line.bin_location || null, line.expected_qty]);
+    if (lines && Array.isArray(lines) && lines.length > 0) {
+      for (const line of lines) {
+        await connection.execute(`
+          INSERT INTO tabCycleCountLine 
+            (parent_title, item_code, bin_location, expected_qty, status)
+          VALUES (?, ?, ?, 0, 'Pending')
+        `, [title, line.item_code, line.bin_location || null]);
+      }
     }
     res.status(201).json({
       ok: true,
@@ -36694,13 +38595,1206 @@ var createCycleCountTask = /* @__PURE__ */ __name(async (req, res) => {
     connection.release();
   }
 }, "createCycleCountTask");
+var startCycleCount = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const { started_by } = req.body;
+    const [rows] = await connection.execute(`
+      SELECT status FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    if (rows[0].status !== "Draft" && rows[0].status !== "Scheduled") {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INVALID_STATUS",
+          message: `Cannot start Cycle Count Task. Current status: ${rows[0].status}`
+        }
+      });
+    }
+    const updateQuery = started_by ? `UPDATE tabCycleCountTask SET status = 'In Progress', assigned_to = ?, updated_at = NOW() WHERE title = ?` : `UPDATE tabCycleCountTask SET status = 'In Progress', updated_at = NOW() WHERE title = ?`;
+    const updateParams = started_by ? [started_by, title] : [title];
+    await connection.execute(updateQuery, updateParams);
+    res.json({
+      ok: true,
+      message: "Cycle Count Task started successfully",
+      data: {
+        title,
+        status: "In Progress",
+        started_at: (/* @__PURE__ */ new Date()).toISOString(),
+        started_by: started_by || null
+      }
+    });
+  } catch (error) {
+    console.error("Failed to start Cycle Count Task:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to start Cycle Count Task",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "startCycleCount");
+var updateCountLine = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const { line_id, id, actual_qty, counted_qty, counted_by, discrepancy_reason, reason_code, notes } = req.body;
+    let lineId = line_id || id;
+    if (typeof lineId === "string" && lineId.startsWith("LINE-")) {
+      lineId = parseInt(lineId.replace("LINE-", ""));
+    }
+    lineId = parseInt(lineId);
+    const qty = actual_qty !== void 0 ? actual_qty : counted_qty;
+    if (!lineId || qty === void 0 && qty === null) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "line_id (or id) and actual_qty (or counted_qty) are required"
+        }
+      });
+    }
+    const [taskRows] = await connection.execute(`
+      SELECT status FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (taskRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    const [lineRows] = await connection.execute(`
+      SELECT id, parent_title, expected_qty, actual_qty
+      FROM tabCycleCountLine 
+      WHERE id = ? AND parent_title = ?
+    `, [lineId, title]);
+    if (lineRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Line ${lineId} not found for task ${title}`
+        }
+      });
+    }
+    const line = lineRows[0];
+    const wasCounted = line.actual_qty !== null;
+    const reason = reason_code || notes || discrepancy_reason || null;
+    await connection.execute(`
+      UPDATE tabCycleCountLine 
+      SET 
+        actual_qty = ?,
+        counted_by = ?,
+        counted_on = NOW(),
+        discrepancy_reason = ?,
+        status = 'Counted',
+        updated_at = NOW()
+      WHERE id = ?
+    `, [qty, counted_by || null, reason, lineId]);
+    const [countedRows] = await connection.execute(`
+      SELECT 
+        COUNT(*) as total_counted,
+        SUM(CASE 
+          WHEN (expected_qty > 0 AND ABS(COALESCE(discrepancy, 0)) > 0) 
+            OR (COALESCE(expected_qty, 0) = 0 AND actual_qty > 0)
+          THEN 1 
+          ELSE 0 
+        END) as with_discrepancy
+      FROM tabCycleCountLine 
+      WHERE parent_title = ? AND actual_qty IS NOT NULL
+    `, [title]);
+    const counted_items = countedRows[0].total_counted || 0;
+    const items_with_discrepancy = countedRows[0].with_discrepancy || 0;
+    await connection.execute(`
+      UPDATE tabCycleCountTask 
+      SET 
+        counted_items = ?,
+        items_with_discrepancy = ?,
+        updated_at = NOW()
+      WHERE title = ?
+    `, [counted_items, items_with_discrepancy, title]);
+    res.json({
+      ok: true,
+      message: "Cycle Count Line updated successfully",
+      data: {
+        line_id: `LINE-${lineId}`,
+        id: lineId,
+        actual_qty: parseFloat(qty),
+        counted_qty: parseFloat(qty),
+        variance_qty: parseFloat(qty) - parseFloat(line.expected_qty),
+        was_counted: wasCounted
+      }
+    });
+  } catch (error) {
+    console.error("Failed to update Cycle Count Line:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to update Cycle Count Line",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "updateCountLine");
+var updateCountLines = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const { counted_by, lines } = req.body;
+    if (!lines || !Array.isArray(lines) || lines.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "lines array is required and must not be empty"
+        }
+      });
+    }
+    await connection.beginTransaction();
+    try {
+      const [deleteResult] = await connection.execute(`
+        DELETE FROM tabCycleCountLine 
+        WHERE parent_title = ? 
+          AND (item_code IS NULL OR item_code = '')
+          AND actual_qty IS NULL
+      `, [title]);
+      if (deleteResult.affectedRows > 0) {
+        console.log(`[Cycle Count] \u{1F9F9} Cleaned up ${deleteResult.affectedRows} orphaned NULL item_code line(s) for task ${title}`);
+      }
+    } catch (cleanupError) {
+      console.warn(`[Cycle Count] \u26A0\uFE0F Warning: Could not clean up NULL lines: ${cleanupError.message}`);
+    }
+    let [taskRows] = await connection.execute(`
+      SELECT status, warehouse, zone FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    console.log(`[Cycle Count] \u{1F4E5} Received count submission for task: ${title}`);
+    console.log(`[Cycle Count] Task exists: ${taskRows.length > 0}, Lines to process: ${lines.length}`);
+    if (taskRows.length === 0) {
+      console.log(`[Cycle Count] \u26A0\uFE0F Task ${title} not found, attempting auto-creation for ad-hoc count`);
+      const {
+        warehouse_id,
+        warehouse,
+        bin_code,
+        bin_id,
+        zone,
+        count_type = "Adhoc",
+        // Default to Adhoc for auto-created tasks
+        created_by,
+        counted_by: counted_by2,
+        count_date
+      } = req.body;
+      const taskWarehouse = warehouse_id || warehouse || "DEFAULT-WH";
+      const taskZone = bin_code || bin_id || zone || null;
+      const taskCreatedBy = created_by || counted_by2 || "MOBILE-USER";
+      const taskCountDate = count_date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      let parsedBinCode = null;
+      if (title.startsWith("CC-")) {
+        const parts = title.replace("CC-", "").split("-");
+        if (parts.length > 1) {
+          const lastPart = parts[parts.length - 1];
+          if (/^[0-9A-F]{8}$/i.test(lastPart)) {
+            parsedBinCode = parts.slice(0, -1).join("-");
+          } else {
+            parsedBinCode = parts.join("-");
+          }
+        }
+      }
+      const finalBinCode = bin_code || bin_id || zone || parsedBinCode;
+      console.log(`[Cycle Count] Auto-creating ad-hoc task: ${title} (warehouse: ${taskWarehouse}, bin: ${finalBinCode})`);
+      try {
+        await connection.execute(`
+          INSERT INTO tabCycleCountTask 
+            (title, status, count_type, warehouse, zone, count_date, created_by, total_items, counted_items, items_with_discrepancy)
+          VALUES (?, 'In Progress', ?, ?, ?, ?, ?, 0, 0, 0)
+        `, [title, count_type, taskWarehouse, finalBinCode, taskCountDate, taskCreatedBy]);
+        console.log(`[Cycle Count] \u2705 Auto-created ad-hoc task: ${title}`);
+        [taskRows] = await connection.execute(`
+          SELECT status, warehouse, zone FROM tabCycleCountTask WHERE title = ?
+        `, [title]);
+        console.log(`[Cycle Count] \u2705 Auto-created task ${title}, status: ${taskRows[0]?.status}`);
+      } catch (createError) {
+        if (createError.code === "ER_DUP_ENTRY") {
+          [taskRows] = await connection.execute(`
+            SELECT status FROM tabCycleCountTask WHERE title = ?
+          `, [title]);
+        } else {
+          console.error(`[Cycle Count] Failed to auto-create task ${title}:`, createError);
+          return res.status(500).json({
+            ok: false,
+            error: {
+              code: "TASK_CREATION_FAILED",
+              message: `Failed to auto-create Cycle Count Task: ${createError.message}`
+            }
+          });
+        }
+      }
+    }
+    let updatedCount = 0;
+    const errors = [];
+    for (const line of lines) {
+      console.log(`[Cycle Count] Processing line: ${JSON.stringify(line)}`);
+      const qty = line.actual_qty !== void 0 ? line.actual_qty : line.counted_qty;
+      console.log(`[Cycle Count] Extracted qty: ${qty} (actual_qty: ${line.actual_qty}, counted_qty: ${line.counted_qty})`);
+      if (qty === void 0 || qty === null) {
+        console.log(`[Cycle Count] \u26A0\uFE0F Skipping line - missing qty: ${JSON.stringify(line)}`);
+        errors.push(`Line missing actual_qty/counted_qty: ${JSON.stringify(line)}`);
+        continue;
+      }
+      const scannedValue = line.item_code || line.barcode || null;
+      const binLocation = line.bin_location || null;
+      if (!scannedValue || typeof scannedValue === "string" && scannedValue.trim() === "") {
+        const errorMsg = `Line missing required field: item_code or barcode. Line data: ${JSON.stringify(line)}`;
+        console.error(`[Cycle Count] \u274C ${errorMsg}`);
+        errors.push(errorMsg);
+        continue;
+      }
+      const normalizedScannedValue = typeof scannedValue === "string" ? scannedValue.trim() : String(scannedValue);
+      const masterItem = await lookupItemFromMasterData(connection, normalizedScannedValue);
+      let normalizedItemCode = normalizedScannedValue;
+      let itemValidated = false;
+      let barcodeSynced = false;
+      if (masterItem) {
+        normalizedItemCode = masterItem.item_code;
+        itemValidated = true;
+        if (normalizedScannedValue !== masterItem.item_code && normalizedScannedValue !== masterItem.barcode) {
+          try {
+            const [checkByCode] = await connection.execute(`
+              SELECT barcode FROM tabItem WHERE code = ? AND (barcode IS NULL OR barcode = '')
+            `, [masterItem.item_code]);
+            if (checkByCode.length > 0) {
+              await connection.execute(`
+                UPDATE tabItem 
+                SET barcode = ?, updated_at = NOW()
+                WHERE code = ?
+              `, [normalizedScannedValue, masterItem.item_code]);
+              console.log(`[Cycle Count] \u{1F504} Auto-synced barcode in master data: item_code="${masterItem.item_code}", barcode="${normalizedScannedValue}"`);
+              barcodeSynced = true;
+            } else {
+              const [checkByBarcode] = await connection.execute(`
+                SELECT barcode FROM tabItem WHERE code = ?
+              `, [masterItem.item_code]);
+              if (checkByBarcode.length > 0 && (!checkByBarcode[0].barcode || checkByBarcode[0].barcode === "")) {
+                await connection.execute(`
+                  UPDATE tabItem 
+                  SET barcode = ?, updated_at = NOW()
+                  WHERE code = ?
+                `, [normalizedScannedValue, masterItem.item_code]);
+                console.log(`[Cycle Count] \u{1F504} Auto-synced barcode in master data: item_code="${masterItem.item_code}", barcode="${normalizedScannedValue}"`);
+                barcodeSynced = true;
+              }
+            }
+          } catch (syncError) {
+            console.warn(`[Cycle Count] \u26A0\uFE0F Could not auto-sync barcode in master data: ${syncError.message}`);
+          }
+        }
+        console.log(`[Cycle Count] \u2705 Using item_code from master data: scanned="${normalizedScannedValue}" -> item_code="${normalizedItemCode}"`);
+      } else {
+        console.warn(`[Cycle Count] \u26A0\uFE0F Item not found in master data: scanned="${normalizedScannedValue}" (allowing ad-hoc count)`);
+        normalizedItemCode = normalizedScannedValue;
+      }
+      let expectedQty = null;
+      if (line.expected_qty !== void 0 && line.expected_qty !== null) {
+        const parsedExpectedQty = parseFloat(line.expected_qty);
+        if (!isNaN(parsedExpectedQty) && parsedExpectedQty >= 0) {
+          expectedQty = parsedExpectedQty;
+          console.log(`[Cycle Count] \u2705 Using expected_qty from request: ${expectedQty} for item: ${normalizedItemCode}`);
+        }
+      }
+      const cartonId = line.carton_id !== void 0 && line.carton_id !== null ? String(line.carton_id).trim() : null;
+      if (cartonId) {
+        console.log(`[Cycle Count] \u{1F4E6} Extracted carton_id: "${cartonId}" from line: ${JSON.stringify(line)}`);
+      }
+      let lineId = null;
+      try {
+        let lineRows = [];
+        if (line.line_id || line.id) {
+          let providedId = line.line_id || line.id;
+          if (typeof providedId === "string" && providedId.startsWith("LINE-")) {
+            providedId = parseInt(providedId.replace("LINE-", ""));
+          }
+          providedId = parseInt(providedId);
+          if (providedId && !isNaN(providedId)) {
+            [lineRows] = await connection.execute(`
+              SELECT id, parent_title, expected_qty
+              FROM tabCycleCountLine 
+              WHERE id = ? AND parent_title = ?
+            `, [providedId, title]);
+            if (lineRows.length > 0) {
+              lineId = lineRows[0].id;
+              if (expectedQty === null && lineRows[0].expected_qty !== null && lineRows[0].expected_qty !== void 0) {
+                const existingExpectedQty = parseFloat(lineRows[0].expected_qty) || 0;
+                if (existingExpectedQty > 0) {
+                  expectedQty = existingExpectedQty;
+                  console.log(`[Cycle Count] \u2705 Using existing line's expected_qty: ${expectedQty} for line: ${lineId}`);
+                }
+              } else if (expectedQty !== null && expectedQty > 0) {
+                console.log(`[Cycle Count] \u2705 Using expected_qty from request: ${expectedQty} for line: ${lineId} (will update existing line)`);
+              }
+              console.log(`[Cycle Count] Found line by database ID: ${lineId}`);
+            }
+          }
+        }
+        if (!lineId) {
+          const [cartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabCycleCountLine' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          const hasCartonIdColumn2 = cartonIdColumn.length > 0;
+          let findQuery = `
+            SELECT id, parent_title, expected_qty, carton_id, bin_location, item_code
+            FROM tabCycleCountLine 
+            WHERE parent_title = ? 
+              AND item_code = ?
+              AND item_code IS NOT NULL
+          `;
+          const findParams = [title, normalizedItemCode];
+          if (binLocation) {
+            findQuery += " AND bin_location = ?";
+            findParams.push(binLocation);
+          } else {
+            findQuery += " AND bin_location IS NULL";
+          }
+          if (hasCartonIdColumn2) {
+            if (cartonId) {
+              findQuery += " AND carton_id = ?";
+              findParams.push(cartonId);
+            } else {
+              findQuery += ' AND (carton_id IS NULL OR carton_id = "")';
+            }
+          }
+          findQuery += " LIMIT 1";
+          [lineRows] = await connection.execute(findQuery, findParams);
+          if (lineRows.length > 0) {
+            lineId = lineRows[0].id;
+            const foundCartonId = hasCartonIdColumn2 ? lineRows[0].carton_id || "NULL" : "N/A";
+            const foundBinLocation = lineRows[0].bin_location || "NULL";
+            const requestCartonId = cartonId || "NULL";
+            if (expectedQty === null && lineRows[0].expected_qty !== null && lineRows[0].expected_qty !== void 0) {
+              const existingExpectedQty = parseFloat(lineRows[0].expected_qty) || 0;
+              if (existingExpectedQty > 0) {
+                expectedQty = existingExpectedQty;
+                console.log(`[Cycle Count] \u2705 Using existing line's expected_qty: ${expectedQty} for line: ${lineId}`);
+              }
+            } else if (expectedQty !== null && expectedQty > 0) {
+              console.log(`[Cycle Count] \u2705 Using expected_qty from request: ${expectedQty} for line: ${lineId} (will update existing line)`);
+            }
+            console.log(`[Cycle Count] \u2705 Found existing line: ${lineId} (item: ${normalizedItemCode}, bin: ${foundBinLocation}, carton: ${foundCartonId})`);
+          } else {
+            console.log(`[Cycle Count] \u26A0\uFE0F No existing line found for item: ${normalizedItemCode}, bin: ${binLocation || "NULL"}, carton: ${cartonId || "NULL"} - will create new line`);
+          }
+        }
+        if (expectedQty === null && binLocation && normalizedItemCode) {
+          let taskWarehouse = null;
+          if (taskRows.length > 0 && taskRows[0].warehouse) {
+            taskWarehouse = taskRows[0].warehouse;
+          }
+          expectedQty = await lookupExpectedQtyFromStock(connection, normalizedItemCode, binLocation, cartonId, taskWarehouse);
+          if (expectedQty > 0) {
+            console.log(`[Cycle Count] \u2705 Looked up expected_qty from stock ledger: ${expectedQty} for item: ${normalizedItemCode}, bin: ${binLocation}`);
+          } else {
+            console.log(`[Cycle Count] \u26A0\uFE0F No expected_qty found in stock ledger, will use 0 (opening stock scenario) for item: ${normalizedItemCode}, bin: ${binLocation}`);
+            expectedQty = 0;
+          }
+        } else if (expectedQty === null) {
+          expectedQty = 0;
+          console.log(`[Cycle Count] \u26A0\uFE0F Missing bin_location or item_code, defaulting expected_qty to 0 for item: ${normalizedItemCode}`);
+        }
+        expectedQty = expectedQty !== null && expectedQty !== void 0 ? parseFloat(expectedQty) || 0 : 0;
+        if (!lineId) {
+          const [cartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabCycleCountLine' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          const hasCartonIdColumn2 = cartonIdColumn.length > 0;
+          if (!normalizedItemCode || normalizedItemCode === "") {
+            const errorMsg = `Cannot create line with empty item_code for task ${title}`;
+            console.error(`[Cycle Count] \u274C ${errorMsg}`);
+            errors.push(errorMsg);
+            continue;
+          }
+          if (hasCartonIdColumn2) {
+            const [insertResult] = await connection.execute(`
+              INSERT INTO tabCycleCountLine 
+                (parent_title, item_code, bin_location, carton_id, expected_qty, status)
+              VALUES (?, ?, ?, ?, ?, 'Pending')
+            `, [title, normalizedItemCode, binLocation, cartonId, expectedQty]);
+            lineId = insertResult.insertId;
+            console.log(`[Cycle Count] \u2705 Auto-created line for task ${title} (item: ${normalizedItemCode}, bin: ${binLocation || "NULL"}, carton: ${cartonId || "NULL"}, expected_qty: ${expectedQty}, line_id: ${lineId})`);
+          } else {
+            const [insertResult] = await connection.execute(`
+              INSERT INTO tabCycleCountLine 
+                (parent_title, item_code, bin_location, expected_qty, status)
+              VALUES (?, ?, ?, ?, 'Pending')
+            `, [title, normalizedItemCode, binLocation, expectedQty]);
+            lineId = insertResult.insertId;
+            console.log(`[Cycle Count] \u2705 Auto-created line for task ${title} (item: ${normalizedItemCode}, bin: ${binLocation || "NULL"}, expected_qty: ${expectedQty}, line_id: ${lineId})`);
+          }
+          [lineRows] = await connection.execute(`
+            SELECT id, parent_title, expected_qty
+            FROM tabCycleCountLine 
+            WHERE id = ?
+          `, [lineId]);
+        }
+        const reason = line.reason_code || line.notes || line.discrepancy_reason || null;
+        if (!lineId) {
+          const errorMsg = `Could not find or create line for item ${normalizedItemCode} in task ${title}`;
+          console.error(`[Cycle Count] \u274C ${errorMsg}`);
+          errors.push(errorMsg);
+          continue;
+        }
+        const [currentLine] = await connection.execute(`
+          SELECT id, item_code, actual_qty, status FROM tabCycleCountLine WHERE id = ?
+        `, [lineId]);
+        if (currentLine.length > 0) {
+          const currentQty = currentLine[0].actual_qty;
+          const currentItemCode = currentLine[0].item_code;
+          const currentStatus = currentLine[0].status;
+          if (currentItemCode !== normalizedItemCode) {
+            console.warn(`[Cycle Count] \u26A0\uFE0F Item code mismatch! Line ${lineId} has item_code=${currentItemCode}, but request has ${normalizedItemCode}`);
+          }
+          if (currentQty !== null && currentQty !== qty) {
+            console.log(`[Cycle Count] \u26A0\uFE0F Updating line ${lineId} from qty ${currentQty} to qty ${qty} (item: ${normalizedItemCode}, status: ${currentStatus})`);
+          } else if (currentQty === null) {
+            console.log(`[Cycle Count] \u{1F504} Setting initial qty ${qty} for line ${lineId} (item: ${normalizedItemCode}, status: ${currentStatus})`);
+          }
+        } else {
+          console.error(`[Cycle Count] \u274C Line ${lineId} not found in database before UPDATE!`);
+          errors.push(`Line ${lineId} not found in database`);
+          continue;
+        }
+        let hasCartonIdColumn = false;
+        try {
+          const [cartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabCycleCountLine' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          hasCartonIdColumn = cartonIdColumn.length > 0;
+        } catch (colError) {
+          console.error(`[Cycle Count] \u26A0\uFE0F Error checking carton_id column: ${colError.message}`);
+          hasCartonIdColumn = false;
+        }
+        let updateQuery = `
+          UPDATE tabCycleCountLine 
+          SET 
+            actual_qty = ?,
+            counted_by = ?,
+            counted_on = NOW(),
+            discrepancy_reason = ?,
+            status = 'Counted',
+            updated_at = NOW()
+        `;
+        const updateParams = [qty, counted_by || null, reason];
+        if (hasCartonIdColumn && cartonId !== null && cartonId !== void 0) {
+          updateQuery += `, carton_id = ?`;
+          updateParams.push(cartonId);
+          console.log(`[Cycle Count] \u2705 Including carton_id in UPDATE: ${cartonId} for line ${lineId}`);
+        } else if (hasCartonIdColumn) {
+          console.log(`[Cycle Count] \u26A0\uFE0F carton_id column exists but cartonId is null/undefined: ${cartonId}`);
+        } else {
+          console.log(`[Cycle Count] \u26A0\uFE0F carton_id column does not exist in tabCycleCountLine`);
+        }
+        if (binLocation !== null && binLocation !== void 0) {
+          updateQuery += `, bin_location = ?`;
+          updateParams.push(binLocation);
+          console.log(`[Cycle Count] \u2705 Including bin_location in UPDATE: ${binLocation} for line ${lineId}`);
+        }
+        const [currentLineForExpected] = await connection.execute(`
+          SELECT expected_qty FROM tabCycleCountLine WHERE id = ?
+        `, [lineId]);
+        if (currentLineForExpected.length > 0) {
+          const currentExpectedQty = currentLineForExpected[0].expected_qty;
+          const parsedCurrentExpectedQty = currentExpectedQty !== null && currentExpectedQty !== void 0 ? parseFloat(currentExpectedQty) || 0 : 0;
+          if (expectedQty !== null && expectedQty !== void 0 && expectedQty > 0) {
+            if (parsedCurrentExpectedQty !== expectedQty) {
+              updateQuery += `, expected_qty = ?`;
+              updateParams.push(expectedQty);
+              console.log(`[Cycle Count] \u2705 Including expected_qty in UPDATE: ${expectedQty} for line ${lineId} (was: ${parsedCurrentExpectedQty || "NULL/0"})`);
+            } else {
+              console.log(`[Cycle Count] \u2139\uFE0F expected_qty already matches: ${expectedQty} for line ${lineId}`);
+            }
+          } else if (parsedCurrentExpectedQty === 0 || parsedCurrentExpectedQty === null) {
+            console.log(`[Cycle Count] \u26A0\uFE0F No expected_qty provided in request and current is 0/null for line ${lineId}`);
+          }
+        }
+        updateQuery += ` WHERE id = ?`;
+        updateParams.push(lineId);
+        console.log(`[Cycle Count] \u{1F504} Executing UPDATE for line ${lineId}`);
+        console.log(`[Cycle Count]    Item: ${normalizedItemCode}, Qty: ${qty}, LineId: ${lineId}`);
+        console.log(`[Cycle Count]    Counted By: ${counted_by || "NULL"}, Reason: ${reason || "NULL"}`);
+        console.log(`[Cycle Count]    Query includes carton_id: ${updateQuery.includes("carton_id")}`);
+        console.log(`[Cycle Count]    Parameters: [${updateParams.map((p) => typeof p === "string" ? `'${p}'` : p).join(", ")}]`);
+        const [updateResult] = await connection.execute(updateQuery, updateParams);
+        console.log(`[Cycle Count]    Update result: affectedRows=${updateResult.affectedRows}, insertId=${updateResult.insertId || "N/A"}`);
+        if (updateResult.affectedRows === 0) {
+          const errorMsg = `Update failed: No rows affected for line ${lineId} (item: ${normalizedItemCode}, qty: ${qty}). Line may not exist or id mismatch.`;
+          console.error(`[Cycle Count] \u274C ${errorMsg}`);
+          errors.push(errorMsg);
+          const [verifyLine] = await connection.execute(`
+            SELECT id, item_code, actual_qty FROM tabCycleCountLine WHERE id = ?
+          `, [lineId]);
+          if (verifyLine.length === 0) {
+            console.error(`[Cycle Count] \u274C Line ${lineId} does not exist in database!`);
+          } else {
+            console.error(`[Cycle Count] \u274C Line ${lineId} exists but UPDATE didn't affect it. Current values: item_code=${verifyLine[0].item_code || "NULL"}, actual_qty=${verifyLine[0].actual_qty !== null ? verifyLine[0].actual_qty : "NULL"}`);
+          }
+          continue;
+        }
+        const [updatedLine] = await connection.execute(`
+          SELECT id, item_code, actual_qty, counted_by, counted_on, status
+          FROM tabCycleCountLine 
+          WHERE id = ?
+        `, [lineId]);
+        if (updatedLine.length > 0) {
+          const verifiedQty = updatedLine[0].actual_qty;
+          const verifiedItemCode = updatedLine[0].item_code;
+          console.log(`[Cycle Count] \u2705 Updated line ${lineId} for task ${title} (item: ${normalizedItemCode}, qty: ${qty})`);
+          console.log(`[Cycle Count]    Verified: item_code=${verifiedItemCode || "NULL"}, actual_qty=${verifiedQty !== null ? verifiedQty : "NULL"}, counted_by=${updatedLine[0].counted_by || "NULL"}, status=${updatedLine[0].status || "NULL"}`);
+          if (verifiedQty !== qty) {
+            console.error(`[Cycle Count] \u26A0\uFE0F WARNING: Updated qty mismatch! Expected: ${qty}, Actual in DB: ${verifiedQty}`);
+          }
+        } else {
+          console.error(`[Cycle Count] \u274C WARNING: Could not verify update - line ${lineId} not found after UPDATE!`);
+        }
+        updatedCount++;
+      } catch (error) {
+        const lineIdForError = typeof lineId !== "undefined" ? lineId : "unknown";
+        const errorMsg = `Failed to update line for item ${itemCode || "unknown"}: ${error.message}`;
+        console.error(`[Cycle Count] \u274C ${errorMsg} (lineId: ${lineIdForError})`);
+        errors.push(errorMsg);
+      }
+    }
+    const [countedRows] = await connection.execute(`
+      SELECT 
+        COUNT(*) as total_counted,
+        SUM(CASE 
+          WHEN (expected_qty > 0 AND ABS(COALESCE(discrepancy, 0)) > 0) 
+            OR (COALESCE(expected_qty, 0) = 0 AND actual_qty > 0)
+          THEN 1 
+          ELSE 0 
+        END) as with_discrepancy
+      FROM tabCycleCountLine 
+      WHERE parent_title = ? AND actual_qty IS NOT NULL
+    `, [title]);
+    const [totalRows] = await connection.execute(`
+      SELECT COUNT(*) as total_items
+      FROM tabCycleCountLine 
+      WHERE parent_title = ?
+    `, [title]);
+    const counted_items = Number(countedRows[0].total_counted) || 0;
+    const items_with_discrepancy = Number(countedRows[0].with_discrepancy) || 0;
+    const total_items = Number(totalRows[0].total_items) || 0;
+    console.log(`[Cycle Count] \u{1F4CA} Calculated statistics: counted_items=${counted_items} (type: ${typeof counted_items}), items_with_discrepancy=${items_with_discrepancy} (type: ${typeof items_with_discrepancy}), total_items=${total_items} (type: ${typeof total_items})`);
+    const [updateTaskResult] = await connection.execute(`
+      UPDATE tabCycleCountTask 
+      SET 
+        total_items = ?,
+        counted_items = ?,
+        items_with_discrepancy = ?,
+        updated_at = NOW()
+      WHERE title = ?
+    `, [total_items, counted_items, items_with_discrepancy, title]);
+    console.log(`[Cycle Count] \u{1F4CA} Task update result: ${updateTaskResult.affectedRows} row(s) affected`);
+    await connection.commit();
+    console.log(`[Cycle Count] \u2705 Transaction committed for task ${title}`);
+    console.log(`[Cycle Count] \u2705 Updated task ${title}: total_items=${total_items}, counted_items=${counted_items}, items_with_discrepancy=${items_with_discrepancy}`);
+    const [verifyRows] = await connection.execute(`
+      SELECT total_items, counted_items, items_with_discrepancy
+      FROM tabCycleCountTask
+      WHERE title = ?
+    `, [title]);
+    if (verifyRows.length > 0) {
+      console.log(`[Cycle Count] \u2705 Verified task ${title} in database: total_items=${verifyRows[0].total_items}, counted_items=${verifyRows[0].counted_items}, items_with_discrepancy=${verifyRows[0].items_with_discrepancy}`);
+    } else {
+      console.log(`[Cycle Count] \u26A0\uFE0F WARNING: Task ${title} not found after commit!`);
+    }
+    if (errors.length > 0) {
+      return res.status(207).json({
+        ok: true,
+        message: `Updated ${updatedCount} lines with ${errors.length} errors`,
+        data: {
+          title,
+          updated_count: updatedCount,
+          counted_items,
+          items_with_discrepancy,
+          total_items,
+          errors
+        }
+      });
+    }
+    res.json({
+      ok: true,
+      message: `Successfully updated ${updatedCount} lines`,
+      data: {
+        title,
+        updated_count: updatedCount,
+        counted_items,
+        items_with_discrepancy,
+        total_items
+      }
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Failed to update Cycle Count Lines:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to update Cycle Count Lines",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "updateCountLines");
+var submitCycleCount = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    console.log(`[Cycle Count] \u{1F4E4} Received SUBMIT request for task: ${title}`);
+    await connection.beginTransaction();
+    const [taskRows] = await connection.execute(`
+      SELECT status, total_items, counted_items, items_with_discrepancy, warehouse
+      FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    console.log(`[Cycle Count] \u{1F4CB} Task found: ${taskRows.length > 0}, Current status: ${taskRows[0]?.status || "N/A"}`);
+    if (taskRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    const task = taskRows[0];
+    if (task.status !== "In Progress") {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INVALID_STATUS",
+          message: `Cannot submit Cycle Count Task. Current status: ${task.status}`
+        }
+      });
+    }
+    if (parseInt(task.counted_items) === 0) {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "NO_ITEMS_COUNTED",
+          message: "No items have been counted yet. Please count at least one item before submitting."
+        }
+      });
+    }
+    const [taskTypeRows] = await connection.execute(`
+      SELECT count_type FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    const countType = taskTypeRows[0]?.count_type;
+    const isAdhocCount = countType === "Adhoc" || countType === "Ad-hoc";
+    if (!isAdhocCount && parseInt(task.counted_items) < parseInt(task.total_items)) {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INCOMPLETE_COUNT",
+          message: `Not all items have been counted. Counted: ${task.counted_items}/${task.total_items}`
+        }
+      });
+    }
+    const newStatus = parseInt(task.items_with_discrepancy) > 0 ? "Review" : "Completed";
+    console.log(`[Cycle Count] \u{1F4DD} Updating task ${title} status from "${task.status}" to "${newStatus}"`);
+    const [updateResult] = await connection.execute(`
+      UPDATE tabCycleCountTask 
+      SET status = ?, updated_at = NOW()
+      WHERE title = ?
+    `, [newStatus, title]);
+    console.log(`[Cycle Count] \u2705 Status update result: ${updateResult.affectedRows} row(s) affected`);
+    const [verifyRows] = await connection.execute(`
+      SELECT status FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (verifyRows.length > 0) {
+      console.log(`[Cycle Count] \u2705 Verified task ${title} status in database: "${verifyRows[0].status}"`);
+    } else {
+      console.log(`[Cycle Count] \u26A0\uFE0F WARNING: Task ${title} not found after status update!`);
+    }
+    let stockUpdated = false;
+    let stockUpdateCount = 0;
+    if (newStatus === "Completed") {
+      const stockResult = await updateStockFromCycleCount(connection, title, task.warehouse);
+      stockUpdated = stockResult.stockUpdated;
+      stockUpdateCount = stockResult.stockUpdateCount;
+      await connection.execute(`
+        UPDATE tabCycleCountTask 
+        SET freeze_stock = FALSE
+        WHERE title = ? AND freeze_stock = TRUE
+      `, [title]);
+      console.log(`[Cycle Count] \u2705 Submitted and completed task ${title}. Stock updated: ${stockUpdated} (${stockUpdateCount} items)`);
+    }
+    await connection.commit();
+    const [finalVerifyRows] = await connection.execute(`
+      SELECT status FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (finalVerifyRows.length > 0) {
+      const finalStatus = finalVerifyRows[0].status;
+      console.log(`[Cycle Count] \u2705 Final verification after commit: task ${title} status = "${finalStatus}"`);
+      if (finalStatus !== newStatus) {
+        console.log(`[Cycle Count] \u26A0\uFE0F WARNING: Status mismatch! Expected "${newStatus}" but got "${finalStatus}"`);
+      }
+    }
+    res.json({
+      ok: true,
+      message: `Cycle Count Task submitted successfully. Status: ${newStatus}`,
+      data: {
+        title,
+        status: newStatus,
+        items_with_discrepancy: parseInt(task.items_with_discrepancy),
+        stock_updated: stockUpdated,
+        items_adjusted: stockUpdateCount
+      }
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Failed to submit Cycle Count Task:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to submit Cycle Count Task",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "submitCycleCount");
+var completeCycleCount = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    await connection.beginTransaction();
+    const { title } = req.params;
+    const [taskRows] = await connection.execute(`
+      SELECT status, warehouse, items_with_discrepancy
+      FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (taskRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    const task = taskRows[0];
+    const currentStatus = task.status;
+    const warehouse = task.warehouse;
+    const itemsWithDiscrepancy = parseInt(task.items_with_discrepancy) || 0;
+    if (currentStatus === "Completed") {
+      await connection.rollback();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "ALREADY_COMPLETED",
+          message: "Cycle Count Task is already completed"
+        }
+      });
+    }
+    await connection.execute(`
+      UPDATE tabCycleCountTask 
+      SET status = 'Completed', updated_at = NOW()
+      WHERE title = ?
+    `, [title]);
+    await connection.execute(`
+      UPDATE tabCycleCountTask 
+      SET freeze_stock = FALSE
+      WHERE title = ? AND freeze_stock = TRUE
+    `, [title]);
+    const stockResult = await updateStockFromCycleCount(connection, title, warehouse);
+    const stockUpdated = stockResult.stockUpdated;
+    const stockUpdateCount = stockResult.stockUpdateCount;
+    await connection.commit();
+    console.log(`[Cycle Count] \u2705 Completed task ${title}. Stock updated: ${stockUpdated} (${stockUpdateCount} items)`);
+    res.json({
+      ok: true,
+      message: "Cycle Count Task completed successfully",
+      data: {
+        title,
+        status: "Completed",
+        stock_updated: stockUpdated,
+        items_adjusted: stockUpdateCount
+      }
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Failed to complete Cycle Count Task:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to complete Cycle Count Task",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "completeCycleCount");
+var deleteCycleCount = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const [taskRows] = await connection.execute(`
+      SELECT title, status FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (taskRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    const task = taskRows[0];
+    const currentStatus = task.status;
+    await connection.beginTransaction();
+    try {
+      const [deleteLinesResult] = await connection.execute(`
+        DELETE FROM tabCycleCountLine WHERE parent_title = ?
+      `, [title]);
+      const deletedLinesCount = deleteLinesResult.affectedRows;
+      const [deleteTaskResult] = await connection.execute(`
+        DELETE FROM tabCycleCountTask WHERE title = ?
+      `, [title]);
+      if (deleteTaskResult.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(500).json({
+          ok: false,
+          error: {
+            code: "DELETE_FAILED",
+            message: "Failed to delete Cycle Count Task"
+          }
+        });
+      }
+      await connection.commit();
+      console.log(`[Cycle Count] \u2705 Deleted task ${title} with ${deletedLinesCount} lines`);
+      res.json({
+        ok: true,
+        message: "Cycle Count Task deleted successfully",
+        data: {
+          title,
+          deleted_lines: deletedLinesCount
+        }
+      });
+    } catch (deleteError) {
+      await connection.rollback();
+      throw deleteError;
+    }
+  } catch (error) {
+    console.error("Failed to delete Cycle Count Task:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to delete Cycle Count Task",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "deleteCycleCount");
+var syncCycleCountToErp = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { title } = req.params;
+    const [taskRows] = await connection.execute(`
+      SELECT 
+        title, status, warehouse, count_date, created_by, created_at
+      FROM tabCycleCountTask 
+      WHERE title = ?
+    `, [title]);
+    if (taskRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Cycle Count Task ${title} not found`
+        }
+      });
+    }
+    const task = taskRows[0];
+    if (task.status !== "Completed") {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INVALID_STATUS",
+          message: `Cannot sync Cycle Count Task. Current status: ${task.status}. Only Completed tasks can be synced to ERP.`
+        }
+      });
+    }
+    const [lines] = await connection.execute(`
+      SELECT 
+        item_code,
+        bin_location,
+        expected_qty,
+        actual_qty,
+        discrepancy,
+        counted_by,
+        counted_on
+      FROM tabCycleCountLine
+      WHERE parent_title = ?
+        AND actual_qty IS NOT NULL
+        AND (
+          (expected_qty > 0 AND discrepancy IS NOT NULL AND discrepancy != 0)
+          OR
+          (COALESCE(expected_qty, 0) = 0 AND actual_qty > 0)
+        )
+      ORDER BY item_code, bin_location
+    `, [title]);
+    if (lines.length === 0) {
+      return res.json({
+        ok: true,
+        message: "No discrepancies found. Nothing to sync to ERP.",
+        data: {
+          title,
+          synced: false,
+          items_count: 0
+        }
+      });
+    }
+    const erpPayload = {
+      transaction_type: "CYCLE_COUNT_ADJUSTMENT",
+      wms_reference: task.title,
+      warehouse: task.warehouse,
+      count_date: task.count_date,
+      created_by: task.created_by,
+      created_at: task.created_at,
+      adjustments: lines.map((line) => ({
+        item_code: line.item_code,
+        bin_location: line.bin_location || null,
+        expected_qty: parseFloat(line.expected_qty) || 0,
+        actual_qty: parseFloat(line.actual_qty) || 0,
+        adjustment_qty: parseFloat(line.discrepancy) || 0,
+        // Can be positive (increase) or negative (decrease)
+        counted_by: line.counted_by || null,
+        counted_on: line.counted_on ? line.counted_on.toISOString() : null
+      }))
+    };
+    console.log(`[Cycle Count] \u{1F4E4} ERP Sync Payload for ${title}:`, JSON.stringify(erpPayload, null, 2));
+    res.json({
+      ok: true,
+      message: "Cycle Count Task synced to ERP successfully",
+      data: {
+        title,
+        synced: true,
+        items_count: lines.length,
+        payload: erpPayload
+        // erp_response: erpResult // Uncomment when ERP integration is implemented
+      }
+    });
+  } catch (error) {
+    console.error("Failed to sync Cycle Count Task to ERP:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "SYNC_ERROR",
+        message: "Failed to sync Cycle Count Task to ERP",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "syncCycleCountToErp");
+var syncMultipleCycleCountsToErp = /* @__PURE__ */ __name(async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const { task_titles, warehouse, from_date, to_date } = req.body;
+    let query = `
+      SELECT 
+        title, status, warehouse, count_date, created_by, created_at
+      FROM tabCycleCountTask 
+      WHERE status = 'Completed'
+    `;
+    const params = [];
+    if (task_titles && Array.isArray(task_titles) && task_titles.length > 0) {
+      const placeholders2 = task_titles.map(() => "?").join(",");
+      query += ` AND title IN (${placeholders2})`;
+      params.push(...task_titles);
+    }
+    if (warehouse) {
+      query += ` AND warehouse = ?`;
+      params.push(warehouse);
+    }
+    if (from_date) {
+      query += ` AND count_date >= ?`;
+      params.push(from_date);
+    }
+    if (to_date) {
+      query += ` AND count_date <= ?`;
+      params.push(to_date);
+    }
+    query += ` ORDER BY count_date DESC, title`;
+    const [tasks] = await connection.execute(query, params);
+    if (tasks.length === 0) {
+      return res.json({
+        ok: true,
+        message: "No completed Cycle Count Tasks found to sync.",
+        data: {
+          tasks_count: 0,
+          items_count: 0,
+          synced: false
+        }
+      });
+    }
+    const taskTitles = tasks.map((t) => t.title);
+    const placeholders = taskTitles.map(() => "?").join(",");
+    const [lines] = await connection.execute(`
+      SELECT 
+        ccl.parent_title,
+        ccl.item_code,
+        ccl.bin_location,
+        ccl.expected_qty,
+        ccl.actual_qty,
+        ccl.discrepancy,
+        ccl.counted_by,
+        ccl.counted_on,
+        cct.warehouse,
+        cct.count_date
+      FROM tabCycleCountLine ccl
+      INNER JOIN tabCycleCountTask cct ON cct.title = ccl.parent_title
+      WHERE ccl.parent_title IN (${placeholders})
+        AND ccl.actual_qty IS NOT NULL
+        AND (
+          (ccl.expected_qty > 0 AND ccl.discrepancy IS NOT NULL AND ccl.discrepancy != 0)
+          OR
+          (COALESCE(ccl.expected_qty, 0) = 0 AND ccl.actual_qty > 0)
+        )
+      ORDER BY ccl.parent_title, ccl.item_code, ccl.bin_location
+    `, taskTitles);
+    if (lines.length === 0) {
+      return res.json({
+        ok: true,
+        message: "No discrepancies found in selected tasks. Nothing to sync to ERP.",
+        data: {
+          tasks_count: tasks.length,
+          items_count: 0,
+          synced: false
+        }
+      });
+    }
+    const taskGroups = {};
+    for (const line of lines) {
+      if (!taskGroups[line.parent_title]) {
+        const task = tasks.find((t) => t.title === line.parent_title);
+        taskGroups[line.parent_title] = {
+          wms_reference: line.parent_title,
+          warehouse: line.warehouse,
+          count_date: line.count_date,
+          adjustments: []
+        };
+      }
+      taskGroups[line.parent_title].adjustments.push({
+        item_code: line.item_code,
+        bin_location: line.bin_location || null,
+        expected_qty: parseFloat(line.expected_qty) || 0,
+        actual_qty: parseFloat(line.actual_qty) || 0,
+        adjustment_qty: parseFloat(line.discrepancy) || 0,
+        counted_by: line.counted_by || null,
+        counted_on: line.counted_on ? line.counted_on.toISOString() : null
+      });
+    }
+    const erpPayload = {
+      transaction_type: "CYCLE_COUNT_BATCH_ADJUSTMENT",
+      batch_date: (/* @__PURE__ */ new Date()).toISOString(),
+      tasks: Object.values(taskGroups),
+      summary: {
+        total_tasks: tasks.length,
+        total_adjustments: lines.length,
+        warehouses: [...new Set(tasks.map((t) => t.warehouse))]
+      }
+    };
+    console.log(`[Cycle Count] \u{1F4E4} Consolidated ERP Sync Payload for ${tasks.length} task(s):`, JSON.stringify(erpPayload, null, 2));
+    res.json({
+      ok: true,
+      message: `Successfully synced ${tasks.length} Cycle Count Task(s) to ERP in a consolidated transaction`,
+      data: {
+        tasks_count: tasks.length,
+        items_count: lines.length,
+        synced: true,
+        payload: erpPayload
+        // erp_response: erpResult // Uncomment when ERP integration is implemented
+      }
+    });
+  } catch (error) {
+    console.error("Failed to sync Cycle Count Tasks to ERP:", error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: "SYNC_ERROR",
+        message: "Failed to sync Cycle Count Tasks to ERP",
+        details: process.env.NODE_ENV === "development" ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+}, "syncMultipleCycleCountsToErp");
 
 // src/routes/cycleCountRoutes.js
 var router14 = import_express14.default.Router();
 router14.get("/", authenticateToken, getCycleCountTasks);
-router14.get("/:title", authenticateToken, getCycleCountTaskByTitle);
 router14.post("/", authenticateToken, createCycleCountTask);
+router14.post("/:title/start", authenticateToken, startCycleCount);
+router14.post("/:title/count", authenticateToken, updateCountLines);
+router14.post("/:title/update-line", authenticateToken, updateCountLine);
+router14.post("/:title/submit", authenticateToken, submitCycleCount);
+router14.post("/:title/complete", authenticateToken, completeCycleCount);
+router14.post("/:title/sync-to-erp", authenticateToken, syncCycleCountToErp);
+router14.post("/sync-to-erp", authenticateToken, syncMultipleCycleCountsToErp);
+router14.delete("/:title", authenticateToken, deleteCycleCount);
+router14.get("/:title", authenticateToken, getCycleCountTaskByTitle);
 var cycleCountRoutes_default = router14;
+
+// src/routes/warehouseRoutes.js
+var import_express15 = __toESM(require_express2(), 1);
+var router15 = import_express15.default.Router();
+router15.get("/stores", authenticateToken, getWarehousesStores);
+var warehouseRoutes_default = router15;
 
 // src/modules/transfer-orders/transferOrderController.js
 init_updateTransferOrderQuantities();
@@ -36754,37 +39848,39 @@ var updateAllTransferOrderQuantitiesEndpoint = /* @__PURE__ */ __name(async (req
 }, "updateAllTransferOrderQuantitiesEndpoint");
 
 // src/routes/index.js
-var router15 = import_express15.default.Router();
-router15.get("/api/health", (req, res) => {
+var router16 = import_express16.default.Router();
+router16.get("/api/health", (req, res) => {
   res.status(200).json({
     status: "ok",
     message: "WMS API Server is running"
   });
 });
-router15.use("/api/auth", authRoutes_default);
-router15.use("/api/master", masterRoutes_default);
-router15.use("/api/carton", cartonRoutes_default);
-router15.use("/api/cartons", cartonStatusRoutes_default);
-router15.use("/api/inbound", inboundRoutes_default);
-router15.use("/api/events", eventRoutes_default);
-router15.use("/api/putaway", putawayRoutes_default);
-router15.use("/api/boxes", boxRoutes_default);
-router15.use("/api/transfer-cartons", transferCartonRoutes_default);
-router15.use("/api/stock-ledger", stockLedgerRoutes_default);
-router15.use("/api/stock-transactions", stockTransactionRoutes_default);
-router15.use("/api/transfer-in", transferInRoutes_default);
-router15.use("/api/material-requests", materialRequestRoutes_default);
-router15.use("/api/cycle-count", cycleCountRoutes_default);
-router15.get("/api/asn/:asn_no", authenticateToken, getAsnByNumber);
-router15.get("/api/transfer-order/by-asn/:asn_no", authenticateToken, getTransferOrderByAsn);
-router15.post("/api/transfer-orders/:to_no/update-quantities", authenticateToken, updateTransferOrderQuantitiesEndpoint);
-router15.post("/api/transfer-orders/update-all-quantities", authenticateToken, updateAllTransferOrderQuantitiesEndpoint);
-var routes_default = router15;
+router16.use("/api/auth", authRoutes_default);
+router16.use("/api/master", masterRoutes_default);
+router16.use("/api/carton", cartonRoutes_default);
+router16.use("/api/cartons", cartonStatusRoutes_default);
+router16.use("/api/inbound", inboundRoutes_default);
+router16.use("/api/events", eventRoutes_default);
+router16.use("/api/putaway", putawayRoutes_default);
+router16.use("/api/boxes", boxRoutes_default);
+router16.use("/api/transfer-cartons", transferCartonRoutes_default);
+router16.use("/api/stock-ledger", stockLedgerRoutes_default);
+router16.use("/api/stock-transactions", stockTransactionRoutes_default);
+router16.get("/api/stock/ledger", authenticateToken, getStockLedgerByLocation);
+router16.use("/api/transfer-in", transferInRoutes_default);
+router16.use("/api/material-requests", materialRequestRoutes_default);
+router16.use("/api/cycle-count", cycleCountRoutes_default);
+router16.use("/api/warehouses", warehouseRoutes_default);
+router16.get("/api/asn/:asn_no", authenticateToken, getAsnByNumber);
+router16.get("/api/transfer-order/by-asn/:asn_no", authenticateToken, getTransferOrderByAsn);
+router16.post("/api/transfer-orders/:to_no/update-quantities", authenticateToken, updateTransferOrderQuantitiesEndpoint);
+router16.post("/api/transfer-orders/update-all-quantities", authenticateToken, updateAllTransferOrderQuantitiesEndpoint);
+var routes_default = router16;
 
 // src/server.js
 init_logger();
 import_dotenv3.default.config();
-var app = (0, import_express16.default)();
+var app = (0, import_express17.default)();
 var PORT = process.env.PORT || 3e3;
 var HOST = process.env.HOST || "0.0.0.0";
 var API_BASE_URL = process.env.API_BASE_URL || "";
@@ -36826,13 +39922,13 @@ app.use((req, res, next) => {
   if (isHealthRequest(req)) {
     return next();
   }
-  import_express16.default.json({ limit: "5mb" })(req, res, next);
+  import_express17.default.json({ limit: "5mb" })(req, res, next);
 });
 app.use((req, res, next) => {
   if (isHealthRequest(req)) {
     return next();
   }
-  import_express16.default.urlencoded({ extended: true, limit: "5mb" })(req, res, next);
+  import_express17.default.urlencoded({ extended: true, limit: "5mb" })(req, res, next);
 });
 app.use((req, res, next) => {
   try {

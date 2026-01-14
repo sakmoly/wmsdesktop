@@ -722,5 +722,161 @@ public static class PutawayTaskDataService
             return false;
         }
     }
+
+    /// <summary>
+    /// Create or update cartons from putaway lines (for carton-level inventory mode)
+    /// This should be called when putaway is completed to ensure cartons are tracked
+    /// </summary>
+    public static async Task<bool> CreateOrUpdateCartonsFromPutawayAsync(
+        WmsSettings settings,
+        string putawayTaskTitle)
+    {
+        try
+        {
+            // Check if carton-level mode is enabled
+            if (settings.InventoryTrackingMode != "CartonLevel")
+            {
+                return true; // Not needed in bin-level mode
+            }
+
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Get putaway task info
+            var taskSql = @"
+                SELECT advance_shipping_notice, transfer_in, warehouse
+                FROM tabPutawayTask
+                WHERE title = @title";
+            
+            await using var taskCmd = new MySqlCommand(taskSql, connection);
+            taskCmd.Parameters.AddWithValue("@title", putawayTaskTitle);
+            await using var taskReader = await taskCmd.ExecuteReaderAsync();
+
+            if (!await taskReader.ReadAsync())
+            {
+                ErrorLogService.LogError($"PutawayTaskDataService: Putaway task {putawayTaskTitle} not found");
+                return false;
+            }
+
+            var asnNo = taskReader.IsDBNull(0) ? null : taskReader.GetString(0);
+            var transferIn = taskReader.IsDBNull(1) ? null : taskReader.GetString(1);
+            var warehouse = taskReader.IsDBNull(2) ? "Main Warehouse" : taskReader.GetString(2);
+            await taskReader.CloseAsync();
+
+            // Get putaway lines with carton_id and target bin
+            var linesSql = @"
+                SELECT DISTINCT carton_id, rack, bin, location_id
+                FROM tabPutawayLine
+                WHERE parent_title = @title
+                  AND carton_id IS NOT NULL
+                  AND carton_id != ''
+                  AND (rack IS NOT NULL OR location_id IS NOT NULL)";
+
+            await using var linesCmd = new MySqlCommand(linesSql, connection);
+            linesCmd.Parameters.AddWithValue("@title", putawayTaskTitle);
+            await using var linesReader = await linesCmd.ExecuteReaderAsync();
+
+            var cartonsProcessed = 0;
+            while (await linesReader.ReadAsync())
+            {
+                var cartonId = linesReader.GetString(0);
+                var rack = linesReader.IsDBNull(1) ? null : linesReader.GetString(1);
+                var bin = linesReader.IsDBNull(2) ? null : linesReader.GetString(2);
+                var locationId = linesReader.IsDBNull(3) ? null : linesReader.GetString(3);
+
+                // Determine target bin
+                var targetBin = locationId ?? (rack != null && bin != null ? $"{rack}-{bin}" : null);
+                if (string.IsNullOrEmpty(targetBin))
+                {
+                    continue; // Skip if no bin location
+                }
+
+                // Create or update carton
+                await CartonDataService.CreateOrUpdateCartonAsync(
+                    settings,
+                    cartonId,
+                    asnNo ?? transferIn,
+                    warehouse,
+                    currentBinId: targetBin,
+                    status: "PUTAWAY"
+                );
+
+                // Get carton items from putaway lines
+                var itemsSql = @"
+                    SELECT item_code, qty, uom
+                    FROM tabPutawayLine
+                    WHERE parent_title = @title
+                      AND carton_id = @cartonId";
+
+                await using var itemsCmd = new MySqlCommand(itemsSql, connection);
+                itemsCmd.Parameters.AddWithValue("@title", putawayTaskTitle);
+                itemsCmd.Parameters.AddWithValue("@cartonId", cartonId);
+                await using var itemsReader = await itemsCmd.ExecuteReaderAsync();
+
+                // Create carton items (if tabCartonItem table exists)
+                var hasCartonItemTable = await CheckTableExistsAsync(connection, "tabCartonItem");
+                if (hasCartonItemTable)
+                {
+                    while (await itemsReader.ReadAsync())
+                    {
+                        var itemCode = itemsReader.GetString(0);
+                        var qty = Convert.ToDouble(itemsReader.GetDecimal(1));
+                        var uom = itemsReader.IsDBNull(2) ? "NOS" : itemsReader.GetString(2);
+
+                        // Insert or update carton item
+                        var insertItemSql = @"
+                            INSERT INTO tabCartonItem (carton_id, item_code, uom, qty, is_closed, created_at, updated_at)
+                            VALUES (@cartonId, @itemCode, @uom, @qty, FALSE, NOW(), NOW())
+                            ON DUPLICATE KEY UPDATE
+                                qty = @qty,
+                                updated_at = NOW()";
+
+                        await using var insertItemCmd = new MySqlCommand(insertItemSql, connection);
+                        insertItemCmd.Parameters.AddWithValue("@cartonId", cartonId);
+                        insertItemCmd.Parameters.AddWithValue("@itemCode", itemCode);
+                        insertItemCmd.Parameters.AddWithValue("@uom", uom);
+                        insertItemCmd.Parameters.AddWithValue("@qty", qty);
+                        await insertItemCmd.ExecuteNonQueryAsync();
+                    }
+                }
+                await itemsReader.CloseAsync();
+
+                cartonsProcessed++;
+            }
+
+            ErrorLogService.LogInfo($"PutawayTaskDataService: Created/updated {cartonsProcessed} cartons for putaway task {putawayTaskTitle}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"PutawayTaskDataService: Error creating/updating cartons for putaway task {putawayTaskTitle}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Check if a table exists in the database
+    /// </summary>
+    private static async Task<bool> CheckTableExistsAsync(MySqlConnection connection, string tableName)
+    {
+        try
+        {
+            var sql = @"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND LOWER(TABLE_NAME) = LOWER(@tableName)";
+            
+            await using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@tableName", tableName);
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            return count > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }
 

@@ -11,7 +11,9 @@ import {
   updateCountLines,
   submitCycleCount,
   completeCycleCount,
-  deleteCycleCount
+  deleteCycleCount,
+  syncCycleCountToErp,
+  syncMultipleCycleCountsToErp
 } from '../modules/cycle-count/cycleCountController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -37,6 +39,12 @@ router.post('/:title/submit', authenticateToken, submitCycleCount);
 
 // POST /api/cycle-count/:title/complete - Complete Cycle Count Task
 router.post('/:title/complete', authenticateToken, completeCycleCount);
+
+// POST /api/cycle-count/:title/sync-to-erp - Sync single Cycle Count Task to ERP
+router.post('/:title/sync-to-erp', authenticateToken, syncCycleCountToErp);
+
+// POST /api/cycle-count/sync-to-erp - Sync multiple Cycle Count Tasks to ERP (consolidated batch)
+router.post('/sync-to-erp', authenticateToken, syncMultipleCycleCountsToErp);
 
 // DELETE /api/cycle-count/:title - Delete Cycle Count Task (must be before GET /:title)
 router.delete('/:title', authenticateToken, deleteCycleCount);

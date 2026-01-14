@@ -80,7 +80,8 @@ public static class SettingsService
                 DatabasePassword = decryptedPassword,
                 DatabasePort = settings.DatabasePort > 0 ? settings.DatabasePort : 3306,
                 DatabaseExists = settings.DatabaseExists,
-                TablesExist = settings.TablesExist
+                TablesExist = settings.TablesExist,
+                InventoryTrackingMode = settings.InventoryTrackingMode ?? "BinLevel"
             };
         }
         catch (Exception ex)
@@ -119,7 +120,8 @@ public static class SettingsService
                 EncryptedPassword = encryptedPassword,
                 DatabasePort = settings.DatabasePort,
                 DatabaseExists = settings.DatabaseExists,
-                TablesExist = settings.TablesExist
+                TablesExist = settings.TablesExist,
+                InventoryTrackingMode = settings.InventoryTrackingMode
             };
 
             var options = new JsonSerializerOptions
@@ -258,6 +260,7 @@ public static class SettingsService
         public int DatabasePort { get; set; } = 3306;
         public bool DatabaseExists { get; set; }
         public bool TablesExist { get; set; }
+        public string InventoryTrackingMode { get; set; } = "BinLevel";
     }
 }
 

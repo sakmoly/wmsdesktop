@@ -90,7 +90,42 @@ app.use((req, res, next) => {
   if (isHealthRequest(req)) {
     return next();
   }
-  express.json({ limit: "5mb" })(req, res, next);
+  express.json({ 
+    limit: "5mb",
+    strict: true,
+    verify: (req, res, buf) => {
+      // Check if body starts with HTTP method (common Postman mistake)
+      const bodyStr = buf.toString('utf8');
+      if (bodyStr.trim().startsWith('POST ') || bodyStr.trim().startsWith('GET ') || 
+          bodyStr.trim().startsWith('PUT ') || bodyStr.trim().startsWith('DELETE ')) {
+        res.status(400).json({
+          ok: false,
+          error: {
+            code: 'INVALID_REQUEST_FORMAT',
+            message: 'Request body contains HTTP method line. Please ensure your request body contains ONLY the JSON object, not the HTTP method line (e.g., "POST /api/events/batch").',
+            hint: 'In Postman: Make sure the Body tab is set to "raw" and "JSON", and the body contains only the JSON object without the HTTP method line.'
+          }
+        });
+        return;
+      }
+    }
+  })(req, res, (err) => {
+    if (err) {
+      // Handle JSON parsing errors
+      if (err instanceof SyntaxError || err.type === 'entity.parse.failed') {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: 'INVALID_JSON',
+            message: 'Invalid JSON in request body. Please check your request format.',
+            details: process.env.NODE_ENV === 'development' ? err.message : null,
+            hint: 'Ensure Content-Type is "application/json" and body is valid JSON without HTTP method line.'
+          }
+        });
+      }
+    }
+    next(err);
+  });
 });
 
 app.use((req, res, next) => {

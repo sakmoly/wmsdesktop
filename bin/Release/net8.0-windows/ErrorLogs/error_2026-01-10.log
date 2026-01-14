@@ -1,0 +1,171 @@
+[2026-01-10 13:33:48] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK84MDQ2
+[2026-01-10 13:33:48] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK84MDQ2 - TotalItems: 3, CountedItems: 3, ItemsWithDiscrepancy: 3, Lines: 3
+[2026-01-10 13:33:48] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK84MDQ2 - CountedItems: 3 → 3, ItemsWithDiscrepancy: 3 → 3, Lines: 3 → 3
+[2026-01-10 13:37:54] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK84MDQ2
+[2026-01-10 13:37:54] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK84MDQ2 - TotalItems: 3, CountedItems: 3, ItemsWithDiscrepancy: 3, Lines: 3
+[2026-01-10 13:37:54] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK84MDQ2 - CountedItems: 3 → 3, ItemsWithDiscrepancy: 3 → 3, Lines: 3 → 3
+[2026-01-10 13:58:53] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK86PVLA
+[2026-01-10 13:58:53] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK86PVLA - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 13:58:53] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK86PVLA - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 14:02:01] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK86PVLA
+[2026-01-10 14:02:01] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK86PVLA - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 14:02:01] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK86PVLA - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 14:02:06] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK871HZ4
+[2026-01-10 14:02:06] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK871HZ4 - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 14:02:06] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK871HZ4 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-SHIRT-001-WHT-L, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: Inventory mode is BinLevel
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: No entries found in tried warehouses, searching all warehouses for SKU-SHIRT-001-WHT-L
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: No stock ledger entries found for SKU-SHIRT-001-WHT-L in any warehouse
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: Found 0 stock ledger entries for SKU-SHIRT-001-WHT-L in warehouse 'none'
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-10 14:02:50] INFO: ItemLocationBreakdownViewModel: Final count - Added 0 locations, Total Qty: 0, Collection Count: 0
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-SHIRT-001-WHT-M, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Inventory mode is BinLevel
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Found 2 entries in warehouse 'WH-MAIN'
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Found 2 stock ledger entries for SKU-SHIRT-001-WHT-M in warehouse 'WH-MAIN'
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L1-B1 for bin_location=A1-R01-L1-B1
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Direct match found location_id=A1-R01-L2-B1 for bin_location=A1-R01-L2-B1
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L1-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 4)
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Added location A1-R01-L2-B1 (Zone: Zone A, Rack: Rack 01, Bin: B1, Qty: 2)
+[2026-01-10 14:03:14] INFO: ItemLocationBreakdownViewModel: Final count - Added 2 locations, Total Qty: 6, Collection Count: 2
+[2026-01-10 14:11:48] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK876LNL
+[2026-01-10 14:11:48] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK876LNL - TotalItems: 7, CountedItems: 0, ItemsWithDiscrepancy: 0, Lines: 0
+[2026-01-10 14:11:48] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK876LNL - CountedItems: 0 → 0, ItemsWithDiscrepancy: 0 → 0, Lines: 0 → 0
+[2026-01-10 14:11:51] ERROR: Error submitting Cycle Count Task CC-A1-R01-L2-B1-MK876LNL
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.CycleCountApiService.SubmitCycleCountAsync(WmsSettings settings, String title) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\CycleCountApiService.cs:line 118
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-10 16:32:30] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8C19Q3
+[2026-01-10 16:32:30] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8C19Q3 - TotalItems: 7, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:32:30] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8C19Q3 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:34:19] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8C19Q3
+[2026-01-10 16:34:19] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8C19Q3 - TotalItems: 7, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:34:19] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8C19Q3 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:34:24] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK86PVLA
+[2026-01-10 16:34:24] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK86PVLA - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:34:24] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK86PVLA - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:34:32] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK86PVLA
+[2026-01-10 16:34:32] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK86PVLA - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:34:32] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK86PVLA - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:34:37] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8C19Q3
+[2026-01-10 16:34:37] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8C19Q3 - TotalItems: 7, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:34:37] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8C19Q3 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:34:56] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8C19Q3
+[2026-01-10 16:34:56] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8C19Q3 - TotalItems: 7, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:34:56] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8C19Q3 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:35:14] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L1-B1-MK86PVLA
+[2026-01-10 16:35:14] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L1-B1-MK86PVLA - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:35:14] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L1-B1-MK86PVLA - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 16:35:17] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8C19Q3
+[2026-01-10 16:35:17] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8C19Q3 - TotalItems: 7, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 16:35:17] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8C19Q3 - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 18:32:30] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8GPHDT
+[2026-01-10 18:32:30] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8GPHDT - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 18:32:30] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8GPHDT - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 18:32:36] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8GPHDT
+[2026-01-10 18:32:37] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8GPHDT - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 18:32:37] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8GPHDT - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 19:07:00] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8GPHDT
+[2026-01-10 19:07:00] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8GPHDT - TotalItems: 2, CountedItems: 2, ItemsWithDiscrepancy: 2, Lines: 2
+[2026-01-10 19:07:00] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8GPHDT - CountedItems: 2 → 2, ItemsWithDiscrepancy: 2 → 2, Lines: 2 → 2
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: Loading location data for SKU-HAT-301-BLU-OS, trying warehouses: WH-MAIN, Main Warehouse, WH-Main
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: Inventory mode is BinLevel
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: No entries found in tried warehouses, searching all warehouses for SKU-HAT-301-BLU-OS
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: No stock ledger entries found for SKU-HAT-301-BLU-OS in any warehouse
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: Found 0 stock ledger entries for SKU-HAT-301-BLU-OS in warehouse 'none'
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: Cleared locations collection, current count: 0
+[2026-01-10 19:22:51] INFO: ItemLocationBreakdownViewModel: Final count - Added 0 locations, Total Qty: 0, Collection Count: 0
+[2026-01-10 19:22:54] INFO: PutawayTaskDataService: Total tasks loaded: 0
+[2026-01-10 19:22:54] INFO: PutawayTaskListViewModel: Loaded 0 putaway tasks from database, 0 unique tasks displayed
+[2026-01-10 19:22:55] INFO: TransferCartonListView: Loaded event fired
+[2026-01-10 19:22:55] INFO: TransferCartonListView: Calling RefreshAsync on ViewModel
+[2026-01-10 19:22:55] INFO: TransferCartonListViewModel: Starting to load transfer cartons
+[2026-01-10 19:22:55] INFO: Loading Transfer Cartons from database...
+[2026-01-10 19:22:55] INFO: TransferCartonDataService: Starting schema detection
+[2026-01-10 19:22:55] INFO: TransferCartonDataService: Found column 'asn_no'
+[2026-01-10 19:22:55] INFO: TransferCartonDataService: Found column 'to_no'
+[2026-01-10 19:22:55] INFO: TransferCartonDataService: Returning - AsnColumn=asn_no, ToColumn=to_no
+[2026-01-10 19:22:55] INFO: Detected schema: AsnColumn=asn_no, ToColumn=to_no
+[2026-01-10 19:22:55] INFO: Executing query: SELECT tc_id, status, asn_no, to_no, store, 
+                               created_by, created_on, sealed_by, sealed_on, dispatched_on, remarks
+                        FROM tabTransferCarton
+                        ORDER BY created_on DESC, tc_id
+[2026-01-10 19:22:55] INFO: Loaded 0 transfer cartons from database
+[2026-01-10 19:22:55] INFO: TransferCartonListViewModel: Received 0 transfer cartons from service
+[2026-01-10 19:22:55] INFO: TransferCartonListViewModel: Added 0 transfer cartons to collection
+[2026-01-10 19:22:55] INFO: TransferCartonListView: RefreshAsync completed
+[2026-01-10 19:22:56] INFO: SortBoxListView: Loaded event fired
+[2026-01-10 19:22:56] INFO: SortBoxListView: Calling RefreshAsync on ViewModel
+[2026-01-10 19:22:56] INFO: SortBoxListViewModel: Starting to load sort boxes
+[2026-01-10 19:22:56] INFO: Loading Sort Boxes from database...
+[2026-01-10 19:22:56] INFO: Executing query: SELECT box_id, status, advance_shipping_notice, transfer_order, store, 
+                               purpose, created_by, created_on, closed_by, closed_on, 
+                               dispatched_on, received_at_store_on, remarks
+                        FROM tabSortBox
+                        ORDER BY created_on DESC, box_id
+[2026-01-10 19:22:56] INFO: Loaded 0 sort boxes from database
+[2026-01-10 19:22:56] INFO: SortBoxListViewModel: Received 0 sort boxes from service
+[2026-01-10 19:22:56] INFO: SortBoxListViewModel: Added 0 sort boxes to collection
+[2026-01-10 19:22:56] INFO: SortBoxListView: RefreshAsync completed
+[2026-01-10 19:22:56] INFO: InboundSessionListView: Loaded event fired
+[2026-01-10 19:22:56] INFO: InboundSessionListView: Calling RefreshAsync on ViewModel
+[2026-01-10 19:22:56] INFO: InboundSessionListViewModel: Starting to load sessions
+[2026-01-10 19:22:56] INFO: InboundSessionListViewModel: Attempting to sync from API...
+[2026-01-10 19:22:56] INFO: InboundSessionApiService: Fetching sessions from https://erpnext.printechs.example.com/api/api/inbound/sessions
+[2026-01-10 19:22:57] ERROR: InboundSessionApiService: HTTP error - The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Exception Type: HttpRequestException
+Exception Message: The requested name is valid, but no data of the requested type was found. (erpnext.printechs.example.com:443)
+Stack Trace:    at System.Net.Http.HttpConnectionPool.ConnectToTcpHostAsync(String host, Int32 port, HttpRequestMessage initialRequest, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.ConnectAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.CreateHttp11ConnectionAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.AddHttp11ConnectionAsync(QueueItem queueItem)
+   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)
+   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)
+   at System.Net.Http.RedirectHandler.SendAsync(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)
+   at System.Net.Http.HttpClient.<SendAsync>g__Core|83_0(HttpRequestMessage request, HttpCompletionOption completionOption, CancellationTokenSource cts, Boolean disposeCts, CancellationTokenSource pendingRequestsCts, CancellationToken originalCancellationToken)
+   at Wms.Desktop.Services.InboundSessionApiService.FetchSessionsFromApiAsync(WmsSettings settings) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\InboundSessionApiService.cs:line 49
+Inner Exception: The requested name is valid, but no data of the requested type was found.
+--------------------------------------------------------------------------------
+[2026-01-10 19:22:57] INFO: InboundSessionSyncService: No sessions from API or API not available - keeping existing data
+[2026-01-10 19:22:57] INFO: InboundSessionListViewModel: API sync not available - using existing database data
+[2026-01-10 19:22:57] INFO: InboundSessionListViewModel: Loading sessions from database
+[2026-01-10 19:22:57] INFO: Loading Inbound Sessions from database...
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: Starting schema detection
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: Found column 'inbound_session'
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: Found column 'asn_no'
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: Found column 'started_at'
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: hasInboundSession=True, hasTitle=False, hasAsnNo=True, hasAdvanceShippingNotice=False, hasStartedAt=True, hasStartedOn=False, hasTransferIn=False
+[2026-01-10 19:22:57] INFO: DetectSchemaAsync: Returning - UsesNewSchema=True, TitleColumn=inbound_session, AsnColumn=asn_no, StartedColumn=started_at, HasTransferIn=False
+[2026-01-10 19:22:57] INFO: Detected schema: UsesNewSchema=True, TitleColumn=inbound_session, AsnColumn=asn_no, StartedColumn=started_at, HasTransferIn=False
+[2026-01-10 19:22:57] INFO: Executing query: SELECT DISTINCT
+                                  inbound_session as session_title,
+                                  status, 
+                                  asn_no as asn,
+                                  NULL as transfer_in,
+                                  transfer_order, 
+                                  dock, 
+                                  started_by, 
+                                  started_at as started,
+                                  COALESCE(completed_on, ended_at) as completed
+                               FROM tabInboundSession
+                               ORDER BY started_at DESC, inbound_session
+[2026-01-10 19:22:57] INFO: Loaded 0 inbound sessions from database
+[2026-01-10 19:22:57] INFO: Returning 0 inbound sessions
+[2026-01-10 19:22:57] INFO: InboundSessionListViewModel: Received 0 sessions from service
+[2026-01-10 19:22:57] INFO: InboundSessionListViewModel: Added 0 sessions to collection
+[2026-01-10 19:22:57] INFO: InboundSessionListView: RefreshAsync completed
+[2026-01-10 19:36:26] INFO: CycleCountTaskDetailViewModel: Refreshing task CC-A1-R01-L2-B1-MK8J0ZK4
+[2026-01-10 19:36:26] INFO: CycleCountTaskDataService: Retrieved task CC-A1-R01-L2-B1-MK8J0ZK4 - TotalItems: 3, CountedItems: 3, ItemsWithDiscrepancy: 3, Lines: 3
+[2026-01-10 19:36:26] INFO: CycleCountTaskDetailViewModel: Refreshed task CC-A1-R01-L2-B1-MK8J0ZK4 - CountedItems: 3 → 3, ItemsWithDiscrepancy: 3 → 3, Lines: 3 → 3

@@ -79,7 +79,8 @@ public partial class SettingsViewModel : ObservableObject
                 DatabasePassword = string.Empty,
                 DatabasePort = 3306,
                 DatabaseExists = false,
-                TablesExist = false
+                TablesExist = false,
+                InventoryTrackingMode = "BinLevel"
             };
         }
 
@@ -282,6 +283,196 @@ public partial class SettingsViewModel : ObservableObject
             ConnectionStatus = "Error: " + ex.Message;
             MessageBox.Show($"Error importing mock data: {ex.Message}", 
                 "Import Data", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsTestingConnection = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RunFullCartonTestAsync()
+    {
+        if (!Settings.DatabaseExists || !Settings.TablesExist)
+        {
+            MessageBox.Show("Please create the database and tables first before running tests.", 
+                "Test", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "This will run a complete automated test:\n\n" +
+            "1. Check if Migration 005 has been run\n" +
+            "2. Run Migration 005 if needed\n" +
+            "3. Verify carton tables exist\n" +
+            "4. Insert test carton data\n" +
+            "5. Verify test data\n" +
+            "6. Test carton inventory queries\n\n" +
+            "This may take a minute. Continue?",
+            "Run Full Carton Test",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            IsTestingConnection = true;
+            ConnectionStatus = "Running full carton test...";
+
+            await AutoTestCartonInventory.RunFullTestAsync();
+            
+            ConnectionStatus = "Full test completed";
+        }
+        catch (Exception ex)
+        {
+            ConnectionStatus = "Error: " + ex.Message;
+            MessageBox.Show(
+                $"Error running full test: {ex.Message}\n\n{ex.StackTrace}", 
+                "Test Error", 
+                MessageBoxButton.OK, 
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsTestingConnection = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task InsertTestCartonDataAsync()
+    {
+        // Auto-run without prompts
+
+        try
+        {
+            IsTestingConnection = true;
+            ConnectionStatus = "Inserting test carton data...";
+
+            var (success, message) = await MigrationService.InsertTestCartonDataAsync(Settings);
+
+            if (success)
+            {
+                ConnectionStatus = "Test data inserted successfully";
+                
+                // Verify the data was inserted correctly
+                var (verifySuccess, verifyMessage, bins, cartons, cartonItems, cartonStock) = 
+                    await MigrationService.VerifyCartonDataAsync(Settings);
+                
+                var fullMessage = $"Test carton data inserted successfully!\n\n{message}";
+                
+                if (verifySuccess)
+                {
+                    fullMessage += $"\n\n✅ Verification passed:\n{verifyMessage}";
+                }
+                else
+                {
+                    fullMessage += $"\n\n⚠️ Verification: {verifyMessage}";
+                }
+                
+                fullMessage += "\n\nYou can now:\n" +
+                    "1. Switch to Carton Level Inventory mode in Settings\n" +
+                    "2. Go to Items → Select an item → Show Location Breakdown\n" +
+                    "3. See carton-level inventory with Carton ID column";
+                
+                MessageBox.Show(
+                    fullMessage,
+                    "Test Data Inserted", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                ConnectionStatus = "Failed to insert test data";
+                MessageBox.Show(
+                    $"Failed to insert test data:\n\n{message}\n\n" +
+                    "Please check the error log for details.",
+                    "Test Data Failed", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ConnectionStatus = "Error: " + ex.Message;
+            MessageBox.Show(
+                $"Error inserting test data: {ex.Message}\n\n{ex.StackTrace}", 
+                "Test Data Error", 
+                MessageBoxButton.OK, 
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            IsTestingConnection = false;
+        }
+    }
+
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RunMigration005Async()
+    {
+        if (!Settings.DatabaseExists || !Settings.TablesExist)
+        {
+            MessageBox.Show("Please create the database and tables first before running migrations.", 
+                "Migration", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "This will run Migration 005: Bin + Carton Level Inventory Support.\n\n" +
+            "This migration will:\n" +
+            "• Create tabBin, tabCarton, tabCartonItem, tabCartonStock tables\n" +
+            "• Add carton_id column to tabStockTransaction\n" +
+            "• Create default DOCK and STAGING bins\n\n" +
+            "The migration is safe to run multiple times. Continue?",
+            "Run Migration 005",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            IsTestingConnection = true;
+            ConnectionStatus = "Running migration...";
+
+            var (success, message) = await MigrationService.RunMigration005Async(Settings);
+
+            if (success)
+            {
+                ConnectionStatus = "Migration completed successfully";
+                MessageBox.Show(
+                    $"Migration 005 completed successfully!\n\n{message}\n\n" +
+                    "The following tables were created:\n" +
+                    "• tabBin - Bin master table\n" +
+                    "• tabCarton - Carton master table\n" +
+                    "• tabCartonItem - Carton items table\n" +
+                    "• tabCartonStock - Carton stock table\n\n" +
+                    "You can now use Carton Level Inventory mode.",
+                    "Migration Complete", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                ConnectionStatus = "Migration failed";
+                MessageBox.Show(
+                    $"Migration 005 failed:\n\n{message}\n\n" +
+                    "Please check the error log for details.",
+                    "Migration Failed", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ConnectionStatus = "Error: " + ex.Message;
+            MessageBox.Show(
+                $"Error running migration: {ex.Message}\n\n{ex.StackTrace}", 
+                "Migration Error", 
+                MessageBoxButton.OK, 
+                MessageBoxImage.Error);
         }
         finally
         {

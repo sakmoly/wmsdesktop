@@ -17,7 +17,8 @@ import {
   getBinMaster,
   getBinByCode,
   getStockLedgerMaster,
-  getItemBarcodeMap
+  getItemBarcodeMap,
+  lookupItem
 } from '../modules/master/masterController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -64,6 +65,9 @@ router.get('/stock-ledger', authenticateToken, getStockLedgerMaster);
 
 // GET /api/master/item-barcode-map - Get item barcode mapping
 router.get('/item-barcode-map', authenticateToken, getItemBarcodeMap);
+
+// GET /api/master/items/lookup - Lookup item by barcode or item_code (for real-time validation)
+router.get('/items/lookup', authenticateToken, lookupItem);
 
 export default router;
 

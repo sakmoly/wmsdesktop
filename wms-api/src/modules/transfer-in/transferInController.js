@@ -535,21 +535,50 @@ export const receiveTransferInLine = async (req, res) => {
         }
 
         // Update all items in carton to received
+        // CRITICAL: Also ensure carton_id is set in tabTransferInItem if it was missing
         let updatedCount = 0;
         for (const item of items) {
           const newReceivedQty = parseFloat(item.qty);
           if (newReceivedQty > parseFloat(item.received_qty)) {
-            await connection.execute(
-              `
-              UPDATE tabTransferInItem
-              SET received_qty = ?,
-                  updated_at = NOW()
-              WHERE parent_title = ?
-                AND item_code = ?
-                AND carton_id = ?
-            `,
-              [newReceivedQty, title, item.item_code, carton_id]
-            );
+            // Check if carton_id column exists
+            const [cartonIdColCheck] = await connection.execute(`
+              SELECT COLUMN_NAME
+              FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'tabTransferInItem'
+                AND COLUMN_NAME = 'carton_id'
+            `);
+            const hasCartonIdColumn = cartonIdColCheck.length > 0;
+            
+            if (hasCartonIdColumn) {
+              // Update received_qty AND ensure carton_id is set
+              // This ensures carton_id is populated for putaway task creation
+              await connection.execute(
+                `
+                UPDATE tabTransferInItem
+                SET received_qty = ?,
+                    carton_id = ?,
+                    updated_at = NOW()
+                WHERE parent_title = ?
+                  AND item_code = ?
+                  AND (carton_id = ? OR carton_id IS NULL)
+              `,
+                [newReceivedQty, carton_id, title, item.item_code, carton_id]
+              );
+              console.log(`[Transfer In] ✅ Set carton_id=${carton_id} for item ${item.item_code} in Transfer In ${title}`);
+            } else {
+              // Column doesn't exist, just update received_qty
+              await connection.execute(
+                `
+                UPDATE tabTransferInItem
+                SET received_qty = ?,
+                    updated_at = NOW()
+                WHERE parent_title = ?
+                  AND item_code = ?
+              `,
+                [newReceivedQty, title, item.item_code]
+              );
+            }
             updatedCount++;
           }
         }
@@ -1079,6 +1108,18 @@ async function createPutawayTaskFromTransferIn(
     console.log(
       `   - Source Type: TransferIn`
     );
+    
+    // Log carton_id information for debugging
+    const itemsWithCartonId = items.filter(item => item.carton_id);
+    const itemsWithoutCartonId = items.filter(item => !item.carton_id);
+    console.log(
+      `   - Items with carton_id: ${itemsWithCartonId.length}`
+    );
+    if (itemsWithoutCartonId.length > 0) {
+      console.warn(
+        `   ⚠️ Items without carton_id: ${itemsWithoutCartonId.length} - ${itemsWithoutCartonId.map(i => i.item_code).join(', ')}`
+      );
+    }
   } catch (error) {
     console.error(
       `❌ Failed to create Putaway Task for Transfer In ${transferInTitle}:`,

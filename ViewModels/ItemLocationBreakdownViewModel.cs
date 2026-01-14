@@ -31,16 +31,38 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
         }
     }
 
+    private bool _isCartonLevelMode;
+    public bool IsCartonLevelMode
+    {
+        get => _isCartonLevelMode;
+        private set
+        {
+            if (_isCartonLevelMode != value)
+            {
+                _isCartonLevelMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public ItemLocationBreakdownViewModel(Item item)
     {
         ItemCode = item.Code;
         ItemName = item.Name;
+        
+        // Check inventory mode
+        var settings = SettingsService.LoadSettings();
+        IsCartonLevelMode = settings?.InventoryTrackingMode == "CartonLevel";
     }
 
     public async Task LoadLocationDataAsync(Item item)
     {
         try
         {
+            // Clear existing locations before loading fresh data
+            Locations.Clear();
+            TotalQty = 0;
+            
             // Get settings
             var settings = SettingsService.LoadSettings();
             if (settings == null)
@@ -48,9 +70,10 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                 ErrorLogService.LogError("ItemLocationBreakdownViewModel: Settings not found", null);
                 return;
             }
+            
+            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Refreshing location data for {item.Code} using API");
 
             // Default warehouse - try multiple variations
-            // Backend uses "Main Warehouse" as default, so try that first
             var warehousesToTry = new List<string>();
             
             // Add the setting's default warehouse if it exists
@@ -69,87 +92,50 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
             
             ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Loading location data for {item.Code}, trying warehouses: {string.Join(", ", warehousesToTry)}");
 
-            // Try each warehouse until we find entries
-            var stockLedgerEntries = new List<StockLedger>();
+            // Try each warehouse until we find entries using API
+            List<ItemLocationStockApiResponse>? apiStockData = null;
             string? foundWarehouse = null;
             
             foreach (var warehouse in warehousesToTry)
             {
-                var entries = await StockLedgerService.GetStockByBinAsync(settings, item.Code, warehouse);
-                if (entries.Count > 0)
+                try
                 {
-                    stockLedgerEntries = entries;
-                    foundWarehouse = warehouse;
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found {entries.Count} entries in warehouse '{warehouse}'");
-                    break;
-                }
-            }
-            
-            // If no entries found, try to find entries in any warehouse for this item
-            if (stockLedgerEntries.Count == 0)
-            {
-                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: No entries found in tried warehouses, searching all warehouses for {item.Code}");
-                
-                // Query all warehouses for this item
-                var connectionString = DatabaseService.BuildConnectionString(settings);
-                await using var connection = new MySqlConnection(connectionString);
-                await connection.OpenAsync();
-
-                var sql = @"
-                    SELECT DISTINCT warehouse
-                    FROM tabStockLedger
-                    WHERE item_code = @itemCode
-                    LIMIT 10";
-
-                await using var cmd = new MySqlCommand(sql, connection);
-                cmd.Parameters.AddWithValue("@itemCode", item.Code);
-
-                var warehouses = new List<string>();
-                await using var reader = await cmd.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    warehouses.Add(reader.GetString(0));
-                }
-
-                if (warehouses.Count > 0)
-                {
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found item in warehouses: {string.Join(", ", warehouses)}");
-                    // Try the first warehouse found
-                    foundWarehouse = warehouses[0];
-                    var entries = await StockLedgerService.GetStockByBinAsync(settings, item.Code, foundWarehouse);
-                    if (entries.Count > 0)
+                    apiStockData = await ItemLocationStockService.GetItemLocationStockAsync(settings, item.Code, warehouse);
+                    if (apiStockData != null && apiStockData.Count > 0)
                     {
-                        stockLedgerEntries = entries;
+                        foundWarehouse = warehouse;
+                        ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found {apiStockData.Count} location(s) in warehouse '{warehouse}' via API");
+                        break;
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: No stock ledger entries found for {item.Code} in any warehouse");
+                    ErrorLogService.LogError($"ItemLocationBreakdownViewModel: Error calling API for warehouse '{warehouse}': {ex.Message}", ex);
                 }
             }
             
-            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found {stockLedgerEntries.Count} stock ledger entries for {item.Code} in warehouse '{foundWarehouse ?? "none"}'");
+            if (apiStockData == null || apiStockData.Count == 0)
+            {
+                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: No stock data found via API for {item.Code}");
+                return;
+            }
+            
+            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Processing {apiStockData.Count} location(s) from API for {item.Code} in warehouse '{foundWarehouse ?? "none"}'");
 
-            // Join with tabLocation to get actual location_id and location details
-            // Reuse existing connection from the search above if available, otherwise create new one
+            // Get location details from database for display
             var locationConnectionString = DatabaseService.BuildConnectionString(settings);
             await using var locationConnection = new MySqlConnection(locationConnectionString);
             await locationConnection.OpenAsync();
 
-            // Build a list of location details with actual location_id from tabLocation
-            var locationDetails = new List<(string LocationId, string? Zone, string? Aisle, string? Rack, string? Level, string? Bin, double Qty)>();
+            // Process API response and enrich with location details
+            var locationDetails = new List<(string LocationId, string? Zone, string? Aisle, string? Rack, string? Level, string? Bin, string? CartonId, double TotalQty, double ReservedQty, double BlockedQty, double AvailableQty, List<string>? CalculationLog)>();
 
-            foreach (var entry in stockLedgerEntries)
+            // Process API response - each bin location from API
+            foreach (var binData in apiStockData)
             {
-                if (string.IsNullOrEmpty(entry.BinLocation))
-                {
-                    // Warehouse-level (no bin location)
-                    locationDetails.Add(("Warehouse", null, null, null, null, null, entry.Qty));
-                    continue;
-                }
-
-                // Try to find location in tabLocation by matching bin_location with location_id first
-                // If not found, try to match by parsing bin_location to get rack and bin
+                var binLocation = binData.BinLocation;
+                
+                // Get location details from database
                 string? actualLocationId = null;
                 string? zone = null;
                 string? aisle = null;
@@ -157,148 +143,90 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                 string? level = null;
                 string? bin = null;
 
-                // Method 1: Direct match - bin_location might be the location_id itself
-                var locationSql1 = @"
-                    SELECT location_id, zone, aisle, parent_rack, level, bin_id
-                    FROM tabLocation
-                    WHERE location_id = @binLocation
-                    LIMIT 1";
-
-                await using var cmd1 = new MySqlCommand(locationSql1, locationConnection);
-                cmd1.Parameters.AddWithValue("@binLocation", entry.BinLocation);
-                await using var reader1 = await cmd1.ExecuteReaderAsync();
-
-                if (await reader1.ReadAsync())
+                if (string.IsNullOrEmpty(binLocation))
                 {
-                    actualLocationId = reader1.GetString(0);
-                    zone = reader1.IsDBNull(1) ? null : reader1.GetString(1);
-                    aisle = reader1.IsDBNull(2) ? null : reader1.GetString(2);
-                    rack = reader1.IsDBNull(3) ? null : reader1.GetString(3);
-                    level = reader1.IsDBNull(4) ? null : reader1.GetString(4);
-                    bin = reader1.IsDBNull(5) ? null : reader1.GetString(5);
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Direct match found location_id={actualLocationId} for bin_location={entry.BinLocation}");
+                    // Warehouse-level (no bin location)
+                    actualLocationId = "Warehouse";
                 }
-                await reader1.CloseAsync();
-
-                // Method 2: If not found, try to parse bin_location and match by rack+bin
-                if (string.IsNullOrEmpty(actualLocationId))
+                else
                 {
-                    // Parse bin_location (format: "Rack 02-B3" or "RACK-BIN")
-                    string? parsedRack = null;
-                    string? parsedBin = null;
+                    // Try to find location in tabLocation
+                    var locationSql = @"
+                        SELECT location_id, zone, aisle, parent_rack, level, bin_id
+                        FROM tabLocation
+                        WHERE location_id = @binLocation
+                        LIMIT 1";
 
-                    var parts = entry.BinLocation.Split('-');
-                    if (parts.Length >= 2)
+                    await using var cmd = new MySqlCommand(locationSql, locationConnection);
+                    cmd.Parameters.AddWithValue("@binLocation", binLocation);
+                    await using var reader = await cmd.ExecuteReaderAsync();
+
+                    if (await reader.ReadAsync())
                     {
-                        // Format 1: "Rack 02-B3" -> rack = "Rack 02", bin = "B3"
-                        parsedRack = string.Join("-", parts.Take(parts.Length - 1)).Trim();
-                        parsedBin = parts[parts.Length - 1].Trim();
+                        actualLocationId = reader.GetString(0);
+                        zone = reader.IsDBNull(1) ? null : reader.GetString(1);
+                        aisle = reader.IsDBNull(2) ? null : reader.GetString(2);
+                        rack = reader.IsDBNull(3) ? null : reader.GetString(3);
+                        level = reader.IsDBNull(4) ? null : reader.GetString(4);
+                        bin = reader.IsDBNull(5) ? null : reader.GetString(5);
                     }
-                    else if (parts.Length == 1)
+                    await reader.CloseAsync();
+
+                    // If not found, use bin_location as fallback
+                    if (string.IsNullOrEmpty(actualLocationId))
                     {
-                        parsedRack = parts[0].Trim();
-                    }
-
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Parsed bin_location='{entry.BinLocation}' -> rack='{parsedRack}', bin='{parsedBin}'");
-
-                    if (!string.IsNullOrEmpty(parsedRack) || !string.IsNullOrEmpty(parsedBin))
-                    {
-                        // Try matching with warehouse first
-                        var locationWarehousesToTry = new List<string>();
-                        if (!string.IsNullOrEmpty(foundWarehouse))
+                        actualLocationId = binLocation;
+                        // Parse for display
+                        var parts = binLocation.Split('-');
+                        if (parts.Length >= 2)
                         {
-                            locationWarehousesToTry.Add(foundWarehouse);
+                            rack = string.Join("-", parts.Take(parts.Length - 1)).Trim();
+                            bin = parts[parts.Length - 1].Trim();
                         }
-                        if (!string.IsNullOrEmpty(entry.Warehouse))
+                        else if (parts.Length == 1)
                         {
-                            locationWarehousesToTry.Add(entry.Warehouse);
-                        }
-                        // Add common warehouse name variations
-                        locationWarehousesToTry.AddRange(new[] { "Main Warehouse", "WH-MAIN", "WH-Main" });
-                        locationWarehousesToTry = locationWarehousesToTry.Distinct().ToList();
-
-                        foreach (var warehouseName in locationWarehousesToTry)
-                        {
-                            var locationSql2 = @"
-                                SELECT location_id, zone, aisle, parent_rack, level, bin_id
-                                FROM tabLocation
-                                WHERE warehouse = @warehouse
-                                  AND (parent_rack = @rack OR (@rack IS NULL AND parent_rack IS NULL))
-                                  AND (bin_id = @bin OR (@bin IS NULL AND bin_id IS NULL))
-                                LIMIT 1";
-
-                            await using var cmd2 = new MySqlCommand(locationSql2, locationConnection);
-                            cmd2.Parameters.AddWithValue("@warehouse", warehouseName);
-                            cmd2.Parameters.AddWithValue("@rack", parsedRack ?? (object)DBNull.Value);
-                            cmd2.Parameters.AddWithValue("@bin", parsedBin ?? (object)DBNull.Value);
-                            await using var reader2 = await cmd2.ExecuteReaderAsync();
-
-                            if (await reader2.ReadAsync())
-                            {
-                                actualLocationId = reader2.GetString(0);
-                                zone = reader2.IsDBNull(1) ? null : reader2.GetString(1);
-                                aisle = reader2.IsDBNull(2) ? null : reader2.GetString(2);
-                                rack = reader2.IsDBNull(3) ? null : reader2.GetString(3);
-                                level = reader2.IsDBNull(4) ? null : reader2.GetString(4);
-                                bin = reader2.IsDBNull(5) ? null : reader2.GetString(5);
-                                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found location_id={actualLocationId} by rack+bin match (warehouse={warehouseName}, rack={parsedRack}, bin={parsedBin})");
-                                await reader2.CloseAsync();
-                                break;
-                            }
-                            await reader2.CloseAsync();
-                        }
-
-                        // If still not found, try without warehouse constraint
-                        if (string.IsNullOrEmpty(actualLocationId))
-                        {
-                            var locationSql3 = @"
-                                SELECT location_id, zone, aisle, parent_rack, level, bin_id
-                                FROM tabLocation
-                                WHERE (parent_rack = @rack OR (@rack IS NULL AND parent_rack IS NULL))
-                                  AND (bin_id = @bin OR (@bin IS NULL AND bin_id IS NULL))
-                                LIMIT 1";
-
-                            await using var cmd3 = new MySqlCommand(locationSql3, locationConnection);
-                            cmd3.Parameters.AddWithValue("@rack", parsedRack ?? (object)DBNull.Value);
-                            cmd3.Parameters.AddWithValue("@bin", parsedBin ?? (object)DBNull.Value);
-                            await using var reader3 = await cmd3.ExecuteReaderAsync();
-
-                            if (await reader3.ReadAsync())
-                            {
-                                actualLocationId = reader3.GetString(0);
-                                zone = reader3.IsDBNull(1) ? null : reader3.GetString(1);
-                                aisle = reader3.IsDBNull(2) ? null : reader3.GetString(2);
-                                rack = reader3.IsDBNull(3) ? null : reader3.GetString(3);
-                                level = reader3.IsDBNull(4) ? null : reader3.GetString(4);
-                                bin = reader3.IsDBNull(5) ? null : reader3.GetString(5);
-                                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found location_id={actualLocationId} by rack+bin match (no warehouse constraint, rack={parsedRack}, bin={parsedBin})");
-                            }
-                            await reader3.CloseAsync();
+                            rack = parts[0].Trim();
                         }
                     }
                 }
 
-                // If still not found, use bin_location as fallback
-                if (string.IsNullOrEmpty(actualLocationId))
+                // Show ONE row per bin location (not per carton)
+                // If multiple cartons exist, show the first carton ID or comma-separated list
+                string? cartonIdDisplay = null;
+                if (binData.Cartons != null && binData.Cartons.Count > 0)
                 {
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Could not find location_id for bin_location='{entry.BinLocation}', using as fallback");
-                    actualLocationId = entry.BinLocation;
-                    // Parse for display
-                    var parts = entry.BinLocation.Split('-');
-                    if (parts.Length >= 2)
+                    // If only one carton, show it; if multiple, show first one or comma-separated
+                    if (binData.Cartons.Count == 1)
                     {
-                        rack = string.Join("-", parts.Take(parts.Length - 1)).Trim();
-                        bin = parts[parts.Length - 1].Trim();
+                        cartonIdDisplay = binData.Cartons[0].CartonId;
                     }
-                    else if (parts.Length == 1)
+                    else
                     {
-                        rack = parts[0].Trim();
+                        // Show first carton ID (or could show comma-separated list)
+                        cartonIdDisplay = binData.Cartons[0].CartonId;
+                        // Note: For display purposes, we show the first carton ID
+                        // The available_qty shown is the TOTAL for the bin (not per carton)
                     }
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Using bin_location as fallback location_id: '{actualLocationId}' (rack='{rack}', bin='{bin}')");
                 }
-
-                locationDetails.Add((actualLocationId, zone, aisle, rack, level, bin, entry.Qty));
+                
+                // Add ONE entry per bin location with the bin's total quantities
+                locationDetails.Add((
+                    actualLocationId ?? "Unknown",
+                    zone,
+                    aisle,
+                    rack,
+                    level,
+                    bin,
+                    cartonIdDisplay, // Show first carton ID if available
+                    binData.TotalQty,
+                    binData.ReservedQty,
+                    binData.BlockedQty,
+                    binData.AvailableQty, // This is the bin's total available_qty (not per carton)
+                    binData.CalculationLog
+                ));
             }
+
+            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Processed {locationDetails.Count} location detail(s) from API");
 
             // Update UI on UI thread (using Application dispatcher for reliability)
             await Application.Current.Dispatcher.InvokeAsync(() =>
@@ -306,38 +234,65 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                 Locations.Clear();
                 ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Cleared locations collection, current count: {Locations.Count}");
 
-                for (int i = 0; i < stockLedgerEntries.Count && i < locationDetails.Count; i++)
+                // Process all location details from API
+                foreach (var loc in locationDetails)
                 {
-                    var entry = stockLedgerEntries[i];
-                    var loc = locationDetails[i];
-
                     var locationStock = new ItemLocationStock
                     {
-                        ItemCode = entry.ItemCode,
+                        ItemCode = item.Code,
                         ItemName = item.Name,
-                        Warehouse = entry.Warehouse,
+                        Warehouse = foundWarehouse ?? "Unknown",
                         LocationId = loc.LocationId,
                         Zone = loc.Zone ?? (loc.Rack?.StartsWith("STAGE") == true ? "Staging Area" : "Main Warehouse"),
                         Aisle = loc.Aisle,
                         Rack = loc.Rack,
                         Level = loc.Level,
                         BinId = loc.Bin,
-                        Qty = loc.Qty
+                        CartonId = loc.CartonId,
+                        TotalQty = loc.TotalQty,
+                        ReservedQty = loc.ReservedQty,
+                        BlockedQty = loc.BlockedQty,
+                        AvailableQty = loc.AvailableQty,
+                        CalculationLog = loc.CalculationLog
                     };
                     
                     Locations.Add(locationStock);
-                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Added location {loc.LocationId} (Zone: {locationStock.Zone}, Rack: {loc.Rack}, Bin: {loc.Bin}, Qty: {loc.Qty})");
+                    ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Added location {loc.LocationId} (Zone: {locationStock.Zone}, Rack: {loc.Rack}, Bin: {loc.Bin}, Carton: {loc.CartonId ?? "NULL"}, Available Qty: {loc.AvailableQty})");
                 }
 
-                // Calculate total
-                TotalQty = Locations.Sum(loc => loc.Qty);
+                // Calculate total (sum of AvailableQty)
+                TotalQty = Locations.Sum(loc => loc.AvailableQty);
                 
-                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Final count - Added {Locations.Count} locations, Total Qty: {TotalQty}, Collection Count: {Locations.Count}");
+                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Final count - Added {Locations.Count} locations, Total Available Qty: {TotalQty}, Collection Count: {Locations.Count}");
             }, System.Windows.Threading.DispatcherPriority.Normal);
         }
         catch (System.Exception ex)
         {
             ErrorLogService.LogError($"ItemLocationBreakdownViewModel: Error loading location data for {item.Code}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Check if a table exists in the database
+    /// </summary>
+    private static async Task<bool> CheckTableExistsAsync(MySqlConnection connection, string tableName)
+    {
+        try
+        {
+            var sql = @"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND LOWER(TABLE_NAME) = LOWER(@tableName)";
+            
+            await using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@tableName", tableName);
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            return count > 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 }

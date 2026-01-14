@@ -280,6 +280,15 @@ public partial class MainWindow : Window
         MainContent.Content = new StockLedgerView();
     }
 
+    private void TransactionHistoryButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            UpdateButtonSelection(button);
+        }
+        MainContent.Content = new TransactionHistoryView();
+    }
+
     private void CycleCountButton_OnClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button button)
