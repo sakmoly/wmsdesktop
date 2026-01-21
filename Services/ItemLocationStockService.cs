@@ -26,6 +26,15 @@ public static class ItemLocationStockService
     {
         try
         {
+            // Validate API key before making request
+            if (string.IsNullOrWhiteSpace(settings.ApiKey) || 
+                settings.ApiKey.Contains("MOCK-KEY") || 
+                settings.ApiKey.Contains("******"))
+            {
+                ErrorLogService.LogError("ItemLocationStockService: Invalid API key in settings. Please login to get a valid token.");
+                throw new InvalidOperationException("API key is missing or invalid. Please login to get a valid token.");
+            }
+            
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(30);
             httpClient.DefaultRequestHeaders.Authorization = 
@@ -54,10 +63,21 @@ public static class ItemLocationStockService
             {
                 var errorContent = await responseMessage.Content.ReadAsStringAsync();
                 ErrorLogService.LogError($"ItemLocationStockService: API returned {responseMessage.StatusCode}: {errorContent}");
+                
+                if (responseMessage.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    var errorMsg = "ItemLocationStockService: 403 Forbidden - API token is invalid or expired.\n" +
+                                   "To fix: Run .\\SCRIPTS\\GetApiToken.ps1 -UserCode \"YOUR_USER\" -Password \"YOUR_PASSWORD\" or login via Postman and update wms_settings.json";
+                    ErrorLogService.LogError(errorMsg);
+                }
+                
                 responseMessage.EnsureSuccessStatusCode();
             }
             
             var response = await responseMessage.Content.ReadAsStringAsync();
+            
+            ErrorLogService.LogInfo($"ItemLocationStockService: API Response received (length: {response.Length})");
+            ErrorLogService.LogInfo($"ItemLocationStockService: API Response preview (first 500 chars): {response.Substring(0, Math.Min(500, response.Length))}");
             
             // API returns array directly (not wrapped in { ok: true, data: [...] })
             var jsonOptions = new JsonSerializerOptions
@@ -68,6 +88,17 @@ public static class ItemLocationStockService
             var stockData = JsonSerializer.Deserialize<List<ItemLocationStockApiResponse>>(response, jsonOptions);
             
             ErrorLogService.LogInfo($"ItemLocationStockService: Received {stockData?.Count ?? 0} location(s) from API");
+            
+            // Log first location for debugging
+            if (stockData != null && stockData.Count > 0)
+            {
+                var first = stockData[0];
+                ErrorLogService.LogInfo($"ItemLocationStockService: First location - BinLocation: {first.BinLocation ?? "NULL"}, LocationId: {first.LocationId ?? "NULL"}, TotalQty: {first.TotalQty}, AvailableQty: {first.AvailableQty}, Cartons: {first.Cartons?.Count ?? 0}");
+            }
+            else
+            {
+                ErrorLogService.LogInfo($"ItemLocationStockService: stockData is null or empty. stockData == null: {stockData == null}, count: {stockData?.Count ?? 0}");
+            }
             
             return stockData ?? new List<ItemLocationStockApiResponse>();
         }
@@ -92,6 +123,27 @@ public sealed class ItemLocationStockApiResponse
     
     [JsonPropertyName("bin_location")]
     public string? BinLocation { get; init; }
+    
+    [JsonPropertyName("location_id")]
+    public string? LocationId { get; init; }
+    
+    [JsonPropertyName("zone")]
+    public string? Zone { get; init; }
+    
+    [JsonPropertyName("aisle")]
+    public string? Aisle { get; init; }
+    
+    [JsonPropertyName("rack")]
+    public string? Rack { get; init; }
+    
+    [JsonPropertyName("level")]
+    public string? Level { get; init; }
+    
+    [JsonPropertyName("bin")]
+    public string? Bin { get; init; }
+    
+    [JsonPropertyName("carton_id")]
+    public string? CartonId { get; init; }
     
     [JsonPropertyName("cartons")]
     public List<CartonInfo>? Cartons { get; init; }

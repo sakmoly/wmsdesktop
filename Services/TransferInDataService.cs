@@ -75,10 +75,23 @@ public static class TransferInDataService
                     if (await CheckTableExistsAsync(connection, "tabTransferInItem"))
                     {
                         var placeholders = string.Join(",", tiTitles.Select((_, i) => $"@title{i}"));
-                        var itemsSql = $@"SELECT parent_title, item_code, qty, carton_id, received_qty
-                                          FROM tabTransferInItem
-                                          WHERE parent_title IN ({placeholders})
-                                          ORDER BY parent_title, item_code";
+                        // Check if status column exists
+                        var statusColumnExists = await CheckColumnExistsAsync(connection, "tabTransferInItem", "status");
+                        
+                        var itemsSql = statusColumnExists
+                            ? $@"SELECT parent_title, item_code, qty, carton_id, received_qty, status
+                                 FROM tabTransferInItem
+                                 WHERE parent_title IN ({placeholders})
+                                 ORDER BY parent_title, item_code"
+                            : $@"SELECT parent_title, item_code, qty, carton_id, received_qty, 
+                                 CASE 
+                                   WHEN received_qty >= qty AND qty > 0 THEN 'Received'
+                                   WHEN received_qty > 0 THEN 'Picking'
+                                   ELSE 'Pending'
+                                 END as status
+                                 FROM tabTransferInItem
+                                 WHERE parent_title IN ({placeholders})
+                                 ORDER BY parent_title, item_code";
                         
                         await using var itemsCmd = new MySqlCommand(itemsSql, connection);
                         for (int i = 0; i < tiTitles.Count; i++)
@@ -103,7 +116,8 @@ public static class TransferInDataService
                                 ItemCode = itemsReader.GetString(1),
                                 Qty = Convert.ToDouble(itemsReader.GetDecimal(2)),
                                 CartonId = itemsReader.IsDBNull(3) ? null : itemsReader.GetString(3),
-                                ReceivedQty = Convert.ToDouble(itemsReader.GetDecimal(4))
+                                ReceivedQty = Convert.ToDouble(itemsReader.GetDecimal(4)),
+                                Status = itemsReader.IsDBNull(5) ? "Pending" : itemsReader.GetString(5)
                             });
                         }
 
@@ -210,6 +224,32 @@ public static class TransferInDataService
             
             await using var cmd = new MySqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@tableName", tableName);
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            return count > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Check if a column exists in a table (case-insensitive)
+    /// </summary>
+    private static async Task<bool> CheckColumnExistsAsync(MySqlConnection connection, string tableName, string columnName)
+    {
+        try
+        {
+            var sql = @"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND LOWER(TABLE_NAME) = LOWER(@tableName)
+                AND LOWER(COLUMN_NAME) = LOWER(@columnName)";
+            
+            await using var cmd = new MySqlCommand(sql, connection);
+            cmd.Parameters.AddWithValue("@tableName", tableName);
+            cmd.Parameters.AddWithValue("@columnName", columnName);
             var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
             return count > 0;
         }

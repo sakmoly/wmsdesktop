@@ -2,6 +2,63 @@
 // Stock Ledger API endpoints
 
 import { getConnection } from "../../db/connection.js";
+import { normalizeWarehouse } from "../../utils/warehouseUtils.js";
+import { logger } from "../../utils/logger.js";
+
+/**
+ * Helper function to resolve full location_id from bin_location
+ * Handles both old format (e.g., "Rack 02-B2") and new format (e.g., "A1-R02-L1-B2")
+ * Returns the full location_id if found, otherwise returns the original bin_location
+ */
+export async function resolveFullLocationId(connection, binLocation, warehouse) {
+  if (!binLocation || !warehouse) {
+    return binLocation;
+  }
+
+  // Try exact match first (new format like "A1-R02-L1-B2")
+  const [exactMatch] = await connection.execute(
+    `SELECT location_id FROM tabLocation WHERE location_id = ? AND warehouse = ? LIMIT 1`,
+    [binLocation, warehouse]
+  );
+
+  if (exactMatch.length > 0) {
+    return exactMatch[0].location_id; // Already in correct format
+  }
+
+  // Try to parse old format like "Rack 02-B2"
+  const parts = binLocation.split('-');
+  if (parts.length >= 2) {
+    const binPart = parts[parts.length - 1].trim(); // "B2"
+    const rackPart = parts.slice(0, -1).join('-').trim(); // "Rack 02"
+
+    // Try to match by parent_rack and bin_id
+    const [matchByRackBin] = await connection.execute(
+      `SELECT location_id FROM tabLocation 
+       WHERE warehouse = ?
+         AND (
+           parent_rack = ? 
+           OR parent_rack LIKE ? 
+           OR parent_rack LIKE ?
+         )
+         AND bin_id = ?
+       LIMIT 1`,
+      [
+        warehouse,
+        rackPart, // Exact match: "Rack 02"
+        `%${rackPart.replace('Rack ', '').trim()}%`, // Contains "02"
+        `%${rackPart}%`, // Contains "Rack 02"
+        binPart // bin_id = "B2"
+      ]
+    );
+
+    if (matchByRackBin.length > 0) {
+      return matchByRackBin[0].location_id; // Return full location_id
+    }
+  }
+
+  // Fallback: return original bin_location if no match found
+  return binLocation;
+}
 
 /**
  * GET /api/stock/ledger
@@ -146,12 +203,24 @@ export const getStockLedgerByLocation = async (req, res) => {
       query += ' ORDER BY cs.item_code ASC';
     } else {
       // Bin-level inventory: Query from tabStockLedger
+      // Check if carton_id column exists in tabStockLedger
+      const [stockLedgerCartonIdColumn] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabStockLedger' 
+        AND COLUMN_NAME = 'carton_id'
+      `);
+      const hasStockLedgerCartonIdColumn = stockLedgerCartonIdColumn.length > 0;
+      
+      const cartonIdSelect = hasStockLedgerCartonIdColumn ? "sl.carton_id" : "NULL as carton_id";
+      
       query = `
         SELECT 
           sl.item_code,
           sl.qty,
           sl.bin_location,
-          NULL as carton_id,
+          ${cartonIdSelect},
           sl.warehouse,
           sl.warehouse as warehouse_id,
           NULL as batch_no,
@@ -190,22 +259,61 @@ export const getStockLedgerByLocation = async (req, res) => {
 
     const [rows] = await connection.execute(query, params);
 
+    // Resolve full location_id and get location details for all rows
+    const uniqueBinLocations = [...new Set(rows.map(r => r.bin_location || normalizedBinLocation).filter(Boolean))];
+    const locationDetailsMap = new Map();
+    
+    if (uniqueBinLocations.length > 0 && normalizedWarehouse) {
+      const placeholders = uniqueBinLocations.map(() => '?').join(',');
+      const [locationDetails] = await connection.execute(
+        `SELECT location_id, zone, aisle, parent_rack, level, bin_id 
+         FROM tabLocation 
+         WHERE warehouse = ? AND location_id IN (${placeholders})`,
+        [normalizedWarehouse, ...uniqueBinLocations]
+      );
+      
+      for (const loc of locationDetails) {
+        locationDetailsMap.set(loc.location_id, {
+          location_id: loc.location_id,
+          zone: loc.zone || null,
+          aisle: loc.aisle || null,
+          rack: loc.parent_rack || null,
+          level: loc.level || null,
+          bin: loc.bin_id || null
+        });
+      }
+    }
+    
     // Format response according to specification
-    const stockLedger = rows.map((row) => ({
-      item_code: row.item_code,
-      item_name: row.item_name || null,
-      barcode: row.barcode || row.item_code, // Use item_code as barcode if barcode is null
-      qty: parseFloat(row.qty) || 0,
-      bin_location: row.bin_location || normalizedBinLocation,
-      carton_id: row.carton_id || normalizedCartonId || null,
-      warehouse: row.warehouse || null,
-      warehouse_id: row.warehouse_id || row.warehouse || null,
-      uom: row.uom || 'EA',
-      last_updated: row.last_updated ? row.last_updated.toISOString() : null,
-      batch_no: row.batch_no || null,
-      serial_no: row.serial_no || null,
-      expiry_date: row.expiry_date || null
-    }));
+    const stockLedger = rows.map((row) => {
+      const binLoc = row.bin_location || normalizedBinLocation;
+      const locationDetails = binLoc ? locationDetailsMap.get(binLoc) : null;
+      
+      // Get carton_id from row (may be from tabCartonStock or tabStockLedger)
+      const cartonId = row.carton_id || normalizedCartonId || null;
+      
+      return {
+        item_code: row.item_code,
+        item_name: row.item_name || null,
+        barcode: row.barcode || row.item_code, // Use item_code as barcode if barcode is null
+        qty: parseFloat(row.qty) || 0,
+        bin_location: binLoc, // Keep for backward compatibility
+        location_id: binLoc || null, // ✅ REQUIRED: Full composite location ID (same as bin_location)
+        zone: locationDetails?.zone || null,
+        aisle: locationDetails?.aisle || null,
+        rack: locationDetails?.rack || null,
+        level: locationDetails?.level || null,
+        bin: locationDetails?.bin || null,
+        carton_id: cartonId, // ✅ REQUIRED: Include carton_id (or null if not applicable)
+        warehouse: row.warehouse || null,
+        warehouse_id: row.warehouse_id || row.warehouse || null,
+        uom: row.uom || 'EA',
+        last_updated: row.last_updated ? row.last_updated.toISOString() : null,
+        batch_no: row.batch_no || null,
+        serial_no: row.serial_no || null,
+        expiry_date: row.expiry_date || null
+      };
+    });
 
     // Return 200 OK with empty array if no stock found (preferred for mobile apps)
     // Response format matches specification exactly
@@ -264,6 +372,9 @@ export const getStockLedger = async (req, res) => {
       bin_location,
       from_date,
       to_date,
+      reference_id,  // For putaway validation: filter by putaway_task_id (maps to last_transaction_ref)
+      reference_doctype,  // For putaway validation: filter by transaction type (maps to last_transaction_type, e.g., "PUTAWAY")
+      carton_id,  // For putaway validation: filter by carton_id (if column exists)
       page = "1",
       page_size = "100",
     } = req.query;
@@ -300,6 +411,33 @@ export const getStockLedger = async (req, res) => {
       }
     }
 
+    if (reference_id) {
+      conditions.push("last_transaction_ref = ?");
+      params.push(reference_id);
+    }
+    
+    if (reference_doctype) {
+      conditions.push("last_transaction_type = ?");
+      params.push(reference_doctype);
+    }
+    
+    // Check if carton_id column exists and filter by it if provided
+    if (carton_id) {
+      const [cartonIdColumn] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabStockLedger' 
+        AND COLUMN_NAME = 'carton_id'
+      `);
+      const hasCartonIdColumn = cartonIdColumn.length > 0;
+      
+      if (hasCartonIdColumn) {
+        conditions.push("carton_id = ?");
+        params.push(carton_id);
+      }
+    }
+
     if (from_date) {
       conditions.push("DATE(last_transaction_date) >= ?");
       params.push(from_date);
@@ -333,35 +471,91 @@ export const getStockLedger = async (req, res) => {
       ? "qty_reduced"
       : "NULL as qty_reduced";
 
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM tabStockLedger WHERE ${whereClause}`;
+    // Get total count (use DISTINCT to count unique item+warehouse+bin combinations)
+    // This prevents duplicate entries from inflating the count
+    const countQuery = `SELECT COUNT(DISTINCT CONCAT(item_code, '|', warehouse, '|', COALESCE(bin_location, ''))) as total FROM tabStockLedger WHERE ${whereClause}`;
     const [countRows] = await connection.execute(countQuery, params);
     const totalCount = countRows[0].total;
     const totalPages = Math.ceil(totalCount / pageSize);
 
     // Get paginated data
+    // CRITICAL: Use subquery to get most recent row for each item+warehouse+bin combination
+    // This prevents duplicate entries from showing up in the stock ledger
     let dataQuery = `
       SELECT 
-        item_code,
-        warehouse,
-        bin_location,
-        qty,
-        reserved_qty,
+        sl.item_code,
+        sl.warehouse,
+        sl.bin_location,
+        sl.qty,
+        sl.reserved_qty,
         ${qtyBeforeSelect},
         ${qtyReducedSelect},
-        last_transaction_date,
-        last_transaction_type,
-        last_transaction_ref,
-        updated_at,
-        created_at
-      FROM tabStockLedger
+        sl.last_transaction_date,
+        sl.last_transaction_type,
+        sl.last_transaction_ref,
+        sl.updated_at,
+        sl.created_at
+      FROM tabStockLedger sl
+      INNER JOIN (
+        SELECT 
+          item_code,
+          warehouse,
+          bin_location,
+          MAX(last_transaction_date) as max_date
+        FROM tabStockLedger
+        WHERE ${whereClause}
+        GROUP BY item_code, warehouse, bin_location
+      ) latest ON sl.item_code = latest.item_code
+        AND sl.warehouse = latest.warehouse
+        AND (sl.bin_location = latest.bin_location OR (sl.bin_location IS NULL AND latest.bin_location IS NULL))
+        AND sl.last_transaction_date = latest.max_date
       WHERE ${whereClause}
-      ORDER BY last_transaction_date DESC, warehouse, item_code, bin_location IS NULL, bin_location
+      ORDER BY sl.last_transaction_date DESC, sl.warehouse, sl.item_code, sl.bin_location IS NULL, sl.bin_location
       LIMIT ? OFFSET ?
     `;
 
     const dataParams = [...params, pageSize, offset];
     const [rows] = await connection.execute(dataQuery, dataParams);
+
+    // Resolve full location_id for all rows (batch lookup for performance)
+    const uniqueBinLocations = [...new Set(rows.map(r => r.bin_location).filter(Boolean))];
+    const locationMap = new Map();
+    const locationDetailsMap = new Map();
+    
+    // Get warehouse from first row or query parameter
+    const warehouseForLookup = warehouse || (rows.length > 0 ? rows[0].warehouse : null);
+    
+    // Batch resolve location IDs and fetch location details
+    if (uniqueBinLocations.length > 0 && warehouseForLookup) {
+      // Resolve full location IDs
+      for (const binLoc of uniqueBinLocations) {
+        const fullLocationId = await resolveFullLocationId(connection, binLoc, warehouseForLookup);
+        locationMap.set(binLoc, fullLocationId);
+      }
+      
+      // Batch fetch location details for all resolved location IDs
+      const resolvedLocationIds = [...new Set(locationMap.values())].filter(Boolean);
+      if (resolvedLocationIds.length > 0) {
+        const placeholders = resolvedLocationIds.map(() => '?').join(',');
+        const [locationDetails] = await connection.execute(
+          `SELECT location_id, zone, aisle, parent_rack, level, bin_id 
+           FROM tabLocation 
+           WHERE warehouse = ? AND location_id IN (${placeholders})`,
+          [warehouseForLookup, ...resolvedLocationIds]
+        );
+        
+        for (const loc of locationDetails) {
+          locationDetailsMap.set(loc.location_id, {
+            location_id: loc.location_id,
+            zone: loc.zone || null,
+            aisle: loc.aisle || null,
+            rack: loc.parent_rack || null,
+            level: loc.level || null,
+            bin: loc.bin_id || null
+          });
+        }
+      }
+    }
 
     const stockLedger = rows.map((row) => {
       // Calculate values based on user requirements:
@@ -376,8 +570,13 @@ export const getStockLedger = async (req, res) => {
       const qtyReduced = row.qty_reduced != null ? parseFloat(row.qty_reduced) : null;
       
       // Calculate transaction quantity
+      // For relocation transactions, qty should represent current stock, not transaction qty
       let transactionQty = null;
-      if (qtyReduced != null) {
+      if (row.last_transaction_type === 'CARTON_RELOCATION' || row.last_transaction_type === 'CARTON_MERGE') {
+        // For relocation: qty field represents current stock at bin, not transaction quantity
+        // Transaction quantity for relocation is 0 (no net change, just movement)
+        transactionQty = qtyAfter; // Use current stock quantity
+      } else if (qtyReduced != null) {
         transactionQty = Math.abs(qtyReduced); // Transaction Qty (absolute value)
       } else if (qtyBefore != null) {
         transactionQty = Math.abs(qtyBefore - qtyAfter); // Calculate from before/after
@@ -385,13 +584,29 @@ export const getStockLedger = async (req, res) => {
         transactionQty = qtyAfter; // Fallback to remaining stock if no transaction data
       }
       
-      // Available Qty = Qty after Deduction of this Transaction
+      // CRITICAL: Available Qty = Current Stock (qty) - Reserved Qty
+      // NOT qty_before + qty_reduced, but the actual current stock quantity
+      // This ensures correct calculation even if there are duplicate entries
       const availableQty = qtyAfter - reservedQty;
+      
+      // Resolve full location_id from bin_location
+      const resolvedBinLocation = row.bin_location 
+        ? (locationMap.get(row.bin_location) || row.bin_location)
+        : null;
+      
+      // Get location details from pre-fetched map
+      const locationDetails = resolvedBinLocation ? locationDetailsMap.get(resolvedBinLocation) : null;
       
       return {
         item_code: row.item_code,
         warehouse: row.warehouse,
-        bin_location: row.bin_location || null,
+        bin_location: resolvedBinLocation, // Keep for backward compatibility
+        location_id: resolvedBinLocation || null, // ✅ REQUIRED: Full composite location ID
+        zone: locationDetails?.zone || null,
+        aisle: locationDetails?.aisle || null,
+        rack: locationDetails?.rack || null,
+        level: locationDetails?.level || null,
+        bin: locationDetails?.bin || null,
         qty: transactionQty, // Transaction Qty (the quantity involved in the transaction)
         reserved_qty: reservedQty,
         available_qty: availableQty, // Qty after Deduction of this Transaction
@@ -471,6 +686,18 @@ export const getStockLedgerByItem = async (req, res) => {
       });
     }
 
+    // ✅ Normalize warehouse to handle variations like "WH-Main", "Main Warehouse", etc.
+    const normalizedWarehouse = normalizeWarehouse(warehouse);
+    const whUpper = normalizedWarehouse ? String(normalizedWarehouse).trim().toUpperCase() : null;
+    
+    // Log warehouse normalization for debugging
+    logger.info('[Stock Ledger] Item Location Breakdown API called', {
+      original_warehouse: warehouse,
+      normalized_warehouse: normalizedWarehouse,
+      whUpper: whUpper,
+      item_code: item_code
+    });
+
     // Check if carton_id column exists in tabStockLedger
     const [stockLedgerCartonIdColumn] = await connection.execute(`
       SELECT COLUMN_NAME 
@@ -513,71 +740,33 @@ export const getStockLedgerByItem = async (req, res) => {
     
     stockLedgerSelect += `
       FROM tabStockLedger sl
-      WHERE sl.item_code = ? AND sl.warehouse = ?
+      WHERE sl.item_code = ? AND UPPER(TRIM(sl.warehouse)) = ?
       ORDER BY sl.bin_location IS NULL, sl.bin_location
     `;
 
     const [stockLedgerRowsRaw] = await connection.execute(
       stockLedgerSelect,
-      [item_code, warehouse]
+      [item_code, whUpper]
     );
     
-    // Process each row to find matching location_id
+    // Process each row to find matching location_id using resolveFullLocationId helper
     const stockLedgerRows = [];
     for (const row of stockLedgerRowsRaw) {
-      let matchedLocationId = null;
       const binLocation = row.bin_location || '';
       
-      // Try exact match first
-      if (binLocation) {
-        const [exactMatch] = await connection.execute(
-          `SELECT location_id FROM tabLocation WHERE location_id = ? AND warehouse = ? LIMIT 1`,
-          [binLocation, warehouse]
-        );
-        
-        if (exactMatch.length > 0) {
-          matchedLocationId = exactMatch[0].location_id;
-        } else {
-          // Try to parse "Rack 02-B2" format
-          // Extract rack part (before last '-') and bin part (after last '-')
-          const parts = binLocation.split('-');
-          if (parts.length >= 2) {
-            // "Rack 02-B2" -> rackPart = "Rack 02", binPart = "B2"
-            const binPart = parts[parts.length - 1].trim(); // "B2"
-            const rackPart = parts.slice(0, -1).join('-').trim(); // "Rack 02"
-            
-            // Try to match by parent_rack and bin_id
-            const [matchByRackBin] = await connection.execute(
-              `SELECT location_id FROM tabLocation 
-               WHERE warehouse = ?
-                 AND (
-                   parent_rack = ? 
-                   OR parent_rack LIKE ? 
-                   OR parent_rack LIKE ?
-                 )
-                 AND bin_id = ?
-               LIMIT 1`,
-              [
-                warehouse,
-                rackPart, // Exact match: "Rack 02"
-                `%${rackPart.replace('Rack ', '').trim()}%`, // Contains "02"
-                `%${rackPart}%`, // Contains "Rack 02"
-                binPart // bin_id = "B2"
-              ]
-            );
-            
-            if (matchByRackBin.length > 0) {
-              matchedLocationId = matchByRackBin[0].location_id;
-              console.log(`[Stock Ledger] Matched "${binLocation}" to location_id "${matchedLocationId}"`);
-            }
-          }
-        }
-      }
+      // Use resolveFullLocationId helper to get full location_id
+      const resolvedLocationId = binLocation 
+        ? await resolveFullLocationId(connection, binLocation, normalizedWarehouse)
+        : null;
       
-      // Use matched location_id or fall back to stored bin_location
+      // Use resolved location_id or fall back to stored bin_location
+      // Preserve carton_id from row if available
+      const rowCartonId = hasStockLedgerCartonIdColumn ? (row.carton_id || null) : null;
+      
       stockLedgerRows.push({
         ...row,
-        bin_location: matchedLocationId || row.bin_location
+        bin_location: resolvedLocationId || row.bin_location,
+        carton_id: rowCartonId // ✅ Preserve carton_id from database
       });
     }
 
@@ -610,7 +799,8 @@ export const getStockLedgerByItem = async (req, res) => {
               bin_location,
               MAX(id) as max_id  -- Keep the record with highest id (most recent)
             FROM tabCartonStock
-            WHERE item_code = ? AND warehouse = ? AND qty > 0 AND status = 'PUTAWAY'
+            WHERE item_code = ? AND UPPER(TRIM(warehouse)) = ? AND qty > 0 
+              AND (status IS NULL OR status = '' OR status = 'PUTAWAY')
             GROUP BY carton_id, item_code, warehouse, bin_location
           ) latest
             ON cs.carton_id = latest.carton_id
@@ -618,79 +808,42 @@ export const getStockLedgerByItem = async (req, res) => {
             AND cs.warehouse = latest.warehouse
             AND cs.bin_location = latest.bin_location
             AND cs.id = latest.max_id
-          WHERE cs.qty > 0 AND cs.status = 'PUTAWAY'
+          WHERE cs.qty > 0 
+            AND (cs.status IS NULL OR cs.status = '' OR cs.status = 'PUTAWAY')
+            AND NOT EXISTS (
+              -- Exclude cartons that are marked as MERGED in tabCarton
+              SELECT 1 FROM tabCarton c
+              WHERE c.carton_id = cs.carton_id
+                AND c.status = 'MERGED'
+            )
           ORDER BY cs.bin_location, cs.carton_id
         `,
-          [item_code, warehouse]
+          [item_code, whUpper]
         );
         
-        // OPTIMIZED: Batch location matching instead of N+1 queries
+        // OPTIMIZED: Batch location matching using resolveFullLocationId helper
         cartonStockRows = [];
         
         // Collect all unique bin_locations
         const uniqueBinLocations = [...new Set(cartonRowsRaw.map(r => r.bin_location).filter(Boolean))];
         
-        // Batch fetch all location matches in one query
+        // Batch resolve all locations using helper function
         const locationMap = new Map();
-        if (uniqueBinLocations.length > 0) {
-          // First, try exact matches
-          const placeholders = uniqueBinLocations.map(() => '?').join(',');
-          const [exactMatches] = await connection.execute(
-            `SELECT location_id, location_id as bin_location FROM tabLocation 
-             WHERE warehouse = ? AND location_id IN (${placeholders})`,
-            [warehouse, ...uniqueBinLocations]
-          );
-          
-          for (const match of exactMatches) {
-            locationMap.set(match.bin_location, match.location_id);
-          }
-          
-          // For unmatched locations, try parsing "Rack 02-B2" format
-          const unmatchedLocations = uniqueBinLocations.filter(loc => !locationMap.has(loc));
-          if (unmatchedLocations.length > 0) {
-            // Build a query that matches by parent_rack and bin_id
-            // This is more complex but still better than N+1 queries
-            for (const binLocation of unmatchedLocations) {
-              const parts = binLocation.split('-');
-              if (parts.length >= 2) {
-                const binPart = parts[parts.length - 1].trim();
-                const rackPart = parts.slice(0, -1).join('-').trim();
-                
-                const [matchByRackBin] = await connection.execute(
-                  `SELECT location_id FROM tabLocation 
-                   WHERE warehouse = ?
-                     AND (
-                       parent_rack = ? 
-                       OR parent_rack LIKE ? 
-                       OR parent_rack LIKE ?
-                     )
-                     AND bin_id = ?
-                   LIMIT 1`,
-                  [
-                    warehouse,
-                    rackPart,
-                    `%${rackPart.replace('Rack ', '').trim()}%`,
-                    `%${rackPart}%`,
-                    binPart
-                  ]
-                );
-                
-                if (matchByRackBin.length > 0) {
-                  locationMap.set(binLocation, matchByRackBin[0].location_id);
-                }
-              }
-            }
-          }
+        for (const binLoc of uniqueBinLocations) {
+          const resolvedLocationId = await resolveFullLocationId(connection, binLoc, normalizedWarehouse);
+          locationMap.set(binLoc, resolvedLocationId);
         }
         
-        // Map rows with matched location_id
+        // Map rows with resolved location_id
         for (const row of cartonRowsRaw) {
           const binLocation = row.bin_location || '';
-          const matchedLocationId = locationMap.get(binLocation) || binLocation;
+          const resolvedLocationId = binLocation 
+            ? (locationMap.get(binLocation) || binLocation)
+            : null;
           
           cartonStockRows.push({
             ...row,
-            bin_location: matchedLocationId
+            bin_location: resolvedLocationId
           });
         }
         
@@ -763,9 +916,84 @@ export const getStockLedgerByItem = async (req, res) => {
       // No carton stock for this bin, use stock ledger entry
       // For bin-level mode: total_qty = stock ledger qty
       if (!binCartonMap.has(binLocation)) {
+        // If carton_id is not in stock ledger, try to get it from multiple sources
+        let cartonIdToUse = stockLedgerCartonId;
+        
+        if (!cartonIdToUse && binLocation) {
+          // Priority 1: Get carton_id from tabCartonStock (most reliable)
+          if (hasCartonStockTable) {
+            try {
+              const [cartonStockRows] = await connection.execute(
+                `SELECT DISTINCT carton_id 
+                 FROM tabCartonStock 
+                 WHERE item_code = ? 
+                   AND warehouse = ? 
+                   AND bin_location = ?
+                   AND carton_id IS NOT NULL 
+                   AND carton_id != ''
+                   AND qty > 0
+                 ORDER BY updated_at DESC
+                 LIMIT 1`,
+                [item_code, warehouse, binLocation]
+              );
+              
+              if (cartonStockRows.length > 0 && cartonStockRows[0].carton_id) {
+                cartonIdToUse = cartonStockRows[0].carton_id;
+              }
+            } catch (csError) {
+              // Silent error - continue to next source
+            }
+          }
+          
+          // Priority 2: Get carton_id from stock transaction (if not found in carton stock)
+          if (!cartonIdToUse) {
+            try {
+              // Try target_bin first (most common for putaway)
+              let [transactionRows] = await connection.execute(
+                `SELECT carton_id 
+                 FROM tabStockTransaction 
+                 WHERE item_code = ? 
+                   AND warehouse = ? 
+                   AND target_bin = ?
+                   AND carton_id IS NOT NULL 
+                   AND carton_id != ''
+                   AND transaction_type = 'Putaway'
+                 ORDER BY transaction_date DESC, id DESC 
+                 LIMIT 1`,
+                [item_code, warehouse, binLocation]
+              );
+              
+              // If not found, try bin_location field
+              if (transactionRows.length === 0) {
+                [transactionRows] = await connection.execute(
+                  `SELECT carton_id 
+                   FROM tabStockTransaction 
+                   WHERE item_code = ? 
+                     AND warehouse = ? 
+                     AND bin_location = ?
+                     AND carton_id IS NOT NULL 
+                     AND carton_id != ''
+                     AND transaction_type = 'Putaway'
+                   ORDER BY transaction_date DESC, id DESC 
+                   LIMIT 1`,
+                  [item_code, warehouse, binLocation]
+                );
+              }
+              
+              if (transactionRows.length > 0 && transactionRows[0].carton_id) {
+                cartonIdToUse = transactionRows[0].carton_id;
+              }
+            } catch (txError) {
+              // Silent error - continue without carton_id
+            }
+          }
+        }
+        
+        // Store carton_id for this bin location (for display in Item Location Breakdown)
         binCartonMap.set(binLocation, {
           bin_location: binLocation,
-          cartons: stockLedgerCartonId ? [{ carton_id: stockLedgerCartonId, qty: stockLedgerQty, status: 'PUTAWAY' }] : [],
+          carton_id: cartonIdToUse || null, // ✅ Store carton_id at bin level for display
+          cartons: cartonIdToUse ? [{ carton_id: cartonIdToUse, qty: stockLedgerQty, status: 'PUTAWAY' }] : [],
           total_qty: stockLedgerQty, // Physical on-hand
           reserved_qty: reservedQty, // Reserved at this bin
           blocked_qty: 0, // No blocked qty for bin-level (no status field)
@@ -812,25 +1040,66 @@ export const getStockLedgerByItem = async (req, res) => {
     }
 
     // Convert map to array format
+    // Get location details for all unique bin locations
+    const uniqueBinLocations = [...new Set(Array.from(binCartonMap.keys()).filter(Boolean))];
+    const locationDetailsMap = new Map();
+    
+    if (uniqueBinLocations.length > 0) {
+      const placeholders = uniqueBinLocations.map(() => '?').join(',');
+      const [locationDetails] = await connection.execute(
+        `SELECT location_id, zone, aisle, parent_rack, level, bin_id 
+         FROM tabLocation 
+         WHERE UPPER(TRIM(warehouse)) = ? AND location_id IN (${placeholders})`,
+        [whUpper, ...uniqueBinLocations]
+      );
+      
+      for (const loc of locationDetails) {
+        locationDetailsMap.set(loc.location_id, {
+          location_id: loc.location_id,
+          zone: loc.zone || null,
+          aisle: loc.aisle || null,
+          rack: loc.parent_rack || null,
+          level: loc.level || null,
+          bin: loc.bin_id || null
+        });
+      }
+    }
+    
     // Option 1: Grouped by bin with cartons array (recommended)
     // Sort: NULL bin_location last, then by bin_location
     const groupedResponse = Array.from(binCartonMap.values())
-      .map((binData) => ({
-        item_code: item_code,
-        warehouse: warehouse,
-        bin_location: binData.bin_location,
-        cartons: binData.cartons.length > 0 ? binData.cartons : null, // null if no cartons
-        total_qty: binData.total_qty, // Physical on-hand at bin (sum of carton.qty)
-        reserved_qty: binData.reserved_qty || 0, // Reserved at same bin scope
-        blocked_qty: binData.blocked_qty || 0, // Blocked (holds/staging/damaged/in-progress)
-        available_qty: binData.available_qty || 0, // total_qty - reserved_qty - blocked_qty
-        calculation_log: binData.calculation_log || [], // Log explaining differences
-        last_transaction_date: binData.last_transaction_date || null,
-        last_transaction_type: binData.last_transaction_type || null,
-        last_transaction_ref: binData.last_transaction_ref || null,
-        updated_at: binData.updated_at || null,
-        created_at: binData.created_at || null,
-      }))
+      .map((binData) => {
+        const locationDetails = binData.bin_location ? locationDetailsMap.get(binData.bin_location) : null;
+        
+        // Get carton_id for display (from binData.carton_id or first carton if multiple)
+        const displayCartonId = binData.carton_id || (binData.cartons.length > 0 
+          ? binData.cartons[0].carton_id 
+          : null);
+        
+        return {
+          item_code: item_code,
+          warehouse: warehouse,
+          bin_location: binData.bin_location, // Keep for backward compatibility
+          location_id: binData.bin_location || null, // ✅ REQUIRED: Full composite location ID
+          zone: locationDetails?.zone || null,
+          aisle: locationDetails?.aisle || null,
+          rack: locationDetails?.rack || null,
+          level: locationDetails?.level || null,
+          bin: locationDetails?.bin || null,
+          carton_id: displayCartonId, // ✅ REQUIRED: Include carton_id for display (from binData or first carton or null)
+          cartons: binData.cartons.length > 0 ? binData.cartons : null, // null if no cartons
+          total_qty: binData.total_qty, // Physical on-hand at bin (sum of carton.qty)
+          reserved_qty: binData.reserved_qty || 0, // Reserved at same bin scope
+          blocked_qty: binData.blocked_qty || 0, // Blocked (holds/staging/damaged/in-progress)
+          available_qty: binData.available_qty || 0, // total_qty - reserved_qty - blocked_qty
+          calculation_log: binData.calculation_log || [], // Log explaining differences
+          last_transaction_date: binData.last_transaction_date || null,
+          last_transaction_type: binData.last_transaction_type || null,
+          last_transaction_ref: binData.last_transaction_ref || null,
+          updated_at: binData.updated_at || null,
+          created_at: binData.created_at || null,
+        };
+      })
       .sort((a, b) => {
         // Sort: NULL bin_location last, then by bin_location
         if (a.bin_location === null && b.bin_location !== null) return 1;
@@ -842,13 +1111,21 @@ export const getStockLedgerByItem = async (req, res) => {
     // Option 2: Flat structure with all bin+carton combinations (for backward compatibility)
     const flatResponse = [];
     for (const binData of binCartonMap.values()) {
+      const locationDetails = binData.bin_location ? locationDetailsMap.get(binData.bin_location) : null;
+      
       if (binData.cartons.length > 0) {
         // One entry per carton
         for (const carton of binData.cartons) {
           flatResponse.push({
             item_code: item_code,
             warehouse: warehouse,
-            bin_location: binData.bin_location,
+            bin_location: binData.bin_location, // Keep for backward compatibility
+            location_id: binData.bin_location || null, // ✅ REQUIRED: Full composite location ID
+            zone: locationDetails?.zone || null,
+            aisle: locationDetails?.aisle || null,
+            rack: locationDetails?.rack || null,
+            level: locationDetails?.level || null,
+            bin: locationDetails?.bin || null,
             carton_id: carton.carton_id,
             qty: carton.qty, // Individual carton qty
             total_qty: binData.total_qty, // Total at bin (sum of all cartons)
@@ -868,7 +1145,13 @@ export const getStockLedgerByItem = async (req, res) => {
         flatResponse.push({
           item_code: item_code,
           warehouse: warehouse,
-          bin_location: binData.bin_location,
+          bin_location: binData.bin_location, // Keep for backward compatibility
+          location_id: binData.bin_location || null, // ✅ REQUIRED: Full composite location ID
+          zone: locationDetails?.zone || null,
+          aisle: locationDetails?.aisle || null,
+          rack: locationDetails?.rack || null,
+          level: locationDetails?.level || null,
+          bin: locationDetails?.bin || null,
           carton_id: null,
           qty: binData.total_qty, // For backward compatibility
           total_qty: binData.total_qty, // Physical on-hand
@@ -888,6 +1171,18 @@ export const getStockLedgerByItem = async (req, res) => {
     // Return grouped response by default (more structured)
     // Clients can use query parameter ?format=flat for flat structure
     const format = req.query.format || 'grouped';
+    
+    // Log response for debugging
+    logger.info('[Stock Ledger] Item Location Breakdown response', {
+      item_code: item_code,
+      warehouse: warehouse,
+      normalized_warehouse: normalizedWarehouse,
+      format: format,
+      grouped_count: groupedResponse.length,
+      flat_count: flatResponse.length,
+      sample_bin: groupedResponse.length > 0 ? groupedResponse[0].bin_location : null
+    });
+    
     if (format === 'flat') {
       res.json(flatResponse);
     } else {

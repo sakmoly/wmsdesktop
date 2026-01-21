@@ -30,6 +30,10 @@ public sealed class TransferOrderListViewModel : BaseViewModel
                 return;
             }
 
+            // Sync transfer orders from API to local database first
+            await TransferOrderSyncService.SyncTransferOrdersFromApiAsync(settings);
+
+            // Then load from local database
             var tos = await TransferOrderDataService.GetTransferOrdersAsync(settings);
             foreach (var to in tos)
             {

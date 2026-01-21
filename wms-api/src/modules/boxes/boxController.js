@@ -5,6 +5,7 @@ import { getConnection } from '../../db/connection.js';
 
 /**
  * POST /api/boxes/create
+ * POST /api/sort-box/create (alias)
  * Create a new sort box
  * 
  * Request Body (Mobile App Format):
@@ -25,9 +26,21 @@ import { getConnection } from '../../db/connection.js';
  *   "purpose": "STORE",
  *   "created_by": "USER-001"
  * }
+ * 
+ * OR (Transfer In Format - carton_id as box_id):
+ * {
+ *   "box_id": "CTN-TI-123457-20260120-160936-988",  // Carton ID (generated ID)
+ *   "advance_shipping_notice": "INSLIP-123457",
+ *   "store": "WH-MAIN",
+ *   "purpose": "PUTAWAY",
+ *   "created_by": "USER-001"
+ * }
+ * 
+ * Note: For Transfer In Putaway, box_id should be the carton_id (e.g., CTN-TI-*)
  */
 export const createBox = async (req, res) => {
   // Support both mobile app format (asn_no, to_no, user_id) and desktop format (advance_shipping_notice, transfer_order, created_by, box_id)
+  // Also supports Transfer In format where box_id = carton_id (e.g., CTN-TI-123457-20260120-160936-988)
   const {
     // Mobile app format
     asn_no,
@@ -38,10 +51,15 @@ export const createBox = async (req, res) => {
     advance_shipping_notice,
     transfer_order,
     created_by,
+    // Transfer In format - carton_id can be passed as box_id
+    carton_id, // For Transfer In, carton_id is used as box_id
     // Common fields
     store,
-    purpose = 'STORE'
+    purpose // Will default to PUTAWAY if carton_id provided, otherwise STORE
   } = req.body;
+  
+  // For Transfer In: if carton_id is provided, use it as box_id
+  const finalBoxId = providedBoxId || carton_id;
 
   // Normalize field names (prefer mobile app format, fallback to desktop format)
   const normalizedASN = asn_no || advance_shipping_notice;
@@ -112,12 +130,16 @@ export const createBox = async (req, res) => {
     }
 
     // Auto-generate box_id if not provided (format: BOX-{STORE}-{TIMESTAMP})
-    let finalBoxId = providedBoxId;
-    if (!finalBoxId) {
+    // Note: For Transfer In, box_id should be the carton_id (already set above if carton_id was provided)
+    let boxIdToUse = finalBoxId;
+    if (!boxIdToUse) {
       const timestamp = Date.now();
       const storeCode = store.replace(/[^A-Z0-9]/g, '').substring(0, 10); // Clean store code
-      finalBoxId = `BOX-${storeCode}-${timestamp.toString().slice(-6)}`;
+      boxIdToUse = `BOX-${storeCode}-${timestamp.toString().slice(-6)}`;
     }
+    
+    // Use the determined purpose (PUTAWAY for Transfer In if carton_id provided, otherwise STORE or provided value)
+    const finalPurpose = purpose || (carton_id ? 'PUTAWAY' : 'STORE');
 
     // Convert empty string to empty string (not null) for database
     // IMPORTANT: transfer_order column has NOT NULL constraint, so use empty string "" instead of null
@@ -128,16 +150,19 @@ export const createBox = async (req, res) => {
       INSERT INTO tabSortBox 
         (box_id, status, advance_shipping_notice, transfer_order, store, purpose, created_by, created_on)
       VALUES (?, 'Open', ?, ?, ?, ?, ?, NOW())
-    `, [finalBoxId, normalizedASN, toNoValue, store, purpose, normalizedCreatedBy]);
+    `, [boxIdToUse, normalizedASN, toNoValue, store, finalPurpose, normalizedCreatedBy]);
 
     res.json({
       ok: true,
       message: 'Box created successfully',
-      box_id: finalBoxId, // Return at root level for mobile app compatibility
+      box_id: boxIdToUse, // Return at root level for mobile app compatibility
       status: 'Open',
       data: {
-        box_id: finalBoxId,
-        status: 'Open'
+        box_id: boxIdToUse,
+        status: 'Open',
+        purpose: finalPurpose,
+        // Include carton_id if it was used as box_id (for Transfer In)
+        ...(carton_id && { carton_id: carton_id })
       }
     });
 

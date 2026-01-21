@@ -1,0 +1,419 @@
+<Window x:Class="Wms.Desktop.RelocationSessionDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Relocation Session"
+        Height="700" Width="1000"
+        WindowStartupLocation="CenterOwner">
+    <Grid Background="#F3F4F6" Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="4,0,4,8">
+            <TextBlock Text="Relocation / Bin Transfer Session"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="{Binding SessionId}"
+                       FontSize="14"
+                       Foreground="#4B5563" />
+        </StackPanel>
+
+        <!-- Session Info -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
+                    <TextBlock Text="Mode"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding Mode}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,4">
+                    <TextBlock Text="Policy"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding Policy}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0">
+                    <TextBlock Text="Warehouse"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding WarehouseId}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
+                    <TextBlock Text="Status"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding Status}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Locations -->
+        <Grid Grid.Row="2" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- FROM Location -->
+            <Border Grid.Column="0"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    Margin="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="FROM Location"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Margin="0,0,0,8" />
+                    
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Bin Location"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   Margin="0,0,0,4" />
+                        <TextBox x:Name="FromBinTextBox"
+                                 Text="{Binding FromBin, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6"
+                                 FontSize="14" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Carton ID"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   Margin="0,0,0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     x:Name="FromCartonTextBox"
+                                     Text="{Binding FromCarton, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6"
+                                     FontSize="14"
+                                     Margin="0,0,4,0" />
+                            <Button Grid.Column="1"
+                                    Content="View Contents"
+                                    Padding="8,6"
+                                    IsEnabled="{Binding CanViewCartonContents}"
+                                    Click="ViewFromCartonContents_Click" />
+                        </Grid>
+                    </StackPanel>
+
+                    <Button Content="Set FROM Location"
+                            Padding="12,6"
+                            Background="#1D4ED8"
+                            Foreground="White"
+                            FontWeight="SemiBold"
+                            BorderThickness="0"
+                            IsEnabled="{Binding CanSetFromLocation}"
+                            Click="SetFromLocation_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#1D4ED8" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#9CA3AF" />
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#1E40AF" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- Arrow -->
+            <TextBlock Grid.Column="1"
+                       Text="→"
+                       FontSize="32"
+                       FontWeight="Bold"
+                       Foreground="#6B7280"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"
+                       Margin="8,0" />
+
+            <!-- TO Location -->
+            <Border Grid.Column="2"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    Margin="8,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="TO Location"
+                               FontWeight="Bold"
+                               FontSize="14"
+                               Margin="0,0,0,8" />
+                    
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Bin Location"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   Margin="0,0,0,4" />
+                        <TextBox x:Name="ToBinTextBox"
+                                 Text="{Binding ToBin, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="8,6"
+                                 FontSize="14" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Carton ID"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   Margin="0,0,0,4" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0"
+                                     x:Name="ToCartonTextBox"
+                                     Text="{Binding ToCarton, UpdateSourceTrigger=PropertyChanged}"
+                                     Padding="8,6"
+                                     FontSize="14"
+                                     Margin="0,0,4,0" />
+                            <Button Grid.Column="1"
+                                    Content="View Contents"
+                                    Padding="8,6"
+                                    IsEnabled="{Binding CanViewCartonContents}"
+                                    Click="ViewToCartonContents_Click" />
+                        </Grid>
+                    </StackPanel>
+
+                    <Button Content="Set TO Location"
+                            Padding="12,6"
+                            Background="#059669"
+                            Foreground="White"
+                            FontWeight="SemiBold"
+                            BorderThickness="0"
+                            IsEnabled="{Binding CanSetToLocation}"
+                            Click="SetToLocation_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="#059669" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#9CA3AF" />
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#047857" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Items / Lines (for partial moves) -->
+        <Border Grid.Row="3"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8"
+                Visibility="{Binding IsPartialMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0"
+                           Text="Items to Move"
+                           FontWeight="Bold"
+                           FontSize="14"
+                           Margin="0,0,0,8" />
+
+                <!-- Scan Item -->
+                <Border Grid.Row="1"
+                        Background="#F3F4F6"
+                        CornerRadius="4"
+                        Padding="8"
+                        Margin="0,0,0,8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                 x:Name="BarcodeTextBox"
+                                 Padding="8,6"
+                                 FontSize="14"
+                                 Margin="0,0,8,0"
+                                 KeyDown="BarcodeTextBox_KeyDown"
+                                 Tag="Barcode" />
+                        <TextBox Grid.Column="1"
+                                 x:Name="QtyTextBox"
+                                 Padding="8,6"
+                                 FontSize="14"
+                                 Margin="0,0,8,0"
+                                 Text="1"
+                                 Tag="Qty" />
+                        <Button Grid.Column="2"
+                                Content="Scan Item"
+                                Padding="12,6"
+                                Background="#6366F1"
+                                Foreground="White"
+                                FontWeight="SemiBold"
+                                BorderThickness="0"
+                                Click="ScanItem_Click" />
+                    </Grid>
+                </Border>
+
+                <!-- Lines Grid -->
+                <DataGrid Grid.Row="2"
+                          x:Name="LinesGrid"
+                          ItemsSource="{Binding Lines}"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserResizeRows="False"
+                          IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Item Code"
+                                            Binding="{Binding ItemCode}"
+                                            Width="200" />
+                        <DataGridTextColumn Header="Qty Moved"
+                                            Binding="{Binding QtyMoved, StringFormat=N2}"
+                                            Width="120" />
+                        <DataGridTextColumn Header="Barcode"
+                                            Binding="{Binding Barcode}"
+                                            Width="150" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
+        <!-- Action Buttons -->
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,8,0,0">
+            <!-- To Carton Mode (for FULL_CARTON only) -->
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,0,8,0"
+                        Visibility="{Binding IsFullCartonMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="Carton Mode:"
+                           VerticalAlignment="Center"
+                           Margin="0,0,4,0"
+                           Foreground="#6B7280" />
+                <ComboBox x:Name="ToCartonModeComboBox"
+                          Width="140"
+                          Height="36"
+                          SelectedIndex="0">
+                    <ComboBoxItem Content="Keep Same Carton" Tag="KEEP_SAME" />
+                    <ComboBoxItem Content="New Carton" Tag="NEW_CARTON" />
+                </ComboBox>
+            </StackPanel>
+            
+            <Button Content="Commit Full Move"
+                    Width="150"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#1D4ED8"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    IsEnabled="{Binding CanCommitFull}"
+                    Click="CommitFullMove_Click"
+                    Visibility="{Binding IsFullCartonMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#1D4ED8" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#9CA3AF" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1E40AF" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button Content="Commit Partial Move"
+                    Width="160"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#059669"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    IsEnabled="{Binding CanCommitPartial}"
+                    Click="CommitPartialMove_Click"
+                    Visibility="{Binding IsPartialMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#059669" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#9CA3AF" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#047857" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button Content="Close"
+                    Width="80"
+                    Height="36"
+                    IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

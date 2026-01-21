@@ -1,125 +1,91 @@
-/**
- * Migration Script: Add location_id column to tabPutawayLine
- * 
- * This script adds the location_id column to tabPutawayLine table
- * to store the exact scanned location ID (e.g., "A1-R01-L1-B1")
- * 
- * Usage:
- *   node add-location-id-to-putaway-line.js
- */
+// Add location_id column to tabPutawayLine and tabPutawayTask
+// This ensures location can be stored for putaway operations
 
-import mysql from "mysql2/promise";
-import dotenv from "dotenv";
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
 dotenv.config();
 
 const config = {
-  host: process.env.DB_HOST || "localhost",
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "wms_db",
+  host: process.env.DB_HOST || 'localhost',
   port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'wms_db',
 };
 
-async function addLocationIdColumn() {
+async function addLocationIdColumns() {
   let connection;
   
   try {
-    console.log("🔄 Adding location_id column to tabPutawayLine\n");
+    console.log('');
+    console.log('============================================================');
+    console.log('Adding location_id column to tabPutawayLine and tabPutawayTask');
+    console.log('============================================================');
+    console.log('');
     
-    // Connect to database
     connection = await mysql.createConnection(config);
-    console.log("✅ Connected to database\n");
-
-    // Check if column already exists
-    const [columns] = await connection.execute(`
-      SELECT COLUMN_NAME 
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'tabPutawayLine' 
-      AND COLUMN_NAME = 'location_id'
+    console.log('✅ Connected to database');
+    console.log('');
+    
+    // Check if location_id column exists in tabPutawayLine
+    const [lineCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayLine'
+        AND COLUMN_NAME = 'location_id'
     `);
-
-    if (columns.length > 0) {
-      console.log("✅ location_id column already exists in tabPutawayLine\n");
-      console.log("   No migration needed.\n");
-      return;
-    }
-
-    console.log("📝 Adding location_id column...\n");
-
-    // Add location_id column
-    await connection.execute(`
-      ALTER TABLE tabPutawayLine
-      ADD COLUMN location_id VARCHAR(100) NULL
-      AFTER bin
-    `);
-
-    console.log("✅ Successfully added location_id column\n");
-
-    // Add index for better query performance
-    try {
+    
+    if (lineCols.length === 0) {
+      console.log('📝 Adding location_id column to tabPutawayLine...');
       await connection.execute(`
-        CREATE INDEX idx_location_id ON tabPutawayLine(location_id)
+        ALTER TABLE tabPutawayLine
+        ADD COLUMN location_id VARCHAR(100) NULL AFTER bin,
+        ADD INDEX idx_location_id (location_id)
       `);
-      console.log("✅ Added index on location_id column\n");
-    } catch (error) {
-      if (error.code === 'ER_DUP_KEYNAME') {
-        console.log("ℹ️  Index already exists (skipping)\n");
-      } else {
-        throw error;
-      }
+      console.log('✅ Added location_id column to tabPutawayLine');
+    } else {
+      console.log('⚠️  location_id column already exists in tabPutawayLine');
     }
-
-    // Verify the column was added
-    const [verifyColumns] = await connection.execute(`
-      SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-      FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_SCHEMA = DATABASE() 
-      AND TABLE_NAME = 'tabPutawayLine' 
-      AND COLUMN_NAME = 'location_id'
+    
+    console.log('');
+    
+    // Check if location_id column exists in tabPutawayTask
+    const [taskCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME = 'location_id'
     `);
-
-    if (verifyColumns.length > 0) {
-      const col = verifyColumns[0];
-      console.log("✅ Verification successful:");
-      console.log(`   - Column Name: ${col.COLUMN_NAME}`);
-      console.log(`   - Data Type: ${col.DATA_TYPE}`);
-      console.log(`   - Nullable: ${col.IS_NULLABLE}`);
-      console.log(`   - Default: ${col.COLUMN_DEFAULT || 'NULL'}\n`);
+    
+    if (taskCols.length === 0) {
+      console.log('📝 Adding location_id column to tabPutawayTask...');
+      await connection.execute(`
+        ALTER TABLE tabPutawayTask
+        ADD COLUMN location_id VARCHAR(100) NULL,
+        ADD INDEX idx_location_id (location_id)
+      `);
+      console.log('✅ Added location_id column to tabPutawayTask');
+    } else {
+      console.log('⚠️  location_id column already exists in tabPutawayTask');
     }
-
-    console.log("✅✅✅ MIGRATION COMPLETE ✅✅✅\n");
-    console.log("📋 Next Steps:");
-    console.log("   1. Restart API server");
-    console.log("   2. Test location scanning with putaway tasks");
-    console.log("   3. Verify location_id is stored correctly\n");
-
+    
+    console.log('');
+    console.log('✅ Migration completed successfully!');
+    console.log('');
+    
   } catch (error) {
-    console.error("\n❌❌❌ MIGRATION FAILED ❌❌❌\n");
-    console.error("Error:", error.message);
-    if (error.code) {
-      console.error(`   Code: ${error.code}`);
-    }
-    if (error.sqlMessage) {
-      console.error(`   SQL: ${error.sqlMessage}`);
-    }
-    if (error.stack) {
-      console.error("\nStack trace:");
-      console.error(error.stack);
-    }
+    console.error('❌ Error:', error.message);
+    console.error(error);
     process.exit(1);
   } finally {
     if (connection) {
       await connection.end();
-      console.log("🔌 Database connection closed");
+      console.log('🔌 Database connection closed');
     }
   }
 }
 
-// Run the migration
-addLocationIdColumn().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
-
+addLocationIdColumns();

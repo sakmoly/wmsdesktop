@@ -25,5 +25,6 @@ public sealed class TransferInItem
     public double Qty { get; init; }
     public string? CartonId { get; init; }
     public double ReceivedQty { get; init; }
+    public string Status { get; init; } = "Pending";
 }
 

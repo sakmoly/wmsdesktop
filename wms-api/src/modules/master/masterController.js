@@ -278,26 +278,39 @@ export const getAllTransferOrders = async (req, res) => {
  * 
  * ⚠️ CRITICAL: Uses exact ASN format from request (e.g., "ASN-0002"), no normalization
  * 
+ * ✅ NOTE: ASN can exist without Transfer Order - this is a valid scenario
+ * Returns 200 with has_transfer_order: false if no TO exists (not a 404 error)
+ * 
  * Request:
  * GET /api/transfer-order/by-asn/ASN-0002
  * 
- * Response:
+ * Response (ASN with Transfer Order):
  * {
- *   "transfer_order": "TO-0001",
- *   "status": "Active",
+ *   "ok": true,
  *   "asn_no": "ASN-0002",
- *   "from_warehouse": "MAIN-WAREHOUSE",
- *   "prepared_by": "USER-001",
- *   "required_date": "2024-12-27",
- *   "total_allocated_qty": 150.00,
- *   "created_at": "2024-12-20T10:00:00.000Z",
- *   "updated_at": "2024-12-20T10:00:00.000Z"
+ *   "transfer_order": "TO-0001",
+ *   "to_no": "TO-0001",
+ *   "has_transfer_order": true,
+ *   "allocations": [
+ *     {
+ *       "store": "STORE-001",
+ *       "item_code": "SKU-001",
+ *       "allocated_qty": 50.0
+ *     }
+ *   ]
+ * }
+ * 
+ * Response (ASN without Transfer Order):
+ * {
+ *   "ok": true,
+ *   "asn_no": "ASN-0002",
+ *   "transfer_order": null,
+ *   "has_transfer_order": false,
+ *   "allocations": []
  * }
  */
 export const getTransferOrderByAsn = async (req, res) => {
   const { asn_no } = req.params; // e.g., "ASN-0002" (use exact format)
-
-  console.log(`🔍 getTransferOrderByAsn: Requested ASN = "${asn_no}"`);
 
   if (!asn_no) {
     return res.status(400).json({
@@ -326,14 +339,15 @@ export const getTransferOrderByAsn = async (req, res) => {
       LIMIT 1
     `, [asn_no]); // Use exact format
 
-    console.log(`📊 getTransferOrderByAsn: Found ${rows.length} Transfer Order(s) for ASN "${asn_no}"`);
-
+    // ASN can exist without Transfer Order - this is a valid scenario
+    // Return null/empty response instead of 404 error
     if (rows.length === 0) {
-      connection.release();
-      console.log(`❌ getTransferOrderByAsn: No Transfer Order found for ASN "${asn_no}"`);
-      return res.status(404).json({
-        code: 'TRANSFER_ORDER_NOT_FOUND',
-        message: `No transfer order found for ASN ${asn_no}`
+      return res.status(200).json({
+        ok: true,
+        asn_no: asn_no,
+        transfer_order: null,
+        has_transfer_order: false,
+        allocations: []
       });
     }
 
@@ -350,8 +364,6 @@ export const getTransferOrderByAsn = async (req, res) => {
       ORDER BY store, item_code
     `, [toTitle]);
 
-    console.log(`📦 getTransferOrderByAsn: Found ${items.length} allocation(s) for TO "${toTitle}"`);
-
     // Format allocations array
     const allocations = items.map(item => ({
       store: item.store,
@@ -360,17 +372,20 @@ export const getTransferOrderByAsn = async (req, res) => {
     }));
 
     const transferOrder = {
+      ok: true,
+      asn_no: asn_no,
+      transfer_order: toTitle,
       to_no: toTitle,
-      asn_no: rows[0].asn_no,
+      has_transfer_order: true,
       allocations: allocations
     };
 
-    console.log(`✅ getTransferOrderByAsn: Returning Transfer Order "${toTitle}" with ${allocations.length} allocation(s) for ASN "${asn_no}"`);
     res.json(transferOrder);
 
   } catch (error) {
     console.error(`Error fetching transfer order for ASN ${asn_no}:`, error);
     res.status(500).json({
+      ok: false,
       code: 'DATABASE_ERROR',
       message: 'Failed to fetch transfer order',
       details: process.env.NODE_ENV === 'development' ? error.message : null

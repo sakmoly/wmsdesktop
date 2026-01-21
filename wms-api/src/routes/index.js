@@ -19,6 +19,7 @@ import transferInRoutes from './transferInRoutes.js';
 import materialRequestRoutes from './materialRequestRoutes.js';
 import cycleCountRoutes from './cycleCountRoutes.js';
 import warehouseRoutes from './warehouseRoutes.js';
+import relocationRoutes from './relocationRoutes.js';
 import { getAsnByNumber } from '../modules/master/masterController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -55,6 +56,8 @@ router.use('/api/putaway', putawayRoutes);
 
 // Register box routes
 router.use('/api/boxes', boxRoutes);
+// Also register as sort-box (alias for compatibility)
+router.use('/api/sort-box', boxRoutes);
 
 // Register transfer carton routes
 router.use('/api/transfer-cartons', transferCartonRoutes);
@@ -96,6 +99,13 @@ router.use('/api/cycle-count', cycleCountRoutes);
 // Register warehouse routes
 router.use('/api/warehouses', warehouseRoutes);
 
+// Register relocation routes
+router.use('/api/relocation', relocationRoutes);
+
+// Register inventory validation routes
+import inventoryRoutes from './inventoryRoutes.js';
+router.use('/api/inventory', inventoryRoutes);
+
 // Register ASN detail route (separate from master routes for mobile app compatibility)
 // GET /api/asn/:asn_no - Get single ASN with cartons/items
 router.get('/api/asn/:asn_no', authenticateToken, getAsnByNumber);
@@ -104,6 +114,13 @@ router.get('/api/asn/:asn_no', authenticateToken, getAsnByNumber);
 // GET /api/transfer-order/by-asn/:asn_no - Get transfer order for a specific ASN
 import { getTransferOrderByAsn } from '../modules/master/masterController.js';
 router.get('/api/transfer-order/by-asn/:asn_no', authenticateToken, getTransferOrderByAsn);
+
+// GET /api/transfer-orders/:to_no/stores - Get distinct stores for a specific transfer order
+import { getTransferOrderStores, getAsnStores } from '../modules/transfer-orders/getTransferOrderStores.js';
+router.get('/api/transfer-orders/:to_no/stores', authenticateToken, getTransferOrderStores);
+
+// GET /api/asn/:asn_no/stores - Get distinct stores for an ASN (handles both ASN with TO and ASN without TO)
+router.get('/api/asn/:asn_no/stores', authenticateToken, getAsnStores);
 
 // Register transfer order quantity update routes
 import { 

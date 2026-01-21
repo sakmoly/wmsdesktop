@@ -117,10 +117,18 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
             if (apiStockData == null || apiStockData.Count == 0)
             {
                 ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: No stock data found via API for {item.Code}");
+                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: apiStockData is null: {apiStockData == null}, count: {apiStockData?.Count ?? 0}");
                 return;
             }
             
             ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Processing {apiStockData.Count} location(s) from API for {item.Code} in warehouse '{foundWarehouse ?? "none"}'");
+            
+            // Log first location for debugging
+            if (apiStockData.Count > 0)
+            {
+                var first = apiStockData[0];
+                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: First location from API - BinLocation: {first.BinLocation ?? "NULL"}, LocationId: {first.LocationId ?? "NULL"}, TotalQty: {first.TotalQty}, AvailableQty: {first.AvailableQty}, Cartons: {first.Cartons?.Count ?? 0}");
+            }
 
             // Get location details from database for display
             var locationConnectionString = DatabaseService.BuildConnectionString(settings);

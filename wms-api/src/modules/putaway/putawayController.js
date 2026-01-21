@@ -77,7 +77,6 @@ async function normalizeWarehouseToCode(connection, warehouse) {
   );
   
   if (nameCheck.length > 0) {
-    console.log(`[Putaway] Normalized warehouse "${normalized}" (name) to code "${nameCheck[0].code}"`);
     return nameCheck[0].code;
   }
   
@@ -90,7 +89,6 @@ async function normalizeWarehouseToCode(connection, warehouse) {
   );
   
   if (defaultWarehouse.length > 0) {
-    console.log(`[Putaway] Warning: Warehouse "${normalized}" not found, using default: "${defaultWarehouse[0].code}"`);
     return defaultWarehouse[0].code;
   }
   
@@ -113,12 +111,12 @@ export const getTasks = async (req, res) => {
   const { status, source_type, advance_shipping_notice, transfer_in } =
     req.query;
 
-  // Log the request for debugging
-  console.log('📋 GET /api/putaway/tasks - Query params:', {
-    status,
-    source_type,
-    advance_shipping_notice,
-    transfer_in
+  // Debug logging for mobile app troubleshooting
+  logger.info(`[Putaway Tasks API] Request received:`, {
+    status: status || 'NOT_PROVIDED',
+    source_type: source_type || 'NOT_PROVIDED',
+    advance_shipping_notice: advance_shipping_notice || 'NOT_PROVIDED',
+    transfer_in: transfer_in || 'NOT_PROVIDED'
   });
 
   const connection = await getConnection();
@@ -146,13 +144,24 @@ export const getTasks = async (req, res) => {
     const params = [];
 
     // Handle status filter - support comma-separated values (e.g., "Draft,In Progress")
+    // IMPORTANT: By default, exclude Completed tasks from list (they're already done)
+    // CRITICAL: Include both "Draft" and "Open" in default to support both ASN (Draft) and Transfer In (Open)
     if (status) {
       const statusValues = status.split(',').map(s => s.trim()).filter(s => s);
       if (statusValues.length > 0) {
         const placeholders = statusValues.map(() => '?').join(',');
         conditions.push(`pt.status IN (${placeholders})`);
         params.push(...statusValues);
+        logger.info(`[Putaway Tasks API] Status filter applied:`, statusValues);
       }
+    } else {
+      // Default: Only show tasks that are NOT completed
+      // This prevents "Already Assigned" items from appearing in the list
+      // CRITICAL: Include both "Draft" and "Open" to support both ASN and Transfer In putaway tasks
+      // Note: When source_type is specified, we still apply this filter to exclude Completed tasks
+      // but we include all non-completed statuses to be safe
+      conditions.push(`pt.status NOT IN ('Completed', 'Cancelled')`);
+      logger.info(`[Putaway Tasks API] Default status filter: excluding Completed and Cancelled (includes Draft, Open, In Progress)`);
     }
 
     // Only use source_type in WHERE clause if column exists
@@ -275,8 +284,20 @@ export const getTasks = async (req, res) => {
       params
     );
 
+    logger.info(`[Putaway Tasks API] Query executed:`, {
+      whereClause: whereClause || 'NO_FILTER',
+      params: params,
+      tasks_found: tasks.length
+    });
+
     // Get putaway lines for each task
     if (tasks.length > 0) {
+      logger.info(`[Putaway Tasks API] Tasks found:`, tasks.map(t => ({
+        title: t.title,
+        status: t.status,
+        source_type: t.source_type,
+        transfer_in: t.transfer_in || 'NULL'
+      })));
       const taskTitles = tasks.map((t) => t.title);
       const placeholders = taskTitles.map(() => "?").join(",");
 
@@ -363,11 +384,14 @@ export const getTasks = async (req, res) => {
         }
 
         // Build response object with all fields for mobile app compatibility
+        // For Transfer In tasks, use transfer_in as tc_id for mobile app compatibility
+        const taskTcId = task.tc_id || (task.source_type === 'TransferIn' && task.transfer_in ? task.transfer_in : null);
+        
         const responseTask = {
           putaway_task: task.title,
           title: task.title, // Add title field for mobile app compatibility
           box_id: task.box_id || null,
-          tc_id: task.tc_id || null,
+          tc_id: taskTcId, // Use transfer_in for Transfer In tasks if tc_id is not set
           asn_no: task.advance_shipping_notice || null,
           rack: taskRack,
           bin: taskBin,
@@ -391,26 +415,18 @@ export const getTasks = async (req, res) => {
         return responseTask;
       });
 
-      // Log the response for debugging
-      console.log(`✅ GET /api/putaway/tasks - Returning ${formattedTasks.length} task(s)`);
-      if (source_type === 'TransferIn') {
-        console.log(`   Transfer In tasks: ${formattedTasks.length}`);
-        formattedTasks.forEach((task, index) => {
-          console.log(`   ${index + 1}. ${task.title} - Transfer In: ${task.transfer_in || 'N/A'} - Status: ${task.status}`);
-        });
-      }
-
+      logger.info(`[Putaway Tasks API] Returning ${formattedTasks.length} task(s) to client`);
       res.json({
         ok: true,
         data: formattedTasks,
       });
     } else {
       // No tasks found - return empty array
-      console.log(`⚠️ GET /api/putaway/tasks - No tasks found with filters:`, {
-        status,
-        source_type,
-        advance_shipping_notice,
-        transfer_in
+      logger.warn(`[Putaway Tasks API] No tasks found with filters:`, {
+        status: status || 'DEFAULT (excludes Completed)',
+        source_type: source_type || 'ALL',
+        advance_shipping_notice: advance_shipping_notice || 'ALL',
+        transfer_in: transfer_in || 'ALL'
       });
       res.json({
         ok: true,
@@ -893,9 +909,6 @@ export const assignRack = async (req, res) => {
         actualRack = locationInfo.rack;
         actualBin = locationInfo.bin;
         actualLocationId = locationInfo.location_id;
-        console.log(
-          `[Putaway] Looked up location ${location_id}: rack="${actualRack}", bin="${actualBin}"`
-        );
       } catch (error) {
         await connection.rollback();
         connection.release();
@@ -966,7 +979,7 @@ export const assignRack = async (req, res) => {
         SET updated_at = CURRENT_TIMESTAMP
         WHERE title = ?
       `,
-        [putaway_task]
+        [actualPutawayTask]
       );
     }
 
@@ -1012,106 +1025,592 @@ export const assignRack = async (req, res) => {
  * }
  */
 export const completePutaway = async (req, res) => {
-  const { putaway_task, performed_by, items, location_id } = req.body; // Added location_id at header level
-
-  // Validation
-  if (!putaway_task) {
-    return res.status(400).json({
-      ok: false,
-      error: {
-        code: "VALIDATION_ERROR",
-        message: "putaway_task is required",
-      },
-    });
-  }
+  const { putaway_task, performed_by, items, location_id, tc_id, box_id } = req.body; // Added tc_id and box_id for mobile app compatibility
 
   const connection = await getConnection();
 
   try {
     await connection.beginTransaction();
 
-    // Verify putaway task exists
-    const [tasks] = await connection.execute(
-      `SELECT title, status FROM tabPutawayTask WHERE title = ?`,
-      [putaway_task]
-    );
-
-    if (tasks.length === 0) {
-      // Try to find similar tasks or recent tasks to help user
-      const datePrefix =
-        putaway_task.length >= 11
-          ? putaway_task.substring(0, 11)
-          : putaway_task.substring(0, Math.min(11, putaway_task.length));
-      const sequence =
-        putaway_task.length >= 4
-          ? putaway_task.substring(putaway_task.length - 4)
-          : putaway_task;
-
-      const [similarTasks] = await connection.execute(
-        `SELECT title, status, advance_shipping_notice, created_at 
-         FROM tabPutawayTask 
-         WHERE title LIKE ? OR title LIKE ?
-         ORDER BY created_at DESC 
-         LIMIT 5`,
-        [`${datePrefix}%`, `%${sequence}%`]
+    // CRITICAL FIX: For putaway, use box_id (not tc_id) - Putaway is BOX-based
+    // If box_id is provided, validate box exists and check idempotency (already closed?)
+    let actualBoxId = box_id || null;
+    let boxStatus = null;
+    
+    if (box_id) {
+      // Validate box exists in tabsortbox and check status (idempotency)
+      const [boxRows] = await connection.execute(
+        `SELECT box_id, status, advance_shipping_notice, store
+         FROM tabsortbox
+         WHERE box_id = ?
+         FOR UPDATE`,
+        [box_id]
       );
-
-      await connection.rollback();
-      connection.release();
-
-      let suggestion = "";
-      if (similarTasks.length > 0) {
-        const suggestions = similarTasks.map((t) => t.title).join(", ");
-        suggestion = ` Similar tasks found: ${suggestions}.`;
-      } else {
-        // Get recent tasks
-        const [recentTasks] = await connection.execute(
-          `SELECT title, status FROM tabPutawayTask 
-           ORDER BY created_at DESC LIMIT 5`
-        );
-        if (recentTasks.length > 0) {
-          const recent = recentTasks.map((t) => t.title).join(", ");
-          suggestion = ` Recent tasks: ${recent}.`;
-        }
+      
+      if (boxRows.length === 0) {
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "BOX_NOT_FOUND",
+            message: `Putaway box ${box_id} not found in tabsortbox. Box must be created during sorting before putaway.`
+          }
+        });
       }
-
-      return res.status(404).json({
-        ok: false,
-        error: {
-          code: "TASK_NOT_FOUND",
-          message: `Putaway task ${putaway_task} not found.${suggestion}`,
-          suggestions:
-            similarTasks.length > 0 ? similarTasks.map((t) => t.title) : [],
-        },
-      });
+      
+      boxStatus = boxRows[0].status;
+      actualBoxId = boxRows[0].box_id;
+      
+      // IDEMPOTENCY: If box is already closed, check if task is actually completed
+      // If task is NOT completed, reopen box and allow putaway to proceed (retry after error)
+      if (boxStatus === "Closed") {
+        // Check if box_id column exists in tabPutawayLine
+        const [lineColumnsCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabPutawayLine'
+            AND COLUMN_NAME = 'box_id'
+        `);
+        const hasLineBoxId = lineColumnsCheck.length > 0;
+        
+        // Build WHERE clause conditionally
+        let whereClause = 'carton_id = ?';
+        let whereParams = [box_id];
+        if (hasLineBoxId) {
+          whereClause += ' OR box_id = ?';
+          whereParams.push(box_id);
+        }
+        
+        // Find the putaway task for this box
+        const [taskFromBox] = await connection.execute(
+          `SELECT DISTINCT parent_title 
+           FROM tabPutawayLine 
+           WHERE ${whereClause}
+           ORDER BY parent_title DESC 
+           LIMIT 1`,
+          whereParams
+        );
+        
+        const completedTask = taskFromBox.length > 0 ? taskFromBox[0].parent_title : null;
+        
+        // Check if task is actually completed
+        let taskIsCompleted = false;
+        if (completedTask) {
+          const [taskStatusCheck] = await connection.execute(
+            `SELECT status FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+            [completedTask]
+          );
+          
+          if (taskStatusCheck.length > 0) {
+            const actualTaskStatus = taskStatusCheck[0].status;
+            taskIsCompleted = (actualTaskStatus === 'Completed' || actualTaskStatus === 'Closed');
+            
+            // If task is NOT completed, reopen box and allow retry
+            if (!taskIsCompleted) {
+              logger.warn(`[Putaway] Box ${box_id} is Closed but task ${completedTask} is ${actualTaskStatus} - reopening box for retry`);
+              
+              // Reopen the box
+              const [sortBoxStatusCol] = await connection.execute(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tabsortbox' 
+                AND COLUMN_NAME = 'status'
+              `);
+              
+              if (sortBoxStatusCol.length > 0) {
+                await connection.execute(
+                  `UPDATE tabsortbox
+                   SET status = 'Open', updated_at = CURRENT_TIMESTAMP
+                   WHERE box_id = ?`,
+                  [box_id]
+                );
+                
+                logger.info(`[Putaway] ✅ Reopened box ${box_id} for putaway retry (task ${completedTask} is ${actualTaskStatus})`);
+                // Continue with putaway - box is now Open, don't return early
+              } else {
+                logger.warn(`[Putaway] ⚠️ Cannot reopen box ${box_id} - status column not found, but allowing putaway to proceed`);
+                // Continue with putaway anyway
+              }
+            }
+          }
+        }
+        
+        // Only return success if task is actually completed (true idempotency)
+        if (taskIsCompleted) {
+          await connection.commit();
+          connection.release();
+          
+          logger.info(`[Putaway] Box ${box_id} already closed and task ${completedTask} is completed - idempotent response`, {
+            box_id: box_id,
+            putaway_task: completedTask
+          });
+          
+          return res.json({
+            ok: true,
+            already_completed: true,
+            box_id: box_id,
+            putaway_task: completedTask,
+            message: "Putaway already completed (idempotent - box already closed and task completed)"
+          });
+        }
+        // If task is NOT completed, continue with putaway (box has been reopened above)
+      }
     }
 
-    const currentStatus = tasks[0].status;
+    // Support multiple ways to identify putaway task:
+    // 1. putaway_task (direct task ID) - preferred
+    // 2. box_id - look up task from putaway lines (CRITICAL: Use box_id for putaway, not tc_id)
+    // 3. tc_id - only for Transfer In putaway (not ASN putaway)
+    let actualPutawayTask = putaway_task;
+    
+    if (!actualPutawayTask && (box_id || tc_id)) {
+      // CRITICAL: Check if tc_id is a putaway task title (PUT- or TI-PUT-)
+      // For Transfer In putaway, mobile app sends putaway task title as tc_id
+      const isPutawayTaskTitle = tc_id && (tc_id.startsWith('PUT-') || tc_id.startsWith('TI-PUT-'));
+      
+      if (isPutawayTaskTitle) {
+        // tc_id is the putaway task title - verify it exists
+        const [taskCheck] = await connection.execute(
+          `SELECT title FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+          [tc_id]
+        );
+        if (taskCheck.length > 0) {
+          actualPutawayTask = tc_id;
+          logger.info(`[Putaway] Using tc_id as putaway task title: ${tc_id}`);
+        }
+      }
+      
+      if (!actualPutawayTask) {
+        // CRITICAL: For putaway, prefer box_id over tc_id
+        const searchId = box_id || tc_id;
+        
+        // Try to find putaway task from box_id/carton_id in putaway lines
+        // Check if box_id column exists in tabPutawayLine
+        const [lineColumnsCheck2] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabPutawayLine'
+            AND COLUMN_NAME = 'box_id'
+        `);
+        const hasLineBoxId2 = lineColumnsCheck2.length > 0;
+        
+        // Build WHERE clause conditionally
+        let whereClause2 = 'carton_id = ?';
+        let whereParams2 = [searchId];
+        if (hasLineBoxId2) {
+          whereClause2 += ' OR box_id = ?';
+          whereParams2.push(searchId);
+        }
+        
+        const [taskFromCarton] = await connection.execute(
+          `SELECT DISTINCT parent_title 
+           FROM tabPutawayLine 
+           WHERE ${whereClause2}
+           ORDER BY parent_title DESC 
+           LIMIT 1`,
+          whereParams2
+        );
+        
+        if (taskFromCarton.length > 0) {
+          actualPutawayTask = taskFromCarton[0].parent_title;
+          logger.info(`[Putaway] Found putaway task ${actualPutawayTask} from ${box_id ? 'box_id' : 'tc_id'}: ${searchId}`);
+        } else {
+        // Try to find from putaway task's box_id or tc_id column (if exists)
+        const [taskColumns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayTask' 
+          AND COLUMN_NAME IN ('box_id', 'tc_id')
+        `);
+        const hasBoxId = taskColumns.some(col => col.COLUMN_NAME === 'box_id');
+        const hasTcId = taskColumns.some(col => col.COLUMN_NAME === 'tc_id');
+        
+        // Prefer box_id for putaway
+        if (hasBoxId && box_id) {
+          const [taskFromBoxId] = await connection.execute(
+            `SELECT title FROM tabPutawayTask WHERE box_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [box_id]
+          );
+          if (taskFromBoxId.length > 0) {
+            actualPutawayTask = taskFromBoxId[0].title;
+            logger.info(`[Putaway] Found putaway task ${actualPutawayTask} from box_id ${box_id}`);
+          }
+        }
+        
+        // Only use tc_id if box_id didn't work (for Transfer In putaway)
+        if (!actualPutawayTask && hasTcId && tc_id && !box_id) {
+          const [taskFromTcId] = await connection.execute(
+            `SELECT title FROM tabPutawayTask WHERE tc_id = ? ORDER BY created_at DESC LIMIT 1`,
+            [tc_id]
+          );
+          if (taskFromTcId.length > 0) {
+            actualPutawayTask = taskFromTcId[0].title;
+            logger.info(`[Putaway] Found putaway task ${actualPutawayTask} from tc_id ${tc_id}`);
+          }
+        }
+      }
+    }
 
-    // Prevent re-processing if task is already completed
-    // This prevents duplicate stock additions when API is called multiple times
-    if (currentStatus === "Completed") {
+  // Validation
+  if (!actualPutawayTask) {
       await connection.rollback();
       connection.release();
       return res.status(400).json({
         ok: false,
         error: {
-          code: "TASK_ALREADY_COMPLETED",
-          message: `Putaway task ${putaway_task} is already completed. Stock has already been updated.`,
+          code: "VALIDATION_ERROR",
+          message: "putaway_task, tc_id, or box_id is required. No putaway task found for the provided identifier.",
+          details: {
+            provided: {
+              putaway_task: putaway_task || null,
+              tc_id: tc_id || null,
+              box_id: box_id || null
+            },
+            suggestion: "Please provide a valid putaway_task ID, or a tc_id/box_id that exists in putaway lines."
+          }
         },
       });
     }
 
-    // Update task status to Completed
-    await connection.execute(
-      `
-      UPDATE tabPutawayTask 
-      SET status = 'Completed',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE title = ?
-    `,
-      [putaway_task]
+    // Verify putaway task exists
+    const [tasks] = await connection.execute(
+      `SELECT title, status FROM tabPutawayTask WHERE title = ?`,
+      [actualPutawayTask]
     );
+
+    if (tasks.length === 0) {
+      // CRITICAL: If task doesn't exist but we have tc_id or box_id, create the task
+      // This handles the case where scan step is validation-only (doesn't create task)
+      if (tc_id || box_id) {
+        logger.info("Putaway task not found - creating from box/carton", {
+          tc_id: tc_id || null,
+          box_id: box_id || null,
+        });
+
+        // Get ASN from transfer carton or box
+        let asnNo = null;
+        let inboundSession = null;
+
+        if (tc_id) {
+          const [tcInfo] = await connection.execute(
+            `SELECT advance_shipping_notice, inbound_session 
+             FROM tabTransferCarton 
+             WHERE tc_id = ? LIMIT 1`,
+            [tc_id]
+          );
+          if (tcInfo.length > 0) {
+            asnNo = tcInfo[0].advance_shipping_notice || null;
+            inboundSession = tcInfo[0].inbound_session || null;
+          }
+        } else if (box_id) {
+          // Get ASN from box's advance_shipping_notice
+          const [boxInfo] = await connection.execute(
+            `SELECT advance_shipping_notice 
+             FROM tabSortBox 
+             WHERE box_id = ? LIMIT 1`,
+            [box_id]
+          );
+          if (boxInfo.length > 0) {
+            asnNo = boxInfo[0].advance_shipping_notice || null;
+          }
+
+          // Try to get inbound session from ASN
+          if (asnNo) {
+            const [sessionInfo] = await connection.execute(
+              `SELECT inbound_session 
+               FROM tabInboundSession 
+               WHERE asn_no = ? 
+               ORDER BY started_at DESC 
+               LIMIT 1`,
+              [asnNo]
+            );
+            if (sessionInfo.length > 0) {
+              inboundSession = sessionInfo[0].inbound_session || null;
+            }
+          }
+        }
+
+        // Generate new task title
+        const datePrefix = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const [countRows] = await connection.execute(
+          `SELECT COUNT(*) as count FROM tabPutawayTask WHERE title LIKE ?`,
+          [`PUT-${datePrefix}%`]
+        );
+        const count = countRows[0].count || 0;
+        const sequence = (count + 1).toString().padStart(4, "0");
+        actualPutawayTask = `PUT-${datePrefix}-${sequence}`;
+
+        // Check if source_type column exists
+        const [taskColumns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayTask' 
+          AND COLUMN_NAME IN ('source_type', 'box_id', 'tc_id')
+        `);
+        const hasSourceType = taskColumns.some(col => col.COLUMN_NAME === 'source_type');
+        const hasBoxId = taskColumns.some(col => col.COLUMN_NAME === 'box_id');
+        const hasTcId = taskColumns.some(col => col.COLUMN_NAME === 'tc_id');
+
+        // Determine source_type
+        let sourceType = 'ASN';
+        if (asnNo) {
+          sourceType = 'ASN';
+        } else if (tc_id && tc_id.includes('TI-') || tc_id?.startsWith('CTN-TI-')) {
+          sourceType = 'Transfer In';
+        }
+
+        // Build INSERT query
+        let insertFields = `title, status, advance_shipping_notice, inbound_session, created_by, created_at, updated_at`;
+        let insertValues = `?, 'Draft', ?, ?, ?, NOW(), NOW()`;
+        const insertParams = [actualPutawayTask, asnNo, inboundSession, performed_by || "SYSTEM"];
+
+        if (hasSourceType) {
+          insertFields += `, source_type`;
+          insertValues += `, ?`;
+          insertParams.push(sourceType);
+        }
+        if (hasBoxId && box_id) {
+          insertFields += `, box_id`;
+          insertValues += `, ?`;
+          insertParams.push(box_id);
+        }
+        if (hasTcId && tc_id) {
+          insertFields += `, tc_id`;
+          insertValues += `, ?`;
+          insertParams.push(tc_id);
+        }
+
+        await connection.execute(
+          `INSERT INTO tabPutawayTask (${insertFields}) VALUES (${insertValues})`,
+          insertParams
+        );
+
+        logger.info(`Created putaway task: ${actualPutawayTask} for ${box_id || tc_id}`);
+      } else {
+        // No tc_id or box_id - cannot create task, return error
+        const datePrefix =
+          actualPutawayTask.length >= 11
+            ? actualPutawayTask.substring(0, 11)
+            : actualPutawayTask.substring(0, Math.min(11, actualPutawayTask.length));
+        const sequence =
+          actualPutawayTask.length >= 4
+            ? actualPutawayTask.substring(actualPutawayTask.length - 4)
+            : actualPutawayTask;
+
+        const [similarTasks] = await connection.execute(
+          `SELECT title, status, advance_shipping_notice, created_at 
+           FROM tabPutawayTask 
+           WHERE title LIKE ? OR title LIKE ?
+           ORDER BY created_at DESC 
+           LIMIT 5`,
+          [`${datePrefix}%`, `%${sequence}%`]
+        );
+
+        await connection.rollback();
+        connection.release();
+
+        let suggestion = "";
+        if (similarTasks.length > 0) {
+          const suggestions = similarTasks.map((t) => t.title).join(", ");
+          suggestion = ` Similar tasks found: ${suggestions}.`;
+        } else {
+          // Get recent tasks
+          const [recentTasks] = await connection.execute(
+            `SELECT title, status FROM tabPutawayTask 
+             ORDER BY created_at DESC LIMIT 5`
+          );
+          if (recentTasks.length > 0) {
+            const recent = recentTasks.map((t) => t.title).join(", ");
+            suggestion = ` Recent tasks: ${recent}.`;
+          }
+        }
+
+        return res.status(404).json({
+          ok: false,
+          error: {
+            code: "TASK_NOT_FOUND",
+            message: `Putaway task ${actualPutawayTask} not found.${suggestion}`,
+            suggestions:
+              similarTasks.length > 0 ? similarTasks.map((t) => t.title) : [],
+          },
+        });
+      }
+    }
+
+    // Re-query task to get status after potential creation
+    const [tasksAfterCreate] = await connection.execute(
+      `SELECT title, status FROM tabPutawayTask WHERE title = ?`,
+      [actualPutawayTask]
+    );
+    
+    if (tasksAfterCreate.length === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(500).json({
+        ok: false,
+        error: {
+          code: "TASK_CREATION_FAILED",
+          message: `Failed to create putaway task ${actualPutawayTask}`,
+        },
+      });
+    }
+
+    const currentStatus = tasksAfterCreate[0].status;
+
+    // Idempotency: If task is already completed, return success without duplicate stock updates
+    // This allows retry without errors
+    if (currentStatus === "Completed") {
+      await connection.rollback();
+      connection.release();
+      
+      // Return success response (idempotent) - stock already updated
+      return res.json({
+        ok: true,
+        step: "COMPLETE",
+        message: "Putaway task already completed (idempotent)",
+        data: {
+          putaway_task: actualPutawayTask,
+          putaway_task_id: actualPutawayTask,
+          status: "Completed",
+          stock_updated: true,
+          already_completed: true
+        }
+      });
+    }
+    
+    // Validate task is in correct state for completion
+    if (currentStatus !== "In Progress" && currentStatus !== "Open") {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        step: "COMPLETE",
+        error: {
+          code: "INVALID_TASK_STATUS",
+          message: `Putaway task ${actualPutawayTask} cannot be completed. Current status: ${currentStatus}. Task must be "In Progress" or "Open". Please scan location first.`,
+        },
+      });
+    }
+    
+    // Check if location_id, rack, bin columns exist in tabPutawayTask
+    const [taskLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayTask' 
+      AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
+    `);
+    const hasTaskLocationId = taskLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+    const hasTaskRack = taskLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+    const hasTaskBin = taskLocationColumns.some(col => col.COLUMN_NAME === 'bin');
+    
+    // Build SELECT statement conditionally for tabPutawayTask
+    const taskLocationIdSelect = hasTaskLocationId ? "location_id" : "NULL as location_id";
+    const taskRackSelect = hasTaskRack ? "rack" : "NULL as rack";
+    const taskBinSelect = hasTaskBin ? "bin" : "NULL as bin";
+    
+    // Lock task row FOR UPDATE to prevent double completion
+    // This ensures atomic completion even if called concurrently
+    const [lockedTask] = await connection.execute(
+      `SELECT status, ${taskLocationIdSelect}, ${taskRackSelect}, ${taskBinSelect} FROM tabPutawayTask WHERE title = ? FOR UPDATE`,
+      [actualPutawayTask]
+    );
+    
+    if (lockedTask.length === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({
+        ok: false,
+        step: "COMPLETE",
+        error: {
+          code: "TASK_NOT_FOUND",
+          message: `Putaway task ${actualPutawayTask} not found.`,
+        },
+      });
+    }
+    
+    // Validate location was scanned (to_location_id must exist)
+    // Location can be in: 1) Request body (header-level), 2) Task header, 3) Putaway lines
+    let taskLocationId = lockedTask[0].location_id || null;
+    let taskRack = lockedTask[0].rack || null;
+    let taskBin = lockedTask[0].bin || null;
+    
+    // Priority 1: Check request body location_id (header-level location)
+    if (location_id && location_id.trim() !== '') {
+      taskLocationId = location_id.trim();
+      console.log(`[Putaway] Using header-level location_id from request: ${taskLocationId}`);
+    }
+    
+    // Priority 2: If location not in request body or task header, check putaway lines
+    if (!taskLocationId && !taskRack) {
+      // Get location from putaway lines (location might be assigned at line level)
+      const [lineLocationColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabPutawayLine' 
+        AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
+      `);
+      const hasLineLocationId = lineLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+      const hasLineRack = lineLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+      const hasLineBin = lineLocationColumns.some(col => col.COLUMN_NAME === 'bin');
+      
+      // Build WHERE clause to check for location in lines
+      let whereClause = 'pl.parent_title = ?';
+      if (hasLineLocationId) {
+        whereClause += ' AND pl.location_id IS NOT NULL';
+      } else if (hasLineRack) {
+        whereClause += ' AND pl.rack IS NOT NULL';
+      } else if (hasLineBin) {
+        whereClause += ' AND pl.bin IS NOT NULL';
+      }
+      
+      const lineLocationIdSelect = hasLineLocationId ? "pl.location_id" : "NULL as location_id";
+      const lineRackSelect = hasLineRack ? "pl.rack" : "NULL as rack";
+      const lineBinSelect = hasLineBin ? "pl.bin" : "NULL as bin";
+      
+      const [lineLocations] = await connection.execute(
+        `SELECT DISTINCT ${lineLocationIdSelect}, ${lineRackSelect}, ${lineBinSelect}
+         FROM tabPutawayLine pl
+         WHERE ${whereClause}
+         LIMIT 1`,
+        [actualPutawayTask]
+      );
+      
+      if (lineLocations.length > 0) {
+        taskLocationId = lineLocations[0].location_id || null;
+        taskRack = lineLocations[0].rack || null;
+        taskBin = lineLocations[0].bin || null;
+        console.log(`[Putaway] ✅ Found location in putaway lines: location_id=${taskLocationId || 'NULL'}, rack=${taskRack || 'NULL'}, bin=${taskBin || 'NULL'}`);
+      } else {
+        console.log(`[Putaway] ⚠️ No location found in putaway lines for task ${actualPutawayTask}`);
+      }
+    }
+    
+    // Final validation: location must exist in task header OR lines
+    if (!taskLocationId && !taskRack) {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        step: "COMPLETE",
+        error: {
+          code: "LOCATION_NOT_SCANNED",
+          message: `Cannot complete putaway: location not scanned. Please scan location first using POST /api/putaway/scan-transfer-carton.`,
+        },
+      });
+    }
+
+    // CRITICAL: Update task status to Completed ONLY after all stock updates succeed
+    // This ensures atomic completion - if any stock update fails, status remains "In Progress"
+    // Status update happens at the END, just before commit
+    // (Moved to end of function, before commit)
 
     // Check if location_id column exists in tabPutawayLine
     const [lineLocationColumns] = await connection.execute(`
@@ -1142,11 +1641,12 @@ export const completePutaway = async (req, res) => {
         AND pl.item_code IS NOT NULL
         AND pl.qty > 0
     `,
-      [putaway_task]
+      [actualPutawayTask]
     );
 
     // Support header-level location_id: if provided, apply to all items
     // This allows scanning location once for entire box instead of per item
+    // NOTE: Lookup location early so it can be used when creating putaway lines
     let headerLocationInfo = null;
     if (location_id && location_id.trim() !== "") {
       try {
@@ -1154,7 +1654,7 @@ export const completePutaway = async (req, res) => {
           connection,
           location_id
         );
-        console.log(
+        logger.info(
           `[Putaway] Header-level location scanned: ${location_id} -> rack="${headerLocationInfo.rack}", bin="${headerLocationInfo.bin}"`
         );
       } catch (error) {
@@ -1167,6 +1667,189 @@ export const completePutaway = async (req, res) => {
             message:
               error.message ||
               `Header location ID "${location_id}" not found or not available`,
+          },
+        });
+      }
+    }
+
+    // CRITICAL: If no putaway lines exist, create them from box/carton contents
+    // This handles the case where scan step is validation-only (doesn't create lines)
+    if (putawayLines.length === 0 && (tc_id || box_id)) {
+      logger.info("No putaway lines found - creating from box/carton contents", {
+        putaway_task: actualPutawayTask,
+        tc_id: tc_id || null,
+        box_id: box_id || null,
+      });
+
+      const cartonIdToUse = box_id || tc_id;
+      let itemsFromEvents = [];
+
+      // Try to get items from SORT_TO_BOX events (for box_id)
+      if (box_id) {
+        const [boxItems] = await connection.execute(
+          `SELECT item_code, box_id, carton_id, SUM(qty) as total_qty
+           FROM tabWmsScanEvent
+           WHERE event_type = 'SORT_TO_BOX'
+             AND box_id = ?
+             AND item_code IS NOT NULL
+           GROUP BY item_code, box_id, carton_id`,
+          [box_id]
+        );
+        
+        if (boxItems.length > 0) {
+          itemsFromEvents = boxItems.map(item => ({
+            item_code: item.item_code,
+            carton_id: item.box_id || item.carton_id || null, // Use box_id as carton_id for putaway
+            qty: parseFloat(item.total_qty) || 0,
+          }));
+          logger.info(`Found ${itemsFromEvents.length} items from SORT_TO_BOX events for box ${box_id}`);
+        }
+      }
+
+      // Try to get items from PACK_BOX_TO_TC events (for tc_id)
+      if (itemsFromEvents.length === 0 && tc_id) {
+        const [tcItems] = await connection.execute(
+          `SELECT item_code, box_id, carton_id, SUM(qty) as total_qty
+           FROM tabWmsScanEvent
+           WHERE event_type = 'PACK_BOX_TO_TC'
+             AND tc_id = ?
+             AND item_code IS NOT NULL
+           GROUP BY item_code, box_id, carton_id`,
+          [tc_id]
+        );
+        
+        if (tcItems.length > 0) {
+          itemsFromEvents = tcItems.map(item => ({
+            item_code: item.item_code,
+            carton_id: item.box_id || item.carton_id || tc_id, // Use box_id or tc_id
+            qty: parseFloat(item.total_qty) || 0,
+          }));
+          logger.info(`Found ${itemsFromEvents.length} items from PACK_BOX_TO_TC events for tc_id ${tc_id}`);
+        }
+      }
+
+      // If still no items, try to get from box_id using PACK_BOX_TO_TC (box might be packed into TC)
+      if (itemsFromEvents.length === 0 && box_id) {
+        const [packedItems] = await connection.execute(
+          `SELECT item_code, box_id, carton_id, SUM(qty) as total_qty
+           FROM tabWmsScanEvent
+           WHERE event_type = 'PACK_BOX_TO_TC'
+             AND box_id = ?
+             AND item_code IS NOT NULL
+           GROUP BY item_code, box_id, carton_id`,
+          [box_id]
+        );
+        
+        if (packedItems.length > 0) {
+          itemsFromEvents = packedItems.map(item => ({
+            item_code: item.item_code,
+            carton_id: item.box_id || item.carton_id || null,
+            qty: parseFloat(item.total_qty) || 0,
+          }));
+          logger.info(`Found ${itemsFromEvents.length} items from PACK_BOX_TO_TC events for box ${box_id}`);
+        }
+      }
+
+      // Create putaway lines from events
+      if (itemsFromEvents.length > 0) {
+        const [lineLocationColumns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayLine' 
+          AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
+        `);
+        const hasLineLocationIdColumn = lineLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+        const hasLineRack = lineLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+        const hasLineBin = lineLocationColumns.some(col => col.COLUMN_NAME === 'bin');
+
+        // Get location values from header location_id if provided
+        let rackValue = 'TBD';
+        let binValue = 'TBD';
+        let locationIdValue = null;
+        
+        if (headerLocationInfo) {
+          rackValue = headerLocationInfo.rack || 'TBD';
+          binValue = headerLocationInfo.bin || 'TBD';
+          locationIdValue = headerLocationInfo.location_id || null;
+        }
+
+        for (const item of itemsFromEvents) {
+          // Check if line already exists
+          const [existingLine] = await connection.execute(
+            `SELECT id FROM tabPutawayLine 
+             WHERE parent_title = ? 
+               AND item_code = ? 
+               AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
+             LIMIT 1`,
+            [actualPutawayTask, item.item_code, item.carton_id, item.carton_id]
+          );
+
+          if (existingLine.length === 0) {
+            // Create new putaway line
+            let insertQuery = `INSERT INTO tabPutawayLine 
+              (parent_title, carton_id, item_code, qty, rack, bin`;
+            const insertParams = [
+              actualPutawayTask,
+              item.carton_id || null,
+              item.item_code,
+              item.qty,
+              rackValue,
+              binValue,
+            ];
+
+            if (hasLineLocationIdColumn && locationIdValue) {
+              insertQuery += `, location_id`;
+              insertParams.push(locationIdValue);
+            }
+
+            insertQuery += `, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?`;
+            
+            if (hasLineLocationIdColumn && locationIdValue) {
+              insertQuery += `, ?`;
+            }
+            
+            insertQuery += `, NOW(), NOW())`;
+
+            await connection.execute(insertQuery, insertParams);
+            logger.info(`Created putaway line: ${item.item_code} (qty: ${item.qty}, carton: ${item.carton_id || 'NULL'})`);
+          }
+        }
+
+        // Re-query putaway lines after creating them
+        const [newPutawayLines] = await connection.execute(
+          `
+          SELECT 
+            pl.item_code,
+            pl.qty,
+            pl.rack,
+            pl.bin,
+            pl.carton_id,
+            ${locationIdSelect}
+          FROM tabPutawayLine pl
+          WHERE pl.parent_title = ?
+            AND pl.item_code IS NOT NULL
+            AND pl.qty > 0
+        `,
+          [actualPutawayTask]
+        );
+        
+        // Replace putawayLines with newly created lines
+        putawayLines.length = 0;
+        putawayLines.push(...newPutawayLines);
+        
+        logger.info(`Created ${putawayLines.length} putaway line(s) from events`);
+      } else {
+        logger.warn(`No items found in events for ${cartonIdToUse} - cannot create putaway lines`);
+        await connection.rollback();
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "NO_ITEMS_FOUND",
+            message: `No items found for ${cartonIdToUse}. Items must be sorted into box or packed into transfer carton before putaway.`,
+            details: `Please ensure SORT_TO_BOX or PACK_BOX_TO_TC events exist for ${cartonIdToUse}`,
           },
         });
       }
@@ -1410,15 +2093,17 @@ export const completePutaway = async (req, res) => {
           // Check multiple possible field names: box_id, carton_id
           let itemCartonId = item.box_id || item.carton_id || null;
 
-          // Check if location_id column exists in tabPutawayLine
+          // Check if location_id, rack, and bin columns exist in tabPutawayLine
           const [lineLocationColumns] = await connection.execute(`
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = DATABASE() 
             AND TABLE_NAME = 'tabPutawayLine' 
-            AND COLUMN_NAME = 'location_id'
+            AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
           `);
-          const hasLineLocationIdColumn = lineLocationColumns.length > 0;
+          const hasLineLocationIdColumn = lineLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+          const hasLineRack = lineLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+          const hasLineBin = lineLocationColumns.some(col => col.COLUMN_NAME === 'bin');
 
           // Check if a putaway line already exists for this item+location+carton combination
           // Include carton_id in the check to prevent duplicates from same carton
@@ -1436,17 +2121,26 @@ export const completePutaway = async (req, res) => {
              WHERE parent_title = ? 
                AND item_code = ?`;
           
-          const existingLineParams = [putaway_task, item.item_code];
+          const existingLineParams = [actualPutawayTask, item.item_code];
           
           if (hasLineLocationIdColumn && itemLocationId) {
             // If location_id column exists and we have a location_id, check by location_id first
             existingLineQuery += ` AND (location_id = ? OR (location_id IS NULL AND ? IS NULL))`;
             existingLineParams.push(itemLocationId, itemLocationId);
           } else {
-            // Fallback to rack+bin check
-            existingLineQuery += ` AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
-               AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))`;
-            existingLineParams.push(rackValue, rackValue, rackValue, binValue, binValue, binValue);
+            // Fallback to rack+bin check (only if columns exist)
+            if (hasLineRack && hasLineBin) {
+              existingLineQuery += ` AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
+                 AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))`;
+              existingLineParams.push(rackValue, rackValue, rackValue, binValue, binValue, binValue);
+            } else if (hasLineRack) {
+              existingLineQuery += ` AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))`;
+              existingLineParams.push(rackValue, rackValue, rackValue);
+            } else if (hasLineBin) {
+              existingLineQuery += ` AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))`;
+              existingLineParams.push(binValue, binValue, binValue);
+            }
+            // If neither rack nor bin columns exist, skip location check (match by item+carton only)
           }
           
           existingLineQuery += ` AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
@@ -1474,10 +2168,21 @@ export const completePutaway = async (req, res) => {
             );
 
             // Use rackValue and binValue (both are empty string if null) to satisfy NOT NULL constraints
-            let updateQuery = `UPDATE tabPutawayLine 
-               SET qty = ?, rack = ?, bin = ?, 
-                   carton_id = COALESCE(?, carton_id)`;
-            const updateParams = [item.qty, rackValue, binValue, itemCartonId];
+            let updateQuery = `UPDATE tabPutawayLine SET qty = ?`;
+            const updateParams = [item.qty];
+            
+            // Include rack and bin in UPDATE only if columns exist
+            if (hasLineRack) {
+              updateQuery += `, rack = ?`;
+              updateParams.push(rackValue);
+            }
+            if (hasLineBin) {
+              updateQuery += `, bin = ?`;
+              updateParams.push(binValue);
+            }
+            
+            updateQuery += `, carton_id = COALESCE(?, carton_id)`;
+            updateParams.push(itemCartonId);
             
             // Include location_id in UPDATE if column exists
             if (hasLineLocationIdColumn && itemLocationId) {
@@ -1499,13 +2204,15 @@ export const completePutaway = async (req, res) => {
           } else {
             // Double-check: Maybe the line exists but with different rack/bin format
             // Check if any line exists for this item+carton (regardless of location)
+            const rackSelect = hasLineRack ? "rack," : "NULL as rack,";
+            const binSelect = hasLineBin ? "bin," : "NULL as bin,";
             const [anyExistingLine] = await connection.execute(
-              `SELECT id, rack, bin, carton_id FROM tabPutawayLine 
+              `SELECT id, ${rackSelect} ${binSelect} carton_id FROM tabPutawayLine 
                WHERE parent_title = ? 
                  AND item_code = ? 
                  AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
                LIMIT 1`,
-              [putaway_task, item.item_code, itemCartonId, itemCartonId]
+              [actualPutawayTask, item.item_code, itemCartonId, itemCartonId]
             );
 
             if (anyExistingLine.length > 0) {
@@ -1555,7 +2262,7 @@ export const completePutaway = async (req, res) => {
                   `SELECT carton_id FROM tabPutawayLine 
                    WHERE parent_title = ? AND item_code = ? AND carton_id IS NOT NULL 
                    LIMIT 1`,
-                  [putaway_task, item.item_code]
+                  [actualPutawayTask, item.item_code]
                 );
                 if (otherLine.length > 0 && otherLine[0].carton_id) {
                   itemCartonId = otherLine[0].carton_id;
@@ -1604,7 +2311,7 @@ export const completePutaway = async (req, res) => {
                 let insertQuery = `INSERT INTO tabPutawayLine 
                    (parent_title, carton_id, item_code, qty, rack, bin`;
                 const insertParams = [
-                  putaway_task,
+                  actualPutawayTask,
                   itemCartonId,
                   item.item_code,
                   item.qty,
@@ -1735,7 +2442,7 @@ export const completePutaway = async (req, res) => {
           AND pl.item_code IS NOT NULL
           AND pl.qty > 0
         `,
-        [putaway_task]
+        [actualPutawayTask]
       );
       
       // Update putawayLines with refreshed carton_id values
@@ -1754,40 +2461,165 @@ export const completePutaway = async (req, res) => {
       }
     }
 
-    // Get warehouse from ASN or use default
-    const [taskInfo] = await connection.execute(
-      `SELECT advance_shipping_notice FROM tabPutawayTask WHERE title = ?`,
-      [putaway_task]
-    );
+    // Get warehouse from ASN or Transfer In (same logic for both)
+    // CRITICAL: Check for both source_type and transfer_in columns to support both ASN and Transfer In
+    const [taskColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayTask' 
+      AND COLUMN_NAME IN ('advance_shipping_notice', 'transfer_in', 'source_type', 'warehouse')
+    `);
+    const hasAdvanceShippingNotice = taskColumns.some(col => col.COLUMN_NAME === 'advance_shipping_notice');
+    const hasTransferIn = taskColumns.some(col => col.COLUMN_NAME === 'transfer_in');
+    const hasSourceType = taskColumns.some(col => col.COLUMN_NAME === 'source_type');
+    const hasWarehouse = taskColumns.some(col => col.COLUMN_NAME === 'warehouse');
+    
+    let taskSelectQuery = `SELECT`;
+    if (hasAdvanceShippingNotice) taskSelectQuery += ` advance_shipping_notice`;
+    if (hasTransferIn) taskSelectQuery += hasAdvanceShippingNotice ? `, transfer_in` : ` transfer_in`;
+    if (hasSourceType) taskSelectQuery += (hasAdvanceShippingNotice || hasTransferIn) ? `, source_type` : ` source_type`;
+    if (hasWarehouse) taskSelectQuery += (hasAdvanceShippingNotice || hasTransferIn || hasSourceType) ? `, warehouse` : ` warehouse`;
+    taskSelectQuery += ` FROM tabPutawayTask WHERE title = ?`;
+    
+    const [taskInfo] = await connection.execute(taskSelectQuery, [actualPutawayTask]);
 
-    // Get warehouse from ASN or use default
+    // Get warehouse from ASN or Transfer In (same method for both)
     // CRITICAL: Normalize warehouse to CODE (not name) for stock ledger consistency
     let warehouse = null;
-    if (taskInfo.length > 0 && taskInfo[0].advance_shipping_notice) {
-      // Check if warehouse column exists in tabAdvanceShippingNotice
-      const [columns] = await connection.execute(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'tabAdvanceShippingNotice' 
-        AND COLUMN_NAME = 'warehouse'
-      `);
-      const hasWarehouseColumn = columns.length > 0;
+    
+    if (taskInfo.length > 0) {
+      const task = taskInfo[0];
+      const isTransferInTask = (hasSourceType && task.source_type === 'TransferIn') || (hasTransferIn && task.transfer_in);
+      
+      if (isTransferInTask) {
+        // Transfer In putaway: Get warehouse from transfer_in or putaway task
+        if (hasWarehouse && task.warehouse) {
+          warehouse = task.warehouse;
+        } else if (hasTransferIn && task.transfer_in) {
+          // Get warehouse from tabTransferIn.to_warehouse
+          const [transferInInfo] = await connection.execute(
+            `SELECT to_warehouse FROM tabTransferIn WHERE title = ? LIMIT 1`,
+            [task.transfer_in]
+          );
+          if (transferInInfo.length > 0 && transferInInfo[0].to_warehouse) {
+            warehouse = transferInInfo[0].to_warehouse;
+          }
+        }
+      } else if (hasAdvanceShippingNotice && task.advance_shipping_notice) {
+        // ASN putaway: Get warehouse from ASN
+        const [columns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabAdvanceShippingNotice' 
+          AND COLUMN_NAME = 'warehouse'
+        `);
+        const hasWarehouseColumn = columns.length > 0;
 
-      if (hasWarehouseColumn) {
-        // Try to get warehouse from ASN
-        const [warehouseRows] = await connection.execute(
-          `SELECT warehouse FROM tabAdvanceShippingNotice WHERE title = ? LIMIT 1`,
-          [taskInfo[0].advance_shipping_notice]
-        );
-        if (warehouseRows.length > 0 && warehouseRows[0].warehouse) {
-          warehouse = warehouseRows[0].warehouse;
+        if (hasWarehouseColumn) {
+          // Try to get warehouse from ASN
+          const [warehouseRows] = await connection.execute(
+            `SELECT warehouse FROM tabAdvanceShippingNotice WHERE title = ? LIMIT 1`,
+            [task.advance_shipping_notice]
+          );
+          if (warehouseRows.length > 0 && warehouseRows[0].warehouse) {
+            warehouse = warehouseRows[0].warehouse;
+          }
         }
       }
     }
     
     // Normalize warehouse to CODE (not name) - CRITICAL for stock ledger consistency
     warehouse = await normalizeWarehouseToCode(connection, warehouse);
+
+    // CRITICAL: Update existing lines with TBD locations if header location_id is provided
+    // This handles the case where lines were created without location, and now location is being provided
+    if (headerLocationInfo && putawayLines.length > 0) {
+      const [lineLocationColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabPutawayLine' 
+        AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
+      `);
+      const hasLineLocationIdColumn = lineLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+      const hasLineRack = lineLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+      const hasLineBin = lineLocationColumns.some(col => col.COLUMN_NAME === 'bin');
+
+      // Find lines with TBD locations or missing locations
+      const linesToUpdate = putawayLines.filter(line => {
+        const rack = (line.rack || "").trim().toUpperCase();
+        const bin = (line.bin || "").trim().toUpperCase();
+        const locationId = line.location_id || null;
+        return (rack === 'TBD' || bin === 'TBD' || (!locationId && (!rack || rack === 'TBD') && (!bin || bin === 'TBD')));
+      });
+
+      if (linesToUpdate.length > 0) {
+        logger.info(`Updating ${linesToUpdate.length} putaway line(s) with TBD locations using header location_id: ${headerLocationInfo.location_id}`);
+        
+        for (const line of linesToUpdate) {
+          let updateQuery = `UPDATE tabPutawayLine SET`;
+          const updateParams = [];
+          const updateFields = [];
+
+          if (hasLineRack) {
+            updateFields.push(`rack = ?`);
+            updateParams.push(headerLocationInfo.rack || null);
+          }
+          if (hasLineBin) {
+            updateFields.push(`bin = ?`);
+            updateParams.push(headerLocationInfo.bin || null);
+          }
+          if (hasLineLocationIdColumn) {
+            updateFields.push(`location_id = ?`);
+            updateParams.push(headerLocationInfo.location_id);
+          }
+          
+          updateFields.push(`updated_at = NOW()`);
+          updateQuery += ` ${updateFields.join(', ')} WHERE parent_title = ? AND item_code = ?`;
+          
+          // Match by carton_id if available, otherwise just by item_code
+          if (line.carton_id) {
+            updateQuery += ` AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))`;
+            updateParams.push(actualPutawayTask, line.item_code, line.carton_id, line.carton_id);
+          } else {
+            updateParams.push(actualPutawayTask, line.item_code);
+          }
+
+          await connection.execute(updateQuery, updateParams);
+          
+          // Update the in-memory line object
+          line.rack = headerLocationInfo.rack || null;
+          line.bin = headerLocationInfo.bin || null;
+          line.location_id = headerLocationInfo.location_id;
+        }
+
+        // Re-query putaway lines after updating them
+        const [updatedLines] = await connection.execute(
+          `
+          SELECT 
+            pl.item_code,
+            pl.qty,
+            pl.rack,
+            pl.bin,
+            pl.carton_id,
+            ${locationIdSelect}
+          FROM tabPutawayLine pl
+          WHERE pl.parent_title = ?
+            AND pl.item_code IS NOT NULL
+            AND pl.qty > 0
+        `,
+          [actualPutawayTask]
+        );
+        
+        // Replace putawayLines with updated lines
+        putawayLines.length = 0;
+        putawayLines.push(...updatedLines);
+        
+        logger.info(`Updated ${linesToUpdate.length} putaway line(s) with location ${headerLocationInfo.location_id}`);
+      }
+    }
 
     // Validate that all putaway lines have proper locations before processing stock
     const linesWithoutLocation = putawayLines.filter((line) => {
@@ -1887,13 +2719,39 @@ export const completePutaway = async (req, res) => {
     // This ensures we only process stock for items in the request (if provided)
     // Note: Create a new array instead of reassigning const variable
     let linesToProcess = [...putawayLines]; // Create a copy
+    
+    logger.info(`[Putaway] Preparing to process stock updates`, {
+      putaway_task: actualPutawayTask,
+      total_putaway_lines: putawayLines.length,
+      items_in_request: items && Array.isArray(items) ? items.length : 0,
+      lines_before_filter: linesToProcess.length
+    });
+    
     if (items && Array.isArray(items) && items.length > 0) {
       const requestedItemCodes = new Set(items.map(item => item.item_code));
       const originalCount = linesToProcess.length;
       linesToProcess = linesToProcess.filter(line => requestedItemCodes.has(line.item_code));
-      console.log(
-        `[Putaway] Filtered putawayLines: ${originalCount} -> ${linesToProcess.length} (only processing items from request)`
+      logger.info(
+        `[Putaway] Filtered putawayLines: ${originalCount} -> ${linesToProcess.length} (only processing items from request)`,
+        {
+          requested_items: Array.from(requestedItemCodes),
+          filtered_lines: linesToProcess.map(l => l.item_code)
+        }
       );
+    }
+    
+    if (linesToProcess.length === 0) {
+      logger.error(`[Putaway] ⚠️ CRITICAL: No lines to process for stock updates!`, {
+        putaway_task: actualPutawayTask,
+        total_putaway_lines: putawayLines.length,
+        items_in_request: items && Array.isArray(items) ? items.length : 0,
+        putaway_lines: putawayLines.map(l => ({
+          item_code: l.item_code,
+          location_id: l.location_id || 'NULL',
+          rack: l.rack || 'NULL',
+          bin: l.bin || 'NULL'
+        }))
+      });
     }
 
     // Check if qty_before, qty_reduced, and carton_id columns exist (check once, outside loop)
@@ -1908,28 +2766,148 @@ export const completePutaway = async (req, res) => {
     const hasQtyReduced = stockLedgerColumns.some(col => col.COLUMN_NAME === 'qty_reduced');
     const hasStockLedgerCartonIdColumn = stockLedgerColumns.some(col => col.COLUMN_NAME === 'carton_id');
 
+    // VALIDATION: Check all lines have valid location and carton_id before processing
+    const linesWithMissingData = [];
+    for (const line of linesToProcess) {
+      const itemCode = line.item_code;
+      const cartonId = line.carton_id || null;
+      const cartonIdValue = cartonId && cartonId.trim() !== '' ? cartonId.trim() : null;
+      const rack = (line.rack || "").trim() || null;
+      const bin = (line.bin || "").trim() || null;
+      
+      // Determine bin location
+      let binLocation = line.location_id || null;
+      if (!binLocation) {
+        if (rack && bin) {
+          binLocation = `${rack}-${bin}`;
+        } else if (rack) {
+          binLocation = rack;
+        } else if (bin) {
+          binLocation = bin;
+        }
+      }
+      
+      // Validate location is not NULL, empty, or "TBD"
+      // CRITICAL: If location_id is provided and valid, use it (rack/bin may still be TBD during update)
+      // Only require rack/bin to be non-TBD if location_id is not available
+      const hasValidLocationId = binLocation && 
+                                 binLocation.trim() !== '' && 
+                                 binLocation.trim().toUpperCase() !== 'TBD' &&
+                                 !binLocation.includes('TBD');
+      
+      const hasValidRackBin = rack && rack.trim() !== '' && rack.trim().toUpperCase() !== 'TBD' &&
+                               bin && bin.trim() !== '' && bin.trim().toUpperCase() !== 'TBD';
+      
+      // Location is valid if either location_id is valid OR rack/bin are valid
+      const hasValidLocation = hasValidLocationId || hasValidRackBin;
+      
+      // Validate carton_id is not NULL or empty
+      const hasValidCartonId = cartonIdValue && cartonIdValue.trim() !== '';
+      
+      if (!hasValidLocation || !hasValidCartonId) {
+        linesWithMissingData.push({
+          item_code: itemCode,
+          missing_location: !hasValidLocation,
+          missing_carton_id: !hasValidCartonId,
+          location_value: binLocation || 'NULL',
+          rack_value: rack || 'NULL',
+          bin_value: bin || 'NULL',
+          carton_id_value: cartonIdValue || 'NULL'
+        });
+      }
+    }
+    
+    // If any lines are missing required data, reject the completion
+    if (linesWithMissingData.length > 0) {
+      await connection.rollback();
+      connection.release();
+      const missingLocationItems = linesWithMissingData.filter(l => l.missing_location).map(l => l.item_code);
+      const missingCartonItems = linesWithMissingData.filter(l => l.missing_carton_id).map(l => l.item_code);
+      
+      let errorMessage = 'Cannot complete putaway: some items are missing required data.';
+      if (missingLocationItems.length > 0) {
+        errorMessage += ` Items missing location (rack/bin): ${missingLocationItems.join(', ')}.`;
+      }
+      if (missingCartonItems.length > 0) {
+        errorMessage += ` Items missing carton_id: ${missingCartonItems.join(', ')}.`;
+      }
+      errorMessage += ' Please assign location (rack/bin) and ensure carton_id is set for all items before completing putaway.';
+      
+      console.error(`[Putaway] Validation failed: ${linesWithMissingData.length} line(s) missing required data:`, linesWithMissingData);
+      
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: errorMessage,
+          details: {
+            lines_with_missing_data: linesWithMissingData,
+            missing_location_count: missingLocationItems.length,
+            missing_carton_id_count: missingCartonItems.length
+          }
+        },
+      });
+    }
+    
     // Update stock ledger for each putaway line
     // CRITICAL: Use a Set to track processed item+location combinations to prevent duplicate stock updates
     const processedStockKeys = new Set();
     const stockUpdates = [];
+    
+    logger.info(`[Putaway] Starting stock update loop for ${linesToProcess.length} line(s)`, {
+      putaway_task: actualPutawayTask,
+      lines_count: linesToProcess.length,
+      lines: linesToProcess.map(l => ({
+        item_code: l.item_code,
+        qty: l.qty,
+        location_id: l.location_id || 'NULL',
+        rack: l.rack || 'NULL',
+        bin: l.bin || 'NULL',
+        carton_id: l.carton_id || 'NULL'
+      }))
+    });
+    
     for (const line of linesToProcess) {
       const itemCode = line.item_code;
       const qty = parseFloat(line.qty) || 0;
       const rack = (line.rack || "").trim() || null;
       const bin = (line.bin || "").trim() || null;
 
-      // Validate location is present (at least rack or bin must be non-empty)
-      if (!rack && !bin) {
-        console.warn(`[Putaway] Skipping line without location: ${itemCode}`);
-        continue; // Skip lines without location (should not happen due to validation above, but safety check)
+      // Validate location is present (at least location_id, rack, or bin must be non-empty and not TBD)
+      // This should not happen due to validation above, but safety check
+      const hasLocationId = line.location_id && 
+                           line.location_id.trim() !== '' && 
+                           line.location_id.trim().toUpperCase() !== 'TBD';
+      const hasRack = rack && rack.trim() !== '' && rack.trim().toUpperCase() !== 'TBD';
+      const hasBin = bin && bin.trim() !== '' && bin.trim().toUpperCase() !== 'TBD';
+      
+      if (!hasLocationId && !hasRack && !hasBin) {
+        logger.error(`[Putaway] ERROR: Line without valid location passed validation: ${itemCode}`, {
+          location_id: line.location_id || 'NULL',
+          rack: rack || 'NULL',
+          bin: bin || 'NULL'
+        });
+        continue; // Skip lines without valid location
       }
 
       // Use location_id as bin_location (preferred) or combine rack and bin
       let binLocation = line.location_id || null;
       if (!binLocation) {
         // Fallback: combine rack and bin if location_id not available
+        // CRITICAL: Check if rack already contains the bin value to avoid duplication
+        // If rack is "A1-R02-L1-B2" and bin is "B2", don't concatenate (would create "A1-R02-L1-B2-B2")
         if (rack && bin) {
-          binLocation = `${rack}-${bin}`;
+          const rackStr = String(rack).trim();
+          const binStr = String(bin).trim();
+          
+          // Check if rack already ends with the bin value
+          if (rackStr.endsWith(`-${binStr}`) || rackStr === binStr) {
+            // Rack already contains the bin, use rack as-is
+            binLocation = rackStr;
+          } else {
+            // Rack doesn't contain bin, concatenate them
+            binLocation = `${rackStr}-${binStr}`;
+          }
         } else if (rack) {
           binLocation = rack;
         } else if (bin) {
@@ -1953,7 +2931,190 @@ export const completePutaway = async (req, res) => {
         continue; // Skip invalid lines
       }
 
-      // Get current stock at this location
+      // Extract carton_id from putaway line (needed for determining from_location)
+      const cartonId = line.carton_id || null;
+      const cartonIdValue = cartonId && cartonId.trim() !== '' ? cartonId.trim() : null;
+      
+      // VALIDATION: Carton must be received before putaway
+      // Check if carton exists in tabCartonStock with qty > 0 (carton is received)
+      if (cartonIdValue) {
+        const [cartonStockTable] = await connection.execute(`
+          SELECT TABLE_NAME 
+          FROM INFORMATION_SCHEMA.TABLES 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabCartonStock'
+        `);
+        
+        if (cartonStockTable.length > 0) {
+          // Check if carton exists and has stock (received)
+          const [cartonReceivedCheck] = await connection.execute(
+            `SELECT SUM(qty) as total_qty
+             FROM tabCartonStock
+             WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+             GROUP BY carton_id, item_code, warehouse`,
+            [cartonIdValue, itemCode, warehouse]
+          );
+          
+          if (cartonReceivedCheck.length === 0 || parseFloat(cartonReceivedCheck[0].total_qty || 0) <= 0) {
+            console.warn(`[Putaway] ⚠️ Carton ${cartonIdValue} with item ${itemCode} not received (no stock in tabCartonStock)`);
+            // Continue processing but log warning (carton might be in staging/receiving)
+            // This is a warning, not an error, as carton might be newly received
+          } else {
+            console.log(`[Putaway] ✅ Carton ${cartonIdValue} validated as received (qty: ${cartonReceivedCheck[0].total_qty})`);
+          }
+        }
+        
+        // Also check tabCarton.status if available
+        const [cartonStatusTable] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabCarton'
+          AND COLUMN_NAME = 'status'
+        `);
+        
+        if (cartonStatusTable.length > 0) {
+          const [cartonStatus] = await connection.execute(
+            `SELECT status FROM tabCarton WHERE carton_id = ? LIMIT 1`,
+            [cartonIdValue]
+          );
+          
+          if (cartonStatus.length > 0) {
+            const status = cartonStatus[0].status;
+            // Allow putaway if status is RECEIVED_NOT_PUTAWAY, PUTAWAY, or similar
+            // Reject if status is SHIPPED, ADJUSTED, or other final states
+            if (status && ['SHIPPED', 'ADJUSTED'].includes(status.toUpperCase())) {
+              await connection.rollback();
+              connection.release();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "CARTON_NOT_AVAILABLE",
+                  message: `Carton ${cartonIdValue} cannot be putaway (status: ${status}). Carton must be received first.`,
+                },
+              });
+            }
+          }
+        }
+      }
+      
+      // CRITICAL: Determine FROM location (staging location) before putaway
+      // This implements the MOVE pattern: decrease from staging, increase at target
+      let fromLocation = null;
+      let fromLocationQty = 0;
+      
+      if (cartonIdValue) {
+        // Try to get carton's current location from tabCartonStock (most accurate)
+        const [cartonStockTable] = await connection.execute(`
+          SELECT TABLE_NAME 
+          FROM INFORMATION_SCHEMA.TABLES 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabCartonStock'
+        `);
+        
+        if (cartonStockTable.length > 0) {
+          // Get carton's current location from tabCartonStock
+          const [cartonCurrentLocation] = await connection.execute(
+            `SELECT DISTINCT bin_location, SUM(qty) as total_qty
+             FROM tabCartonStock
+             WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+             GROUP BY bin_location
+             ORDER BY total_qty DESC
+             LIMIT 1`,
+            [cartonIdValue, itemCode, warehouse]
+          );
+          
+          if (cartonCurrentLocation.length > 0 && cartonCurrentLocation[0].bin_location) {
+            fromLocation = cartonCurrentLocation[0].bin_location;
+            fromLocationQty = parseFloat(cartonCurrentLocation[0].total_qty) || 0;
+            console.log(`[Putaway] 📦 Found carton ${cartonIdValue} at FROM location: ${fromLocation} (qty: ${fromLocationQty})`);
+          }
+        }
+        
+        // Fallback: Check tabCarton.current_bin_id if not found in tabCartonStock
+        if (!fromLocation) {
+          const [cartonTable] = await connection.execute(`
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabCarton'
+            AND COLUMN_NAME IN ('current_bin_id', 'bin_id')
+          `);
+          
+          if (cartonTable.length > 0) {
+            const binColumn = cartonTable.some(col => col.COLUMN_NAME === 'current_bin_id') 
+              ? 'current_bin_id' 
+              : 'bin_id';
+            
+            const [cartonBin] = await connection.execute(
+              `SELECT ${binColumn} as bin_location FROM tabCarton WHERE carton_id = ? LIMIT 1`,
+              [cartonIdValue]
+            );
+            
+            if (cartonBin.length > 0 && cartonBin[0].bin_location) {
+              fromLocation = cartonBin[0].bin_location;
+              console.log(`[Putaway] 📦 Found carton ${cartonIdValue} FROM location from tabCarton: ${fromLocation}`);
+            }
+          }
+        }
+      }
+      
+      // If still no from_location, default to staging location or receiving dock
+      // This handles cases where carton hasn't been putaway yet (newly received)
+      if (!fromLocation) {
+        // Try to find staging/receiving location from location master
+        const [stagingLocation] = await connection.execute(
+          `SELECT location_id FROM tabLocation 
+           WHERE (location_type = 'STAGING' OR location_type = 'RECEIVING' OR location_id LIKE '%STAGE%' OR location_id LIKE '%DOCK%')
+           AND warehouse = ?
+           ORDER BY location_id
+           LIMIT 1`,
+          [warehouse]
+        );
+        
+        if (stagingLocation.length > 0) {
+          fromLocation = stagingLocation[0].location_id;
+          console.log(`[Putaway] 📦 Using default staging location: ${fromLocation}`);
+        } else {
+          // Last resort: use a generic staging location name
+          fromLocation = 'STAGING-01';
+          console.log(`[Putaway] ⚠️ No staging location found, using default: ${fromLocation}`);
+        }
+      }
+      
+      // STEP 1: Decrease stock at FROM location (staging) - MOVE pattern
+      if (fromLocation && fromLocation !== binLocation) {
+        const [fromStock] = await connection.execute(
+          `SELECT qty, reserved_qty FROM tabStockLedger
+           WHERE item_code = ? AND warehouse = ? AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))`,
+          [itemCode, warehouse, fromLocation, fromLocation]
+        );
+        
+        const fromCurrentQty = fromStock.length > 0 ? parseFloat(fromStock[0].qty) || 0 : 0;
+        const fromCurrentReservedQty = fromStock.length > 0 ? parseFloat(fromStock[0].reserved_qty) || 0 : 0;
+        const fromNewQty = Math.max(0, fromCurrentQty - qty); // Decrease, but don't go negative
+        
+        if (fromNewQty > 0) {
+          // Update stock at FROM location (decrease)
+          await connection.execute(
+            `INSERT INTO tabStockLedger (item_code, warehouse, bin_location, qty, reserved_qty, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at)
+             VALUES (?, ?, ?, ?, ?, NOW(), 'Putaway', ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE qty = ?, last_transaction_date = NOW(), last_transaction_type = 'Putaway', last_transaction_ref = ?, updated_at = NOW()`,
+            [itemCode, warehouse, fromLocation, fromNewQty, fromCurrentReservedQty, actualPutawayTask, fromNewQty, actualPutawayTask]
+          );
+          console.log(`[Putaway] 📉 Decreased stock at FROM location ${fromLocation}: ${fromCurrentQty} → ${fromNewQty} (qty: -${qty})`);
+        } else {
+          // Delete entry if qty becomes 0
+          await connection.execute(
+            `DELETE FROM tabStockLedger WHERE item_code = ? AND warehouse = ? AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))`,
+            [itemCode, warehouse, fromLocation, fromLocation]
+          );
+          console.log(`[Putaway] 🗑️ Removed stock ledger entry at FROM location ${fromLocation} (qty became 0)`);
+        }
+      }
+      
+      // STEP 2: Increase stock at TO location (target) - MOVE pattern
+      // Get current stock at target location
       const [currentStock] = await connection.execute(
         `
         SELECT qty, reserved_qty
@@ -1977,9 +3138,7 @@ export const completePutaway = async (req, res) => {
       const qtyBefore = currentQty;
       const qtyReduced = qty; // Positive for putaway (stock increase)
 
-      // Extract carton_id from putaway line
-      const cartonId = line.carton_id || null;
-      const cartonIdValue = cartonId && cartonId.trim() !== '' ? cartonId.trim() : null;
+      // cartonIdValue already extracted above
       
       // Build INSERT/UPDATE query with optional qty_before, qty_reduced, and carton_id
       let insertFields = `item_code, warehouse, bin_location, qty, reserved_qty`;
@@ -2053,7 +3212,39 @@ export const completePutaway = async (req, res) => {
         
         if (cartonStockTable.length > 0 && binLocation) {
           try {
-            // Get current carton stock at this location
+            // MOVE pattern: Decrease from staging location, increase at target location
+            if (fromLocation && fromLocation !== binLocation) {
+              // STEP 1: Decrease carton stock at FROM location
+              const [fromCartonStock] = await connection.execute(
+                `SELECT qty FROM tabCartonStock 
+                 WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?`,
+                [cartonIdValue, itemCode, warehouse, fromLocation]
+              );
+              
+              const fromCartonQty = fromCartonStock.length > 0 
+                ? parseFloat(fromCartonStock[0].qty) || 0 
+                : 0;
+              const fromNewCartonQty = Math.max(0, fromCartonQty - qty);
+              
+              if (fromNewCartonQty > 0) {
+                // Update carton stock at FROM location (decrease)
+                await connection.execute(`
+                  UPDATE tabCartonStock 
+                  SET qty = ?, updated_at = NOW()
+                  WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?
+                `, [fromNewCartonQty, cartonIdValue, itemCode, warehouse, fromLocation]);
+                console.log(`[Putaway] 📦 Decreased carton stock at FROM ${fromLocation}: ${fromCartonQty} → ${fromNewCartonQty}`);
+              } else {
+                // Delete carton stock entry at FROM location if qty becomes 0
+                await connection.execute(`
+                  DELETE FROM tabCartonStock 
+                  WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?
+                `, [cartonIdValue, itemCode, warehouse, fromLocation]);
+                console.log(`[Putaway] 🗑️ Removed carton stock at FROM ${fromLocation} (qty became 0)`);
+              }
+            }
+            
+            // STEP 2: Increase carton stock at TO location (target)
             const [currentCartonStock] = await connection.execute(
               `SELECT qty FROM tabCartonStock 
                WHERE carton_id = ? AND item_code = ? AND warehouse = ? AND bin_location = ?`,
@@ -2065,8 +3256,7 @@ export const completePutaway = async (req, res) => {
               : 0;
             const newCartonQty = currentCartonQty + qty;
             
-            // Update or insert carton stock
-            // Note: created_on has DEFAULT CURRENT_TIMESTAMP, so we don't set it manually
+            // Update or insert carton stock at TO location
             await connection.execute(`
               INSERT INTO tabCartonStock 
                 (carton_id, item_code, warehouse, bin_location, qty, status)
@@ -2080,6 +3270,24 @@ export const completePutaway = async (req, res) => {
             `, [cartonIdValue, itemCode, warehouse, binLocation, newCartonQty]);
             
             console.log(`[Putaway] 📦 Updated tabCartonStock: carton_id=${cartonIdValue}, item=${itemCode}, qty=${currentCartonQty} → ${newCartonQty}, bin=${binLocation}`);
+            
+            // Also update tabCarton.current_bin_id to reflect new location
+            const [cartonTable] = await connection.execute(`
+              SELECT COLUMN_NAME
+              FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'tabCarton'
+              AND COLUMN_NAME = 'current_bin_id'
+            `);
+            
+            if (cartonTable.length > 0) {
+              await connection.execute(`
+                UPDATE tabCarton
+                SET current_bin_id = ?, updated_at = NOW()
+                WHERE carton_id = ? AND warehouse = ?
+              `, [binLocation, cartonIdValue, warehouse]);
+              console.log(`[Putaway] 📦 Updated tabCarton.current_bin_id to ${binLocation}`);
+            }
           } catch (cartonStockError) {
             console.warn(`[Putaway] ⚠️ Could not update tabCartonStock: ${cartonStockError.message}`);
             // Don't fail the transaction - stock ledger is already updated
@@ -2088,6 +3296,13 @@ export const completePutaway = async (req, res) => {
       }
 
       // Insert stock transaction log
+      // CRITICAL: Only require bin_location to be valid (carton_id is optional)
+      // Transaction history should be created even if carton_id is NULL
+      if (!binLocation || binLocation.trim() === '' || binLocation.includes('TBD')) {
+        console.error(`[Putaway] ⚠️ Skipping transaction for ${itemCode}: bin_location="${binLocation || 'NULL'}" is invalid`);
+        continue; // Skip this line - bin_location is required
+      }
+      
       // Check if carton_id column exists in tabStockTransaction
       const [stockTransactionColumns] = await connection.execute(`
         SELECT COLUMN_NAME 
@@ -2098,59 +3313,72 @@ export const completePutaway = async (req, res) => {
       `);
       const hasStockTransactionCartonId = stockTransactionColumns.length > 0;
       
-      if (hasStockTransactionCartonId && cartonIdValue) {
-        // Include carton_id in stock transaction log
-        await connection.execute(
-          `
-          INSERT INTO tabStockTransaction 
-            (transaction_date, transaction_type, reference_doc_type, reference_doc,
-             item_code, warehouse, bin_location, carton_id, qty_change, qty_before, qty_after,
-             source_bin, target_bin, performed_by, created_at)
-          VALUES 
-            (NOW(), 'Putaway', 'Putaway Task', ?,
-             ?, ?, ?, ?, ?, ?, ?,
-             NULL, ?, ?, NOW())
-        `,
-          [
-            putaway_task,
-            itemCode,
-            warehouse,
-            binLocation,
-            cartonIdValue,
-            qty,
-            currentQty,
-            newQty,
-            binLocation,
-            performed_by || "SYSTEM",
-          ]
-        );
-      } else {
-        // Standard stock transaction log without carton_id
-        await connection.execute(
-          `
-          INSERT INTO tabStockTransaction 
-            (transaction_date, transaction_type, reference_doc_type, reference_doc,
-             item_code, warehouse, bin_location, qty_change, qty_before, qty_after,
-             source_bin, target_bin, performed_by, created_at)
-          VALUES 
-            (NOW(), 'Putaway', 'Putaway Task', ?,
-             ?, ?, ?, ?, ?, ?,
-             NULL, ?, ?, NOW())
-        `,
-          [
-            putaway_task,
-            itemCode,
-            warehouse,
-            binLocation,
-            qty,
-            currentQty,
-            newQty,
-            binLocation,
-            performed_by || "SYSTEM",
-          ]
-        );
+      // Check if bin_location column exists and is required
+      const [binLocationColCheck] = await connection.execute(`
+        SELECT COLUMN_NAME, IS_NULLABLE
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabStockTransaction' 
+        AND COLUMN_NAME = 'bin_location'
+      `);
+      const hasBinLocation = binLocationColCheck.length > 0;
+      const binLocationRequired = hasBinLocation && binLocationColCheck[0].IS_NULLABLE === 'NO';
+      
+      // Build transaction fields and values
+      // Always include carton_id if column exists (even if NULL)
+      const txnFields = ['transaction_date', 'transaction_type', 'reference_doc_type', 'reference_doc',
+                        'item_code', 'warehouse'];
+      const txnValues = [new Date(), 'Putaway', 'Putaway Task', actualPutawayTask,
+                        itemCode, warehouse];
+      
+      // Add bin_location if column exists
+      if (hasBinLocation) {
+        txnFields.push('bin_location');
+        txnValues.push(binLocation);
       }
+      
+      // Add carton_id if column exists (include even if NULL for consistency)
+      if (hasStockTransactionCartonId) {
+        txnFields.push('carton_id');
+        txnValues.push(cartonIdValue || null); // Allow NULL carton_id
+      }
+      
+      // Add remaining fields
+      txnFields.push('qty_change', 'qty_before', 'qty_after', 'source_bin', 'target_bin', 'performed_by', 'created_at');
+      txnValues.push(qty, currentQty, newQty, fromLocation, binLocation, performed_by || "SYSTEM", new Date());
+      
+      // Insert transaction history (always insert, even if carton_id is NULL)
+      try {
+        await connection.execute(
+          `
+          INSERT INTO tabStockTransaction (${txnFields.join(', ')})
+          VALUES (${txnFields.map(() => '?').join(', ')})
+        `,
+          txnValues
+        );
+      } catch (txnError) {
+        logger.error(`[Putaway] ❌ ERROR inserting transaction history for ${itemCode}`, {
+          error: txnError.message,
+          fields: txnFields,
+          values: txnValues
+        });
+        // Don't throw - continue processing other items, but log the error
+        // Transaction will be rolled back at the end if needed
+      }
+      
+      // NOTE: tabTransactionHistory insertion is handled by processPutawayCompletionEvent
+      // which is called later in this function. This prevents duplicate records.
 
+      logger.info(`[Putaway] ✅ Stock update completed for ${itemCode}`, {
+        item_code: itemCode,
+        carton_id: cartonIdValue || 'NULL',
+        from_location: fromLocation || 'NULL',
+        to_location: binLocation,
+        qty: qty,
+        qty_before: currentQty,
+        qty_after: newQty
+      });
+      
       stockUpdates.push({
         item_code: itemCode,
         location: binLocation || "Warehouse",
@@ -2158,6 +3386,33 @@ export const completePutaway = async (req, res) => {
         qty_added: qty,
         qty_before: currentQty,
         qty_after: newQty,
+        from_location_id: fromLocation,
+        to_location_id: binLocation,
+      });
+    }
+    
+    // Close the for loop for linesToProcess
+    }
+    
+    // Log summary of stock updates
+    if (stockUpdates.length === 0) {
+      logger.warn(`[Putaway] ⚠️ NO STOCK UPDATES PROCESSED for task ${actualPutawayTask}`, {
+        putaway_task: actualPutawayTask,
+        lines_to_process: linesToProcess.length,
+        lines: linesToProcess.map(l => ({
+          item_code: l.item_code,
+          qty: l.qty,
+          location_id: l.location_id || 'NULL',
+          rack: l.rack || 'NULL',
+          bin: l.bin || 'NULL',
+          carton_id: l.carton_id || 'NULL'
+        }))
+      });
+    } else {
+      logger.info(`[Putaway] ✅ Processed ${stockUpdates.length} stock update(s) for task ${actualPutawayTask}`, {
+        putaway_task: actualPutawayTask,
+        stock_updates_count: stockUpdates.length,
+        total_lines: linesToProcess.length
       });
     }
 
@@ -2223,25 +3478,25 @@ export const completePutaway = async (req, res) => {
 
     // Update box location if box_id exists in putaway task
     // First check which columns exist in tabPutawayTask
-    const [taskColumns] = await connection.execute(`
+    const [taskBoxColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = DATABASE() 
       AND TABLE_NAME = 'tabPutawayTask' 
       AND COLUMN_NAME IN ('box_id', 'rack', 'bin')
     `);
-    const hasTaskBoxId = taskColumns.some(
+    const hasTaskBoxId = taskBoxColumns.some(
       (col) => col.COLUMN_NAME === "box_id"
     );
-    const hasTaskRack = taskColumns.some((col) => col.COLUMN_NAME === "rack");
-    const hasTaskBin = taskColumns.some((col) => col.COLUMN_NAME === "bin");
+    const hasTaskBoxRack = taskBoxColumns.some((col) => col.COLUMN_NAME === "rack");
+    const hasTaskBoxBin = taskBoxColumns.some((col) => col.COLUMN_NAME === "bin");
 
     // Build SELECT query based on available columns
     let taskBoxQuery = "SELECT ";
     const selectFields = [];
     if (hasTaskBoxId) selectFields.push("box_id");
-    if (hasTaskRack) selectFields.push("rack");
-    if (hasTaskBin) selectFields.push("bin");
+    if (hasTaskBoxRack) selectFields.push("rack");
+    if (hasTaskBoxBin) selectFields.push("bin");
 
     if (selectFields.length === 0) {
       // No relevant columns exist, skip box update
@@ -2253,16 +3508,16 @@ export const completePutaway = async (req, res) => {
 
     let taskBoxInfo = [];
     if (taskBoxQuery) {
-      const [result] = await connection.execute(taskBoxQuery, [putaway_task]);
+      const [result] = await connection.execute(taskBoxQuery, [actualPutawayTask]);
       taskBoxInfo = result;
     }
 
     if (taskBoxInfo.length > 0 && hasTaskBoxId && taskBoxInfo[0].box_id) {
       const boxId = taskBoxInfo[0].box_id;
       const taskRack =
-        (hasTaskRack && taskBoxInfo[0].rack) || (linesToProcess.length > 0 ? linesToProcess[0].rack : null) || null;
+        (hasTaskBoxRack && taskBoxInfo[0].rack) || (linesToProcess.length > 0 ? linesToProcess[0].rack : null) || null;
       const taskBin =
-        (hasTaskBin && taskBoxInfo[0].bin) || (linesToProcess.length > 0 ? linesToProcess[0].bin : null) || null;
+        (hasTaskBoxBin && taskBoxInfo[0].bin) || (linesToProcess.length > 0 ? linesToProcess[0].bin : null) || null;
 
       // Check if rack, bin, and timestamp columns exist in tabSortBox
       const [boxColumns] = await connection.execute(`
@@ -2346,23 +3601,275 @@ export const completePutaway = async (req, res) => {
       }
     }
 
-    await connection.commit();
+    // DO NOT commit here - commit happens after status update (at end of function)
+    // This ensures atomic completion: all stock updates + status change in one transaction
 
+    // Get the actual carton_id(s) from putaway lines for the response
+    // CRITICAL: For Transfer In tasks, use the carton_id from lines (not task ID or transfer_in ID)
+    // The mobile app displays this as "Putaway box" so it must be the actual carton ID
+    const cartonIds = [...new Set(linesToProcess.map(line => line.carton_id).filter(Boolean))];
+    const primaryCartonId = cartonIds.length > 0 ? cartonIds[0] : null;
+    
+    // Get location info for response
+    const locationInfo = linesToProcess.length > 0 ? {
+      rack: linesToProcess[0].rack || null,
+      bin: linesToProcess[0].bin || null,
+      location_id: linesToProcess[0].location_id || null
+    } : null;
+    
+    // Build location string for display
+    let locationDisplay = null;
+    if (locationInfo) {
+      if (locationInfo.location_id) {
+        locationDisplay = locationInfo.location_id;
+      } else if (locationInfo.rack && locationInfo.bin) {
+        locationDisplay = `${locationInfo.rack}-${locationInfo.bin}`;
+      } else if (locationInfo.rack) {
+        locationDisplay = locationInfo.rack;
+      } else if (locationInfo.bin) {
+        locationDisplay = locationInfo.bin;
+      }
+    }
+
+    // CRITICAL: Update task status to Completed and location_id ONLY after all stock updates succeed
+    // This ensures atomic completion - if any stock update fails, status remains "In Progress"
+    // Note: taskLocationColumns and hasTaskLocationId are already declared earlier in the function
+    let updateTaskQuery = `UPDATE tabPutawayTask 
+      SET status = 'Completed'`;
+    const updateTaskParams = [];
+    
+    if (hasTaskLocationId && headerLocationInfo && headerLocationInfo.location_id) {
+      updateTaskQuery += `, location_id = ?`;
+      updateTaskParams.push(headerLocationInfo.location_id);
+    }
+    
+    updateTaskQuery += `, updated_at = CURRENT_TIMESTAMP WHERE title = ?`;
+    updateTaskParams.push(actualPutawayTask);
+    
+    await connection.execute(updateTaskQuery, updateTaskParams);
+    
+    logger.info(`[Putaway] Updated putaway task ${actualPutawayTask} to Completed`, {
+      putaway_task: actualPutawayTask,
+      location_id: hasTaskLocationId && headerLocationInfo ? headerLocationInfo.location_id : null
+    });
+    
+    // CRITICAL: Close the sort box if box_id was provided (Putaway is BOX-based)
+    // IMPORTANT: This happens BEFORE commit, so if commit fails, box status will be rolled back
+    if (actualBoxId) {
+      const [sortBoxColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabsortbox' 
+        AND COLUMN_NAME = 'status'
+      `);
+      const hasSortBoxStatus = sortBoxColumns.length > 0;
+      
+      if (hasSortBoxStatus) {
+        await connection.execute(
+          `UPDATE tabsortbox
+           SET status = 'Closed', updated_at = CURRENT_TIMESTAMP
+           WHERE box_id = ?`,
+          [actualBoxId]
+        );
+        
+        logger.info(`[Putaway] Closed sort box ${actualBoxId} after putaway completion (before commit)`);
+      }
+    }
+    
+    // CRITICAL: Commit transaction - all stock updates, task status, and box status change are atomic
+    // If commit fails, everything will be rolled back (box status, task status, stock updates)
+    // Wrap commit in try-catch to handle commit failures
+    try {
+      await connection.commit();
+      logger.info(`[Putaway] ✅ Transaction committed successfully - all changes are now permanent`, {
+        putaway_task: actualPutawayTask,
+        box_id: actualBoxId || null,
+        stock_updates_count: stockUpdates.length
+      });
+    } catch (commitError) {
+      // If commit fails, rollback everything (box status, task status, stock updates)
+      logger.error(`[Putaway] ❌ CRITICAL: Commit failed - rolling back all changes`, {
+        error: commitError.message,
+        putaway_task: actualPutawayTask,
+        box_id: actualBoxId || null
+      });
+      try {
+        await connection.rollback();
+        logger.error(`[Putaway] ✅ Rollback successful after commit failure`);
+      } catch (rollbackError) {
+        logger.error(`[Putaway] ❌ CRITICAL: Rollback also failed: ${rollbackError.message}`);
+      }
+      throw commitError; // Re-throw to trigger error handler
+    }
+    
+    // Get from_location_id for response (from first stock update if available)
+    const firstStockUpdate = stockUpdates.length > 0 ? stockUpdates[0] : null;
+    const fromLocationId = firstStockUpdate?.from_location_id || null;
+    
+    logger.info(`[Putaway] ✅ Successfully completed putaway task ${actualPutawayTask}`, {
+      putaway_task: actualPutawayTask,
+      stock_updates_count: stockUpdates.length,
+      items_updated: stockUpdates.length,
+      stock_updates: stockUpdates.map(s => ({
+        item_code: s.item_code,
+        from_location: s.from_location_id,
+        to_location: s.to_location_id,
+        qty: s.qty_added
+      }))
+    });
+    
     res.json({
       ok: true,
+      step: "COMPLETE",
       message: "Putaway completed successfully",
       data: {
-        putaway_task: putaway_task,
+        putaway_task: actualPutawayTask,
+        putaway_task_id: actualPutawayTask, // Alias for mobile app compatibility
         status: "Completed",
         stock_updated: true,
         warehouse: warehouse,
         items_updated: stockUpdates.length,
         stock_updates: stockUpdates,
+        moved_lines: stockUpdates.map(update => ({
+          item_code: update.item_code,
+          carton_id: update.carton_id,
+          from_location_id: update.from_location_id,
+          to_location_id: update.to_location_id,
+          qty: update.qty_added
+        })),
+        carton_id: primaryCartonId, // CRITICAL: Actual carton ID from putaway lines (e.g., CTN-TI-0001-20260116-161713-261)
+        box_id: primaryCartonId, // Alias for mobile app compatibility (use actual carton_id, not task ID)
+        carton_ids: cartonIds, // All carton IDs if multiple
+        location: locationInfo ? {
+          rack: locationInfo.rack,
+          bin: locationInfo.bin,
+          location_id: locationInfo.location_id,
+          display: locationDisplay
+        } : null,
+        to_location_id: locationInfo?.location_id || null, // Target location
+        from_location_id: fromLocationId, // FROM location (staging) - computed per carton
+        server_time: new Date().toISOString(),
       },
     });
   } catch (error) {
-    await connection.rollback();
-    console.error("Failed to complete putaway:", error);
+    // CRITICAL: Rollback transaction on ANY error - this ensures box status, task status, and stock updates are all rolled back
+    // If box was set to "Closed" but an error occurred, rollback will revert it to previous status
+    try {
+      if (connection && !connection._released) {
+        await connection.rollback();
+        logger.error(`[Putaway] ❌ Transaction rolled back due to error: ${error.message}`, {
+          errorType: error?.constructor?.name || "Unknown",
+          stack: error?.stack,
+          box_id: actualBoxId || null,
+          putaway_task: actualPutawayTask || null
+        });
+      }
+    } catch (rollbackError) {
+      logger.error(`[Putaway] ❌ CRITICAL: Failed to rollback transaction: ${rollbackError.message}`, {
+        originalError: error.message,
+        rollbackError: rollbackError.message
+      });
+    }
+    
+    // Handle duplicate entry errors gracefully (idempotency)
+    if (error.code === "ER_DUP_ENTRY" || error.errno === 1062) {
+      logger.error("Duplicate entry detected during putaway completion (idempotency check)", {
+        errorType: error?.constructor?.name || "Error",
+        message: error?.message || "Duplicate entry",
+        code: error?.code,
+        sqlMessage: error?.sqlMessage,
+        sqlState: error?.sqlState,
+        requestBody: {
+          putaway_task: putaway_task || null,
+          tc_id: tc_id || null,
+          box_id: box_id || null,
+          location_id: location_id || null,
+        },
+      });
+      
+      // Try to find the putaway task to return success (idempotent)
+      try {
+        const connection2 = await getConnection();
+        let actualPutawayTask = putaway_task;
+        
+        if (!actualPutawayTask && (tc_id || box_id)) {
+          const cartonIdToSearch = box_id || tc_id;
+          const [taskFromCarton] = await connection2.execute(
+            `SELECT DISTINCT parent_title 
+             FROM tabPutawayLine 
+             WHERE carton_id = ? 
+             ORDER BY parent_title DESC 
+             LIMIT 1`,
+            [cartonIdToSearch]
+          );
+          if (taskFromCarton.length > 0) {
+            actualPutawayTask = taskFromCarton[0].parent_title;
+          }
+        }
+        
+        if (actualPutawayTask) {
+          const [tasks] = await connection2.execute(
+            `SELECT status FROM tabPutawayTask WHERE title = ?`,
+            [actualPutawayTask]
+          );
+          connection2.release();
+          
+          if (tasks.length > 0 && tasks[0].status === "Completed") {
+            // Task already completed - return success (idempotent)
+            return res.json({
+              ok: true,
+              step: "COMPLETE",
+              message: "Putaway already completed (idempotent - duplicate entry handled)",
+              data: {
+                putaway_task: actualPutawayTask,
+                status: "Completed",
+                stock_updated: true,
+                already_completed: true,
+                duplicate_entry_handled: true,
+              },
+            });
+          }
+        } else {
+          connection2.release();
+        }
+      } catch (lookupError) {
+        // If lookup fails, continue with error response
+        logger.error("Failed to lookup putaway task for duplicate entry handling", {
+          error: lookupError?.message,
+        });
+      }
+      
+      // If we can't confirm completion, return error
+      connection.release();
+      return res.status(409).json({
+        ok: false,
+        error: {
+          code: "DUPLICATE_ENTRY",
+          message: "Duplicate entry detected. This putaway may have already been completed. Please check the putaway task status.",
+          details: process.env.NODE_ENV === "development" ? error.sqlMessage : null,
+          suggestion: "Check if the putaway task is already completed. If so, this is expected behavior (idempotency).",
+        },
+      });
+    }
+    
+    logger.error("Failed to complete putaway", {
+      errorType: error?.constructor?.name || "Unknown",
+      message: error?.message || "Unknown error",
+      stack: error?.stack,
+      code: error?.code,
+      errno: error?.errno,
+      sqlMessage: error?.sqlMessage,
+      sqlState: error?.sqlState,
+      requestBody: {
+        putaway_task: putaway_task || null,
+        tc_id: tc_id || null,
+        box_id: box_id || null,
+        location_id: location_id || null,
+        performed_by: performed_by || null,
+      },
+    });
+    
     res.status(500).json({
       ok: false,
       error: {
@@ -2372,66 +3879,84 @@ export const completePutaway = async (req, res) => {
       },
     });
   } finally {
-    connection.release();
+    if (connection && !connection._released) {
+      connection.release();
+    }
   }
 };
 
 /**
  * POST /api/putaway/scan-transfer-carton
- * Scan transfer carton or box and location, then create/update putaway task
+ * VALIDATE transfer carton/box and location - NO AUTO-CREATION
+ * This endpoint only validates that carton_id and location_id exist
+ * All creation and stock updates happen in completePutaway endpoint
  *
  * Request Body:
  * {
- *   "tc_id": "TC-1766952896460",  // Optional if box_id provided
+ *   "tc_id": "TC-1766952896460",  // Required for ASN (carton_id)
  *   "box_id": "BOX-WHMAIN-514364", // Optional if tc_id provided
- *   "rack": "RACK-A",
- *   "bin": "BIN-01",
+ *   "location_id": "A1-R02-L1-B2", // Required
  *   "user_id": "USER-001"
  * }
  */
 export const scanTransferCarton = async (req, res) => {
-  const { tc_id, box_id, location_id, rack, bin, user_id, putaway_task } =
-    req.body;
+  const { tc_id, box_id, location_id, user_id, putaway_task, carton_id } = req.body;
 
-  // Accept either location_id (preferred) or rack+bin (backward compatibility)
-  let actualLocationId = location_id;
-  let actualRack = rack;
-  let actualBin = bin;
+  // Log entry point for debugging
+  logger.info(`[Putaway Scan] Entry: location_id=${location_id || 'NULL'}, box_id=${box_id || 'NULL'}, tc_id=${tc_id || 'NULL'}, putaway_task=${putaway_task || 'NULL'}, carton_id=${carton_id || 'NULL'}`);
 
-  // If location_id is provided, use it (preferred method)
-  // Otherwise, accept rack+bin for backward compatibility
-  if (!actualLocationId && !actualRack) {
+  // Import scanNormalize utility
+  const { normalizeCartonId, validateForPutaway } = await import('../../utils/scanNormalize.js');
+
+  // VALIDATION: location_id is required
+  if (!location_id) {
+    logger.warn(`[Putaway Scan] Missing location_id - returning validation error`);
     return res.status(400).json({
       ok: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "location_id (or rack) is required",
+        message: "location_id is required",
       },
     });
   }
 
-  // If only putaway_task is provided (no tc_id or box_id), update existing task
-  if (putaway_task && !tc_id && !box_id) {
-    // Use location_id if provided, otherwise use rack+bin
-    const locationToUse =
-      actualLocationId ||
-      (actualRack && actualBin ? `${actualRack}-${actualBin}` : actualRack);
-    return await updatePutawayTaskLocation(
-      req,
-      res,
-      putaway_task,
-      locationToUse,
-      user_id
-    );
+  // CRITICAL: Normalize and validate carton_id/box_id - reject old TI-PUT-* and PUT-* formats
+  // For ASN putaway, allow PAW-ASN-* format as box_id
+  const inputId = carton_id || box_id || tc_id;
+  let actualCartonId = null;
+  let actualBoxId = null;
+  let validatedBoxId = null; // Initialize early to avoid ReferenceError
+
+  if (inputId) {
+    // Check if this might be ASN putaway (PAW-ASN-* format)
+    const isAsnBoxId = String(inputId).trim().toUpperCase().startsWith('PAW-ASN');
+    
+    // Validate for putaway - allow PAW-ASN-* format for ASN putaway
+    const validated = validateForPutaway(inputId, isAsnBoxId);
+    if (!validated.ok) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: validated.reason,
+          message: validated.message || `Invalid format: ${inputId}. Putaway requires carton ID (CTN-* format) or ASN box ID (PAW-ASN-* format). Old format (TI-PUT-* or PUT-*) is no longer supported.`,
+        },
+      });
+    }
+    actualCartonId = validated.carton_id;
+    actualBoxId = validated.box_id; // For ASN: box_id = PAW-ASN-*, carton_id = null
+    validatedBoxId = validated.box_id; // Set validatedBoxId immediately
   }
 
-  // Otherwise, need tc_id or box_id
-  if (!tc_id && !box_id) {
+  // If putaway_task is provided, use it (for desktop app workflow)
+  const actualPutawayTask = putaway_task;
+  let taskTitleToCheck = actualPutawayTask; // Initialize with putaway_task if provided
+  
+  if (!actualCartonId && !actualBoxId && !actualPutawayTask) {
     return res.status(400).json({
       ok: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "Either tc_id, box_id, or putaway_task is required",
+        message: "Either carton_id (CTN-* format), box_id (CTN-* or PAW-ASN-* format), or putaway_task is required",
       },
     });
   }
@@ -2439,961 +3964,830 @@ export const scanTransferCarton = async (req, res) => {
   const connection = await getConnection();
 
   try {
-    await connection.beginTransaction();
+    // VALIDATION ONLY - No transaction needed (no database writes)
+    // Step 1: Validate location_id exists
+    let locationInfo = null;
+    try {
+      locationInfo = await lookupLocationFromId(connection, location_id);
+    } catch (error) {
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "LOCATION_NOT_FOUND",
+          message: `Location ID "${location_id}" not found or not available`,
+          details: error.message,
+        },
+      });
+    }
 
-    let actualTcId = tc_id;
-    let scannedBoxId = box_id;
+    // Step 2: Validate carton_id/tc_id and determine putaway type (ASN vs Transfer In)
+    let isAsnPutaway = false;
+    let validatedCartonId = actualCartonId; // The carton_id to use for validation
+    let validatedBoxId = actualBoxId; // The box_id to use for validation (always = carton_id)
+    
+    // Check if tc_id is a putaway task title (PUT- or TI-PUT-)
+    // Note: Old formats are already rejected by validateForPutaway above
+    // If it is, find the task to determine putaway type
+    const isPutawayTaskTitle = actualCartonId && (actualCartonId.startsWith('PUT-') || actualCartonId.startsWith('TI-PUT-'));
+    let taskTitleToCheck = actualPutawayTask || (isPutawayTaskTitle ? actualCartonId : null);
+    
+    if (taskTitleToCheck) {
+      // Find the putaway task to determine type
+      const [taskColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabPutawayTask' 
+        AND COLUMN_NAME IN ('source_type', 'transfer_in')
+      `);
+      
+      const hasSourceType = taskColumns.some(col => col.COLUMN_NAME === 'source_type');
+      const hasTransferIn = taskColumns.some(col => col.COLUMN_NAME === 'transfer_in');
+      
+      let taskSelectQuery = `SELECT title`;
+      if (hasSourceType) taskSelectQuery += `, source_type`;
+      if (hasTransferIn) taskSelectQuery += `, transfer_in`;
+      taskSelectQuery += ` FROM tabPutawayTask WHERE title = ? LIMIT 1`;
+      
+      const [taskRows] = await connection.execute(taskSelectQuery, [taskTitleToCheck]);
+      
+      if (taskRows.length > 0) {
+        const task = taskRows[0];
+        const isTransferInTask = (hasSourceType && task.source_type === 'TransferIn') || 
+                                (hasTransferIn && task.transfer_in);
+        
+        if (isTransferInTask) {
+          // This is Transfer In putaway - skip tabTransferCarton validation
+          // For Transfer In, carton_id validation happens in completePutaway using putaway lines
+          isAsnPutaway = false;
+          
+          // If carton_id is provided (not the task title), validate it exists in putaway lines
+          if (actualCartonId && !isPutawayTaskTitle) {
+            const [lineRows] = await connection.execute(
+              `SELECT carton_id FROM tabPutawayLine 
+               WHERE parent_title = ? AND carton_id = ? 
+               LIMIT 1`,
+              [taskTitleToCheck, actualCartonId]
+            );
+            
+            if (lineRows.length === 0) {
+              connection.release();
+              return res.status(400).json({
+                ok: false,
+                error: {
+                  code: "CARTON_NOT_FOUND",
+                  message: `Carton ${actualCartonId} not found in putaway task ${taskTitleToCheck}. Please verify the carton ID.`,
+                },
+              });
+            }
+          }
+          // Validation passed for Transfer In putaway
+        } else {
+          // Task exists but it's ASN putaway - need to validate carton_id in tabTransferCarton
+          isAsnPutaway = true;
+          // Continue to tabTransferCarton validation below (if actualCartonId is not the task title)
+          if (isPutawayTaskTitle) {
+            // If tc_id is the task title for ASN, we need the actual carton_id
+            connection.release();
+            return res.status(400).json({
+              ok: false,
+              error: {
+                code: "VALIDATION_ERROR",
+                message: `For ASN putaway, please provide the carton_id (tc_id), not the putaway task title.`,
+              },
+            });
+          }
+        }
+      } else {
+        // Task not found
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "TASK_NOT_FOUND",
+            message: `Putaway task ${taskTitleToCheck} not found.`,
+          },
+        });
+      }
+    }
+    
+    // Validate against tabTransferCarton for ASN putaway (if not already validated above)
+    if (actualCartonId && !isPutawayTaskTitle && (isAsnPutaway || !taskTitleToCheck)) {
+      // Check if carton_id exists in tabTransferCarton (ASN putaway)
+      const [tcColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabTransferCarton' 
+        AND COLUMN_NAME IN ('advance_shipping_notice', 'source_type')
+      `);
+      
+      const hasAsnColumn = tcColumns.some(col => col.COLUMN_NAME === 'advance_shipping_notice');
+      const hasSourceTypeColumn = tcColumns.some(col => col.COLUMN_NAME === 'source_type');
+      
+      let selectQuery = `SELECT tc_id, status`;
+      if (hasAsnColumn) selectQuery += `, advance_shipping_notice`;
+      if (hasSourceTypeColumn) selectQuery += `, source_type`;
+      selectQuery += ` FROM tabTransferCarton WHERE tc_id = ? LIMIT 1`;
+      
+      const [tcRows] = await connection.execute(selectQuery, [actualCartonId]);
 
-    // If box_id is provided but not tc_id, find the transfer carton containing this box
-    if (box_id && !tc_id) {
-      // Check if box exists and is sealed
+      if (tcRows.length > 0) {
+        // Found in tabTransferCarton - this is ASN putaway
+        const tc = tcRows[0];
+        if (hasAsnColumn && tc.advance_shipping_notice) {
+          isAsnPutaway = true;
+        } else if (hasSourceTypeColumn) {
+          isAsnPutaway = (tc.source_type !== 'Transfer In');
+        } else {
+          isAsnPutaway = true; // Default to ASN if found in tabTransferCarton
+        }
+      } else {
+        // Not found in tabTransferCarton - check if it's a carton_id in putaway lines (Transfer In scenario)
+        const [putawayLineRows] = await connection.execute(
+          `SELECT DISTINCT pl.parent_title, pt.source_type, pt.transfer_in
+           FROM tabPutawayLine pl
+           LEFT JOIN tabPutawayTask pt ON pl.parent_title = pt.title
+           WHERE pl.carton_id = ?
+           LIMIT 1`,
+          [actualCartonId]
+        );
+        
+        if (putawayLineRows.length > 0) {
+          // Found in putaway lines - check if it's Transfer In task
+          const line = putawayLineRows[0];
+          const isTransferInTask = line.source_type === 'TransferIn' || line.transfer_in;
+          
+          if (isTransferInTask) {
+            // This is Transfer In putaway - carton_id is valid
+            isAsnPutaway = false;
+            validatedCartonId = actualCartonId;
+          } else {
+            // Found in lines but it's ASN - should be in tabTransferCarton
+            connection.release();
+            return res.status(400).json({
+              ok: false,
+              error: {
+                code: "CARTON_NOT_FOUND",
+                message: `Transfer carton ${actualCartonId} not found in tabTransferCarton. Carton must be created during receiving before ASN putaway.`,
+              },
+            });
+          }
+        } else {
+          // Not found anywhere - return error
+          connection.release();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "CARTON_NOT_FOUND",
+              message: `Transfer carton ${actualCartonId} not found. For ASN putaway, carton must be created during receiving. For Transfer In putaway, carton must exist in putaway lines.`,
+            },
+          });
+        }
+      }
+    } else if (!actualCartonId && !actualBoxId) {
+      // No carton_id or box_id provided - this should not happen due to validation above
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Either carton_id (tc_id) or box_id is required",
+        },
+      });
+    } else {
+      // If no tc_id, assume ASN putaway (box_id only scenario)
+      isAsnPutaway = true;
+    }
+
+    // Ensure validatedBoxId is set (should already be set above, but ensure it's available)
+    // This is a safety check - validatedBoxId should already be set from the validation above
+    if (!validatedBoxId) {
+      validatedBoxId = actualBoxId || null;
+    }
+
+    // Step 3: Validate box_id (for both ASN and Transfer In Putaway)
+    // Use normalized box_id from validation above
+    if (validatedBoxId) {
+      // Check if box exists in tabSortBox (for both ASN and Transfer In)
       const [boxRows] = await connection.execute(
-        `SELECT box_id, status, advance_shipping_notice, store, purpose FROM tabSortBox WHERE box_id = ?`,
-        [box_id]
+        `SELECT box_id, status, advance_shipping_notice, store 
+         FROM tabSortBox 
+         WHERE box_id = ? 
+         LIMIT 1`,
+        [validatedBoxId]
       );
 
       if (boxRows.length === 0) {
-        await connection.rollback();
+        // Box not found - provide helpful error message
+        let helpfulMessage = `Box ${validatedBoxId} not found in tabSortBox.`;
+        let hint = null;
+        let troubleshooting = null;
+        let errorCode = "BOX_NOT_FOUND";
+        
+        // Note: Old TI-PUT-* and PUT-* formats are already rejected by normalizeCartonId above
+        // This code path should only be reached for valid CTN-* formats that don't exist yet
+        // Check if putaway task exists and box needs to be created
+        // Determine if this is Transfer In or ASN based on box_id format
+        const isTransferInBoxCheck = validatedBoxId && validatedBoxId.startsWith('CTN-TI-');
+        
+        if (isTransferInBoxCheck) {
+          // For Transfer In: Box might not be created yet if putaway task doesn't exist
+          helpfulMessage = `Box ${validatedBoxId} not found. Putaway task may not be created yet. Please complete receiving first.`;
+          errorCode = "PUTAWAY_NOT_READY";
+          troubleshooting = [
+            "Complete Transfer In receiving to create putaway task",
+            "Wait for putaway task creation to complete",
+            "Then retry scanning the carton ID"
+          ];
+        } else {
+          // For ASN: Box should exist if receiving is complete
+          helpfulMessage = `Box ${validatedBoxId} not found. Box may not be created yet during receiving.`;
+          troubleshooting = [
+            "Complete ASN receiving to create boxes",
+            "Then retry scanning the box ID"
+          ];
+        }
+        
         connection.release();
-        return res.status(404).json({
+        return res.status(errorCode === "PUTAWAY_NOT_READY" ? 409 : 400).json({
           ok: false,
           error: {
-            code: "BOX_NOT_FOUND",
-            message: `Box ${box_id} not found`,
+            code: errorCode,
+            message: helpfulMessage,
+            ...(errorCode === "PUTAWAY_NOT_READY" && { retry_after_seconds: 3 }),
+            ...(hint && { hint }),
+            ...(troubleshooting && { troubleshooting })
           },
         });
       }
 
       const box = boxRows[0];
-
-      // Check if box is closed (required for warehouse box putaway)
-      if (
-        box.status !== "Closed" &&
-        box.status !== "Sealed" &&
-        box.status !== "Dispatched"
-      ) {
-        await connection.rollback();
-        connection.release();
-        return res.status(400).json({
-          ok: false,
-          error: {
-            code: "BOX_NOT_CLOSED",
-            message: `Box ${box_id} must be closed before putaway. Current status: ${box.status}`,
-          },
-        });
-      }
-
-      // CRITICAL: Check if box destination store has warehouse_type = 'Warehouse' (MANDATORY - NO hardcoded values)
-      const isWarehouseBox = await isWarehouseStore(connection, box.store);
-
-      if (!isWarehouseBox) {
-        await connection.rollback();
-        connection.release();
-        return res.status(400).json({
-          ok: false,
-          error: {
-            code: "NOT_WAREHOUSE_BOX",
-            message: `Box destination store does not have warehouse_type = 'Warehouse'. Use Packing screen instead.`,
-          },
-        });
-      }
-
-      // Find which transfer carton contains this box (if any)
-      const [tcFromBox] = await connection.execute(
-        `SELECT DISTINCT tc_id FROM tabWmsScanEvent WHERE box_id = ? AND event_type = 'PACK_BOX_TO_TC' AND tc_id IS NOT NULL LIMIT 1`,
-        [box_id]
-      );
-
-      if (tcFromBox.length === 0) {
-        // Box is closed but not in a transfer carton
-        // This is a warehouse box going directly to putaway (not to showroom)
-        // Set actualTcId to null to indicate direct box putaway
-        actualTcId = null;
-      } else {
-        actualTcId = tcFromBox[0].tc_id;
-      }
-    }
-
-    let asnNo;
-    let transferCarton = null;
-
-    // If actualTcId is null, this is a direct box putaway (warehouse box)
-    if (actualTcId) {
-      // Get transfer carton details
-      const [tableInfo] = await connection.execute(
-        `DESCRIBE tabTransferCarton`
-      );
-      const allColumns = new Set(tableInfo.map((row) => row.Field));
-
-      let asnColumn;
-      if (allColumns.has("asn_no")) {
-        asnColumn = "asn_no";
-      } else if (allColumns.has("advance_shipping_notice")) {
-        asnColumn = "advance_shipping_notice";
-      } else {
-        throw new Error(
-          "Cannot find ASN column (asn_no or advance_shipping_notice) in tabTransferCarton"
-        );
-      }
-
-      const [tcRows] = await connection.execute(
-        `
-        SELECT 
-          tc_id,
-          status,
-          ${asnColumn} as asn_no,
-          store
-        FROM tabTransferCarton
-        WHERE tc_id = ?
-      `,
-        [actualTcId]
-      );
-
-      if (tcRows.length === 0) {
-        // Auto-create transfer carton if it doesn't exist
-        // Try to extract ASN from tc_id (format: PAW-ASN12225-{timestamp} or similar)
-        let extractedASN = null;
-        if (actualTcId.includes("ASN")) {
-          // Try to extract ASN from ID like "PAW-ASN12225-1767112384558"
-          const asnMatch = actualTcId.match(/ASN-?\d+/i);
-          if (asnMatch) {
-            extractedASN = asnMatch[0].replace(/^ASN/i, "ASN-");
-            if (!extractedASN.includes("-")) {
-              // If format is ASN12225, convert to ASN-12225
-              extractedASN = extractedASN.replace(/ASN/i, "ASN-");
+      
+      // Validate box status (should be Open or Assigned, not Closed/Completed)
+      // BUT: If box is Closed but putaway task is NOT completed, allow retry (reopen box)
+      if (box.status === 'Closed' || box.status === 'Completed' || box.status === 'Dispatched') {
+        // Check if putaway task exists and is actually completed
+        // If task is NOT completed, allow retry (box was closed prematurely due to error)
+        // First check if box_id column exists in tabPutawayLine
+        const [lineColumns] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabPutawayLine'
+            AND COLUMN_NAME = 'box_id'
+        `);
+        const hasLineBoxId = lineColumns.length > 0;
+        
+        // Build WHERE clause conditionally based on column existence
+        // For ASN putaway, box_id is stored in carton_id column
+        let whereClause = 'pt.carton_id = ?';
+        let whereParams = [validatedBoxId];
+        
+        if (hasLineBoxId) {
+          whereClause += ' OR pt.box_id = ?';
+          whereParams.push(validatedBoxId);
+        }
+        
+        const [putawayTaskCheck] = await connection.execute(`
+          SELECT DISTINCT pt.parent_title
+          FROM tabPutawayLine pt
+          WHERE ${whereClause}
+          ORDER BY pt.parent_title DESC
+          LIMIT 1
+        `, whereParams);
+        
+        let allowRetry = false;
+        let taskTitle = null;
+        let taskStatus = null;
+        
+        if (putawayTaskCheck.length > 0) {
+          taskTitle = putawayTaskCheck[0].parent_title;
+          
+          // Check actual task status from tabPutawayTask
+          const [taskStatusCheck] = await connection.execute(`
+            SELECT status FROM tabPutawayTask WHERE title = ? LIMIT 1
+          `, [taskTitle]);
+          
+          if (taskStatusCheck.length > 0) {
+            const actualTaskStatus = taskStatusCheck[0].status;
+            taskStatus = actualTaskStatus; // Store for error response if needed
+            // If task is NOT "Completed", allow retry (box was closed but putaway failed)
+            if (actualTaskStatus !== 'Completed' && actualTaskStatus !== 'Closed') {
+              allowRetry = true;
+              logger.warn(`[Putaway] Box ${validatedBoxId} is Closed but task ${taskTitle} is ${actualTaskStatus} - allowing retry by reopening box`);
+              
+              // Reopen the box to allow putaway retry
+              const [sortBoxStatusCol] = await connection.execute(`
+                SELECT COLUMN_NAME 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tabsortbox' 
+                AND COLUMN_NAME = 'status'
+              `);
+              
+              if (sortBoxStatusCol.length > 0) {
+                await connection.execute(`
+                  UPDATE tabsortbox
+                  SET status = 'Open', updated_at = CURRENT_TIMESTAMP
+                  WHERE box_id = ?
+                `, [validatedBoxId]);
+                
+                logger.info(`[Putaway] ✅ Reopened box ${validatedBoxId} for putaway retry (task ${taskTitle} is ${actualTaskStatus})`);
+                // Continue with putaway - box is now Open
+              } else {
+                // Can't update status column - still allow retry but log warning
+                logger.warn(`[Putaway] ⚠️ Cannot reopen box ${validatedBoxId} - status column not found, but allowing putaway to proceed`);
+                allowRetry = true;
+              }
             }
           }
         }
-
-        // If we can't extract ASN, try to get it from request body or use a default
-        if (!extractedASN) {
-          // Check if ASN is provided in request body
-          extractedASN = req.body.asn_no || req.body.advance_shipping_notice;
+        
+        // If task is completed or no task found, reject (idempotency)
+        if (!allowRetry) {
+          connection.release();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "BOX_ALREADY_PROCESSED",
+              message: `Box ${validatedBoxId} is already ${box.status} and cannot be used for putaway.`,
+              ...(taskTitle && { putaway_task: taskTitle, task_status: taskStatus }),
+            },
+          });
         }
+        // If allowRetry is true, continue with putaway (box has been reopened)
+      }
 
-        // If still no ASN, we can't create the transfer carton
-        if (!extractedASN) {
+      // CRITICAL: Check if putaway task exists for this box
+      // For Transfer In: box.advance_shipping_notice = Transfer In title
+      // For ASN: box.advance_shipping_notice = ASN number
+      const documentTitle = box.advance_shipping_notice;
+      
+      // Determine if this is Transfer In or ASN based on box_id format
+      const isTransferInBox = validatedBoxId && validatedBoxId.startsWith('CTN-TI-');
+      
+      // Check if putaway task exists
+      const [taskColumns] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabPutawayTask'
+          AND COLUMN_NAME IN ('source_type', 'transfer_in', 'status')
+      `);
+      const taskColumnNames = taskColumns.map(col => col.COLUMN_NAME);
+      const hasSourceType = taskColumnNames.includes('source_type');
+      const hasTransferIn = taskColumnNames.includes('transfer_in');
+      const hasStatus = taskColumnNames.includes('status');
+      
+      let putawayTaskQuery = `SELECT title${hasStatus ? ', status' : ''} FROM tabPutawayTask WHERE `;
+      const taskParams = [];
+      
+      if (isTransferInBox && hasSourceType && hasTransferIn) {
+        // Transfer In: Check by source_type and transfer_in
+        putawayTaskQuery += `source_type = 'TransferIn' AND transfer_in = ?`;
+        taskParams.push(documentTitle);
+      } else if (isTransferInBox && hasSourceType) {
+        // Transfer In: Fallback to source_type and advance_shipping_notice
+        putawayTaskQuery += `source_type = 'TransferIn' AND advance_shipping_notice = ?`;
+        taskParams.push(documentTitle);
+      } else {
+        // ASN: Check by advance_shipping_notice
+        putawayTaskQuery += `advance_shipping_notice = ?`;
+        taskParams.push(documentTitle);
+      }
+      
+      putawayTaskQuery += ` ORDER BY created_at DESC LIMIT 1`;
+      
+      const [taskRows] = await connection.execute(putawayTaskQuery, taskParams);
+      let foundPutawayTask = taskRows.length > 0 ? taskRows[0] : null;
+      
+      // If putaway task not found and this is Transfer In, try to create it synchronously
+      if (!foundPutawayTask && isTransferInBox) {
+        logger.info(`[Putaway Validation] Putaway task not found for Transfer In ${documentTitle}, attempting to create...`);
+        
+        try {
+          // Import the function to create putaway task
+          const { createPutawayTaskFromTransferIn } = await import('../transfer-in/transferInController.js');
+          
+          // Get warehouse from box or default
+          const warehouse = box.store || 'WH-MAIN';
+          
+          // Create putaway task synchronously (uses same connection)
+          await createPutawayTaskFromTransferIn(connection, documentTitle, warehouse);
+          
+          // Wait a bit and re-query (max 2 seconds, 4 attempts)
+          let attempts = 0;
+          const maxAttempts = 4;
+          const delayMs = 500;
+          
+          while (attempts < maxAttempts && !foundPutawayTask) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+            
+            const [retryTaskRows] = await connection.execute(putawayTaskQuery, taskParams);
+            if (retryTaskRows.length > 0) {
+              foundPutawayTask = retryTaskRows[0];
+              logger.info(`[Putaway Validation] ✅ Putaway task created: ${foundPutawayTask.title}`);
+              break;
+            }
+            attempts++;
+          }
+          
+          // If still not found after retries, return NOT_READY
+          if (!foundPutawayTask) {
+            connection.release();
+            return res.status(409).json({
+              ok: false,
+              error: {
+                code: "PUTAWAY_NOT_READY",
+                message: `Putaway task is being created for Transfer In ${documentTitle}. Please retry in 3 seconds.`,
+                retry_after_seconds: 3,
+                transfer_in: documentTitle,
+                box_id: validatedBoxId
+              },
+            });
+          }
+        } catch (createError) {
+          logger.error(`[Putaway Validation] Failed to create putaway task:`, createError);
+          connection.release();
+          return res.status(409).json({
+            ok: false,
+            error: {
+              code: "PUTAWAY_NOT_READY",
+              message: `Putaway task creation in progress. Please retry in 3 seconds.`,
+              retry_after_seconds: 3,
+              transfer_in: documentTitle,
+              box_id: validatedBoxId
+            },
+          });
+        }
+      }
+      
+      // If putaway task still not found, return NOT_READY
+      if (!foundPutawayTask) {
+        connection.release();
+        return res.status(409).json({
+          ok: false,
+          error: {
+            code: "PUTAWAY_NOT_READY",
+            message: `Putaway task not found for ${isTransferInBox ? 'Transfer In' : 'ASN'} ${documentTitle}. Putaway task may still be creating. Please retry in 3 seconds.`,
+            retry_after_seconds: 3,
+            ...(isTransferInBox ? { transfer_in: documentTitle } : { asn_no: documentTitle }),
+            box_id: validatedBoxId
+          },
+        });
+      }
+      
+      // Update taskTitleToCheck with found task (if not already set from putaway_task parameter)
+      if (!taskTitleToCheck) {
+        taskTitleToCheck = foundPutawayTask.title;
+      } else {
+        // Verify the found task matches the provided putaway_task
+        if (taskTitleToCheck !== foundPutawayTask.title) {
+          connection.release();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "TASK_MISMATCH",
+              message: `Putaway task ${taskTitleToCheck} does not match task found for box ${validatedBoxId} (${foundPutawayTask.title})`,
+            },
+          });
+        }
+      }
+
+      // Validate box belongs to correct document (ASN or Transfer In)
+      // This validation is already done by:
+      // 1. Box exists in tabSortBox with correct advance_shipping_notice
+      // 2. Putaway task exists for the document
+      // 3. Box.advance_shipping_notice matches document title
+      
+      if (isAsnPutaway) {
+        logger.info(`[Putaway Validation] Validated ASN putaway box ${validatedBoxId}`);
+      } else {
+        // For Transfer In: Validate advance_shipping_notice matches Transfer In title
+        if (box.advance_shipping_notice !== documentTitle) {
+          connection.release();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "BOX_TRANSFER_IN_MISMATCH",
+              message: `Box ${validatedBoxId} belongs to ${box.advance_shipping_notice}, not ${documentTitle}.`,
+            },
+          });
+        }
+        logger.info(`[Putaway Validation] Validated Transfer In putaway box ${validatedBoxId}`);
+      }
+    }
+
+    // CRITICAL: If putaway_task and location_id are provided, update all putaway lines with the location
+    // This handles both desktop app (putaway_task + location_id) and mobile app (box_id + location_id) workflows
+    // Priority: If putaway_task is provided, update all lines for that task
+    logger.info(`[Putaway Scan] Checking location update path: taskTitleToCheck=${taskTitleToCheck || 'NULL'}, location_id=${location_id || 'NULL'}, actualPutawayTask=${actualPutawayTask || 'NULL'}`);
+    
+    // If putaway_task was provided directly but taskTitleToCheck wasn't set from box validation, use it now
+    if (!taskTitleToCheck && actualPutawayTask) {
+      taskTitleToCheck = actualPutawayTask;
+      logger.info(`[Putaway Scan] Using putaway_task from request body: ${taskTitleToCheck}`);
+    }
+    
+    if (taskTitleToCheck && location_id) {
+      logger.info(`[Putaway Scan] ✅ Location update path triggered: task=${taskTitleToCheck}, location=${location_id}`);
+      // Desktop app is updating location for entire task
+      // Call updatePutawayTaskLocation to update all lines
+      try {
+        await connection.beginTransaction();
+        
+        // Get all putaway lines for this task
+        const [putawayLines] = await connection.execute(
+          `SELECT id, item_code, carton_id, qty FROM tabPutawayLine WHERE parent_title = ?`,
+          [taskTitleToCheck]
+        );
+
+        if (putawayLines.length === 0) {
           await connection.rollback();
           connection.release();
           return res.status(400).json({
             ok: false,
             error: {
-              code: "TRANSFER_CARTON_NOT_FOUND",
-              message: `Transfer carton ${actualTcId} not found. Please provide asn_no in request body to auto-create it.`,
+              code: "NO_LINES_FOUND",
+              message: `Putaway task ${taskTitleToCheck} has no items to assign location`,
             },
           });
         }
 
-        // Auto-create the transfer carton
-        console.log(
-          `Auto-creating transfer carton ${actualTcId} for ASN ${extractedASN}`
-        );
+        // Lookup location details
+        const rack = locationInfo.rack || null;
+        const bin = locationInfo.bin || null;
 
-        // Determine TO column and check if it's nullable
-        let toColumn = null;
-        let toColumnNullable = true;
-        let toValue = null;
+        // Check which columns exist in tabPutawayLine
+        const [lineLocationColumns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayLine' 
+          AND COLUMN_NAME IN ('location_id', 'rack', 'bin')
+        `);
+        const hasLineLocationIdColumn = lineLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+        const hasLineRack = lineLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+        const hasLineBin = lineLocationColumns.some(col => col.COLUMN_NAME === 'bin');
 
-        if (allColumns.has("to_no")) {
-          toColumn = "to_no";
-        } else if (allColumns.has("transfer_order")) {
-          toColumn = "transfer_order";
-        }
+        // Update ALL lines with the location
+        logger.info(`[Putaway] Updating ${putawayLines.length} line(s) with location: location_id=${location_id}, rack=${rack || 'NULL'}, bin=${bin || 'NULL'}`, {
+          hasLineLocationIdColumn: hasLineLocationIdColumn,
+          hasLineRack: hasLineRack,
+          hasLineBin: hasLineBin
+        });
+        
+        for (const line of putawayLines) {
+          let updateQuery = `UPDATE tabPutawayLine SET`;
+          const updateParams = [];
+          const updateFields = [];
 
-        // Check if TO column is nullable by examining table structure
-        if (toColumn) {
-          const [columnInfo] = await connection.execute(
-            `SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS 
-             WHERE TABLE_SCHEMA = DATABASE() 
-             AND TABLE_NAME = 'tabTransferCarton' 
-             AND COLUMN_NAME = ?`,
-            [toColumn]
-          );
-
-          if (columnInfo.length > 0) {
-            toColumnNullable = columnInfo[0].IS_NULLABLE === "YES";
+          if (hasLineRack) {
+            updateFields.push(`rack = ?`);
+            updateParams.push(rack || null);
           }
-
-          // Get TO value from request body or use a default
-          toValue = req.body.to_no || req.body.transfer_order || null;
-
-          // If column is NOT NULL and no value provided, use a default
-          if (!toColumnNullable && !toValue) {
-            // Try to get TO from ASN if possible, or use a placeholder
-            // For putaway operations, TO might not be required, so use a default
-            toValue = "PUTAWAY-DEFAULT"; // Default value for putaway-only transfer cartons
+          if (hasLineBin) {
+            updateFields.push(`bin = ?`);
+            updateParams.push(bin || null);
           }
-        }
-
-        // Insert transfer carton
-        if (toColumn && toValue) {
-          await connection.execute(
-            `INSERT INTO tabTransferCarton (tc_id, status, ${asnColumn}, ${toColumn}, store, created_by, created_on) 
-             VALUES (?, 'Sealed', ?, ?, ?, ?, NOW())`,
-            [
-              actualTcId,
-              extractedASN,
-              toValue,
-              req.body.store || "WAREHOUSE",
-              user_id || "SYSTEM",
-            ]
-          );
-        } else if (toColumn && toColumnNullable) {
-          // Column exists but is nullable, insert with NULL
-          await connection.execute(
-            `INSERT INTO tabTransferCarton (tc_id, status, ${asnColumn}, ${toColumn}, store, created_by, created_on) 
-             VALUES (?, 'Sealed', ?, NULL, ?, ?, NOW())`,
-            [
-              actualTcId,
-              extractedASN,
-              req.body.store || "WAREHOUSE",
-              user_id || "SYSTEM",
-            ]
-          );
-        } else {
-          // No TO column exists
-          await connection.execute(
-            `INSERT INTO tabTransferCarton (tc_id, status, ${asnColumn}, store, created_by, created_on) 
-             VALUES (?, 'Sealed', ?, ?, ?, NOW())`,
-            [
-              actualTcId,
-              extractedASN,
-              req.body.store || "WAREHOUSE",
-              user_id || "SYSTEM",
-            ]
-          );
-        }
-
-        // Fetch the newly created transfer carton
-        const [newTcRows] = await connection.execute(
-          `SELECT tc_id, status, ${asnColumn} as asn_no, store FROM tabTransferCarton WHERE tc_id = ?`,
-          [actualTcId]
-        );
-
-        if (newTcRows.length === 0) {
-          await connection.rollback();
-          connection.release();
-          return res.status(500).json({
-            ok: false,
-            error: {
-              code: "DATABASE_ERROR",
-              message: `Failed to create transfer carton ${actualTcId}`,
-            },
-          });
-        }
-
-        transferCarton = newTcRows[0];
-        asnNo = transferCarton.asn_no;
-        console.log(
-          `Successfully auto-created transfer carton ${actualTcId} for ASN ${asnNo}`
-        );
-      } else {
-        transferCarton = tcRows[0];
-        asnNo = transferCarton.asn_no;
-      }
-    } else {
-      // Direct box putaway - get ASN from box
-      if (scannedBoxId) {
-        const [boxInfo] = await connection.execute(
-          `SELECT advance_shipping_notice FROM tabSortBox WHERE box_id = ?`,
-          [scannedBoxId]
-        );
-        if (boxInfo.length > 0) {
-          asnNo = boxInfo[0].advance_shipping_notice;
-        }
-      }
-    }
-
-    if (!asnNo) {
-      await connection.rollback();
-      connection.release();
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: `Transfer carton ${tc_id} has no associated ASN`,
-        },
-      });
-    }
-
-    // Get items from transfer carton or directly from box
-    let itemEvents;
-
-    if (actualTcId) {
-      // Items from transfer carton (from PACK_BOX_TO_TC events)
-      let itemEventsQuery = `
-        SELECT 
-          item_code,
-          box_id,
-          carton_id,
-          SUM(qty) as total_qty
-        FROM tabWmsScanEvent
-        WHERE tc_id = ?
-          AND event_type = 'PACK_BOX_TO_TC'
-          AND item_code IS NOT NULL
-          AND qty IS NOT NULL
-      `;
-      const itemEventsParams = [actualTcId];
-
-      if (scannedBoxId) {
-        itemEventsQuery += ` AND box_id = ?`;
-        itemEventsParams.push(scannedBoxId);
-      }
-
-      itemEventsQuery += ` GROUP BY item_code, box_id, carton_id`;
-
-      [itemEvents] = await connection.execute(
-        itemEventsQuery,
-        itemEventsParams
-      );
-
-      // If no PACK_BOX_TO_TC events found, try SORT_TO_BOX events
-      // This handles putaway boxes where the box_id equals the tc_id
-      if (itemEvents.length === 0) {
-        console.log(
-          `No PACK_BOX_TO_TC events found for ${actualTcId}, checking SORT_TO_BOX events...`
-        );
-
-        // Check if tc_id matches a box_id (putaway boxes)
-        [itemEvents] = await connection.execute(
-          `
-          SELECT 
-            item_code,
-            box_id,
-            carton_id,
-            SUM(qty) as total_qty
-          FROM tabWmsScanEvent
-          WHERE box_id = ?
-            AND event_type = 'SORT_TO_BOX'
-            AND item_code IS NOT NULL
-            AND qty IS NOT NULL
-          GROUP BY item_code, box_id, carton_id
-        `,
-          [actualTcId]
-        );
-
-        if (itemEvents.length > 0) {
-          console.log(
-            `Found ${itemEvents.length} items from SORT_TO_BOX events for box ${actualTcId}`
-          );
-        } else {
-          // Last resort: Find boxes associated with this transfer carton's ASN and store
-          // Then get items from those boxes via SORT_TO_BOX events
-          console.log(
-            `No SORT_TO_BOX events found for ${actualTcId}, checking boxes by ASN and store...`
-          );
-
-          // Determine ASN column name
-          const [tableInfo] = await connection.execute(
-            `DESCRIBE tabTransferCarton`
-          );
-          const allColumns = new Set(tableInfo.map((row) => row.Field));
-
-          let fallbackAsnColumn;
-          if (allColumns.has("asn_no")) {
-            fallbackAsnColumn = "asn_no";
-          } else if (allColumns.has("advance_shipping_notice")) {
-            fallbackAsnColumn = "advance_shipping_notice";
+          if (hasLineLocationIdColumn) {
+            updateFields.push(`location_id = ?`);
+            updateParams.push(location_id);
+            logger.info(`[Putaway] Including location_id=${location_id} in UPDATE for line ID ${line.id}`);
+          } else {
+            logger.warn(`[Putaway] location_id column does NOT exist in tabPutawayLine - cannot update location_id for line ID ${line.id}`);
           }
+          
+          updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+          updateQuery += ` ${updateFields.join(', ')} WHERE id = ?`;
+          updateParams.push(line.id);
+          
+          logger.info(`[Putaway] Executing UPDATE query: ${updateQuery} with params: [${updateParams.map(p => p || 'NULL').join(', ')}]`);
+          
+          const [updateResult] = await connection.execute(updateQuery, updateParams);
+          logger.info(`[Putaway] Updated line ID ${line.id}: ${updateResult.affectedRows} row(s) affected`);
+        }
 
-          // Check if store column exists
-          const hasStoreColumn = allColumns.has("store");
+        // Update task location_id if column exists
+        const [taskLocationColumns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayTask' 
+          AND COLUMN_NAME = 'location_id'
+        `);
+        const hasTaskLocationId = taskLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+        
+        if (hasTaskLocationId) {
+          await connection.execute(
+            `UPDATE tabPutawayTask SET location_id = ?, updated_at = CURRENT_TIMESTAMP WHERE title = ?`,
+            [location_id, taskTitleToCheck]
+          );
+        }
 
-          if (fallbackAsnColumn) {
-            let tcInfoQuery = `SELECT ${fallbackAsnColumn} as asn_no`;
-            if (hasStoreColumn) {
-              tcInfoQuery += `, store`;
-            }
-            tcInfoQuery += ` FROM tabTransferCarton WHERE tc_id = ?`;
+        // Update task status to "In Progress" if it's "Draft" or "Open"
+        const [taskStatus] = await connection.execute(
+          `SELECT status FROM tabPutawayTask WHERE title = ?`,
+          [taskTitleToCheck]
+        );
+        
+        if (taskStatus.length > 0 && (taskStatus[0].status === 'Draft' || taskStatus[0].status === 'Open')) {
+          await connection.execute(
+            `UPDATE tabPutawayTask SET status = 'In Progress', updated_at = CURRENT_TIMESTAMP WHERE title = ?`,
+            [taskTitleToCheck]
+          );
+        }
 
-            const [tcInfo] = await connection.execute(tcInfoQuery, [
-              actualTcId,
-            ]);
-
-            if (tcInfo.length > 0) {
-              const asnNo = tcInfo[0].asn_no;
-              const store = hasStoreColumn ? tcInfo[0].store : null;
-
-              // Find boxes for this ASN (and store if available)
-              let boxQuery = `SELECT box_id FROM tabSortBox WHERE advance_shipping_notice = ?`;
-              const boxParams = [asnNo];
-
-              if (store) {
-                boxQuery += ` AND store = ?`;
-                boxParams.push(store);
-              }
-
-              const [boxes] = await connection.execute(boxQuery, boxParams);
-
-              if (boxes.length > 0) {
-                const boxIds = boxes.map((b) => b.box_id);
-                const placeholders = boxIds.map(() => "?").join(",");
-
-                // Get items from SORT_TO_BOX events for these boxes
-                [itemEvents] = await connection.execute(
-                  `
-                  SELECT 
-                    item_code,
-                    box_id,
-                    carton_id,
-                    SUM(qty) as total_qty
-                  FROM tabWmsScanEvent
-                  WHERE box_id IN (${placeholders})
-                    AND event_type = 'SORT_TO_BOX'
-                    AND item_code IS NOT NULL
-                    AND qty IS NOT NULL
-                  GROUP BY item_code, box_id, carton_id
-                `,
-                  boxIds
+        await connection.commit();
+        
+        // CRITICAL: Trigger stock updates after location is assigned and transaction is committed
+        // This ensures stock, ledger, and history are updated when location is scanned
+        // Note: We commit first, then trigger stock updates in a separate transaction
+        logger.info(`[Putaway] Triggering stock updates for putaway task ${taskTitleToCheck} after location assignment`);
+        
+        // Release connection first, then get a new one for stock updates
+        connection.release();
+        
+        // Trigger stock updates in a separate connection/transaction
+        // This avoids nested transaction issues
+        try {
+          // Import processPutawayCompletionEvent to trigger stock updates
+          const { processPutawayCompletionEvent } = await import('../events/eventController.js');
+          const { getConnection } = await import('../../db/connection.js');
+          
+          // Get a new connection for stock updates
+          const stockConnection = await getConnection();
+          
+          try {
+            // Get warehouse from putaway task
+            const [taskWarehouseCols] = await stockConnection.execute(`
+              SELECT COLUMN_NAME
+              FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'tabPutawayTask'
+                AND COLUMN_NAME IN ('warehouse', 'transfer_in', 'source_type')
+            `);
+            const hasWarehouse = taskWarehouseCols.some(col => col.COLUMN_NAME === 'warehouse');
+            const hasTransferIn = taskWarehouseCols.some(col => col.COLUMN_NAME === 'transfer_in');
+            const hasSourceType = taskWarehouseCols.some(col => col.COLUMN_NAME === 'source_type');
+            
+            let taskQuery = `SELECT`;
+            if (hasWarehouse) taskQuery += ` warehouse`;
+            if (hasTransferIn) taskQuery += hasWarehouse ? `, transfer_in` : ` transfer_in`;
+            if (hasSourceType) taskQuery += (hasWarehouse || hasTransferIn) ? `, source_type` : ` source_type`;
+            taskQuery += ` FROM tabPutawayTask WHERE title = ? LIMIT 1`;
+            
+            const [taskInfo] = await stockConnection.execute(taskQuery, [taskTitleToCheck]);
+            let warehouse = null;
+            
+            if (taskInfo.length > 0) {
+              const task = taskInfo[0];
+              if (hasWarehouse && task.warehouse) {
+                warehouse = task.warehouse;
+              } else if (hasTransferIn && task.transfer_in) {
+                // Get warehouse from Transfer In
+                const [tiInfo] = await stockConnection.execute(
+                  `SELECT to_warehouse FROM tabTransferIn WHERE title = ? LIMIT 1`,
+                  [task.transfer_in]
                 );
-
-                if (itemEvents.length > 0) {
-                  console.log(
-                    `Found ${itemEvents.length} items from ${
-                      boxes.length
-                    } boxes (ASN: ${asnNo}${store ? `, Store: ${store}` : ""})`
-                  );
+                if (tiInfo.length > 0 && tiInfo[0].to_warehouse) {
+                  warehouse = tiInfo[0].to_warehouse;
                 }
               }
             }
+            
+            // Trigger stock update for each putaway line
+            // Use the first carton_id from lines (for Transfer In, all lines share the same carton_id)
+            const firstLine = putawayLines[0];
+            const cartonIdForStock = firstLine?.carton_id || validatedBoxId;
+            
+            // Create a synthetic PUTAWAY_TO_RACK event to trigger stock updates
+            // This will process all lines in the putaway task
+            logger.info(`[Putaway] 🔵 About to call processPutawayCompletionEvent with params:`, {
+              event_type: 'PUTAWAY_TO_RACK',
+              putaway_task: taskTitleToCheck,
+              box_id: validatedBoxId || 'NULL',
+              carton_id: cartonIdForStock || 'NULL',
+              location_id: location_id || 'NULL',
+              rack: rack || 'NULL',
+              bin: bin || 'NULL',
+              warehouse: warehouse || 'NULL',
+              user_id: user_id || 'NULL'
+            });
+            
+            const stockUpdateResult = await processPutawayCompletionEvent(stockConnection, {
+              event_type: 'PUTAWAY_TO_RACK',
+              putaway_task: taskTitleToCheck,
+              box_id: validatedBoxId,
+              carton_id: cartonIdForStock,
+              location_id: location_id,
+              rack: rack,
+              bin: bin,
+              item_code: null, // Process all items
+              qty: null, // Use qty from putaway lines
+              user_id: user_id,
+              store: warehouse,
+              tc_id: null
+            });
+            
+            logger.info(`[Putaway] ✅ Stock updates completed for putaway task ${taskTitleToCheck}`, {
+              result: stockUpdateResult || 'undefined (function may not return value)'
+            });
+          } finally {
+            stockConnection.release();
           }
-        }
-      }
-    } else if (scannedBoxId) {
-      // Direct box putaway - get items from SORT_TO_BOX events
-      [itemEvents] = await connection.execute(
-        `
-        SELECT 
-          item_code,
-          box_id,
-          carton_id,
-          SUM(qty) as total_qty
-        FROM tabWmsScanEvent
-        WHERE box_id = ?
-          AND event_type = 'SORT_TO_BOX'
-          AND item_code IS NOT NULL
-          AND qty IS NOT NULL
-        GROUP BY item_code, box_id, carton_id
-      `,
-        [scannedBoxId]
-      );
-    } else {
-      await connection.rollback();
-      connection.release();
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Either tc_id or box_id is required",
-        },
-      });
-    }
-
-    if (itemEvents.length === 0) {
-      // Provide diagnostic information
-      const [packEvents] = await connection.execute(
-        `SELECT COUNT(*) as count FROM tabWmsScanEvent WHERE tc_id = ? AND event_type = 'PACK_BOX_TO_TC'`,
-        [actualTcId || tc_id]
-      );
-      const [sortEvents] = await connection.execute(
-        `SELECT COUNT(*) as count FROM tabWmsScanEvent WHERE box_id = ? AND event_type = 'SORT_TO_BOX'`,
-        [actualTcId || tc_id || scannedBoxId]
-      );
-
-      await connection.rollback();
-      connection.release();
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: "NO_ITEMS_FOUND",
-          message: `No items found in transfer carton ${
-            actualTcId || tc_id
-          }. Found ${packEvents[0]?.count || 0} PACK_BOX_TO_TC events and ${
-            sortEvents[0]?.count || 0
-          } SORT_TO_BOX events.`,
-          details: {
-            tc_id: actualTcId || tc_id,
-            box_id: scannedBoxId,
-            pack_events_count: packEvents[0]?.count || 0,
-            sort_events_count: sortEvents[0]?.count || 0,
-            suggestion:
-              "Ensure boxes are packed into the transfer carton (PACK_BOX_TO_TC events) or sorted into boxes (SORT_TO_BOX events) before scanning for putaway.",
-          },
-        },
-      });
-    }
-
-    // Get inbound session for this ASN (optional for warehouse boxes)
-    const [sessionRows] = await connection.execute(
-      `
-      SELECT inbound_session
-      FROM tabInboundSession
-      WHERE asn_no = ?
-      ORDER BY started_at DESC
-      LIMIT 1
-    `,
-      [asnNo]
-    );
-
-    const inboundSession =
-      sessionRows.length > 0 ? sessionRows[0].inbound_session : null;
-
-    // Inbound session is optional for warehouse boxes (they may not go through inbound flow)
-    // Only require it if this is not a direct box putaway
-    if (!inboundSession && actualTcId !== null) {
-      await connection.rollback();
-      connection.release();
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: "NO_INBOUND_SESSION",
-          message: `No inbound session found for ASN ${asnNo}`,
-        },
-      });
-    }
-
-    // Check if putaway task already exists
-    // Priority: 1) Task provided in request, 2) Task for this box_id (if box_id provided), 3) Task for this ASN
-    let putawayTaskTitle;
-    let isNewTask = false;
-
-    // First, check if putaway_task is provided in request body
-    if (putaway_task) {
-      const [providedTask] = await connection.execute(
-        `SELECT title, status FROM tabPutawayTask WHERE title = ?`,
-        [putaway_task]
-      );
-
-      if (providedTask.length > 0) {
-        // Use the provided task if it exists
-        putawayTaskTitle = providedTask[0].title;
-        console.log(`Using provided putaway task ${putawayTaskTitle}`);
-      } else {
-        // Task doesn't exist - we'll create it later, but use the provided title
-        putawayTaskTitle = putaway_task;
-        console.log(
-          `Putaway task ${putawayTaskTitle} provided but doesn't exist - will create it`
-        );
-      }
-    }
-
-    // If no task from request, check if putaway task exists for this box (created when box was closed)
-    if (!putawayTaskTitle && scannedBoxId && actualTcId === null) {
-      // Check if box_id column exists
-      const [boxIdColumns] = await connection.execute(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'tabPutawayTask' 
-        AND COLUMN_NAME = 'box_id'
-      `);
-      const hasBoxId = boxIdColumns.length > 0;
-
-      if (hasBoxId) {
-        const [boxTasks] = await connection.execute(
-          `
-          SELECT title, status
-          FROM tabPutawayTask
-          WHERE box_id = ? AND status IN ('Open', 'Draft', 'In Progress')
-          ORDER BY created_at DESC
-          LIMIT 1
-        `,
-          [scannedBoxId]
-        );
-
-        if (boxTasks.length > 0) {
-          putawayTaskTitle = boxTasks[0].title;
-          console.log(
-            `Found existing putaway task ${putawayTaskTitle} for box ${scannedBoxId}`
-          );
-        }
-      }
-    }
-
-    // If no task found for box, check for ASN-based task
-    if (!putawayTaskTitle) {
-      const [existingTasks] = await connection.execute(
-        `
-        SELECT title, status
-        FROM tabPutawayTask
-        WHERE advance_shipping_notice = ?
-        ORDER BY 
-          CASE 
-            WHEN status IN ('Draft', 'Open', 'In Progress') THEN 1
-            ELSE 2
-          END,
-          created_at DESC
-        LIMIT 1
-      `,
-        [asnNo]
-      );
-
-      if (existingTasks.length > 0) {
-        // Use existing task
-        putawayTaskTitle = existingTasks[0].title;
-      }
-    }
-
-    // Check if we need to create the putaway task
-    // If putawayTaskTitle is set but doesn't exist, or if no title is set, create it
-    const [taskExists] = await connection.execute(
-      `SELECT title FROM tabPutawayTask WHERE title = ?`,
-      [putawayTaskTitle || ""]
-    );
-
-    if (!putawayTaskTitle || taskExists.length === 0) {
-      // Generate new title if not provided or if provided title doesn't exist
-      if (!putawayTaskTitle) {
-        // Create new putaway task with standard format
-        const datePrefix = new Date()
-          .toISOString()
-          .slice(0, 10)
-          .replace(/-/g, "");
-        const [countRows] = await connection.execute(
-          `
-          SELECT COUNT(*) as count
-          FROM tabPutawayTask
-          WHERE title LIKE ?
-        `,
-          [`PUT-${datePrefix}%`]
-        );
-        const count = countRows[0].count || 0;
-        const sequence = (count + 1).toString().padStart(4, "0");
-        putawayTaskTitle = `PUT-${datePrefix}-${sequence}`;
-      }
-
-      // Check if source_type and box_id columns exist
-      const [columns] = await connection.execute(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'tabPutawayTask' 
-        AND COLUMN_NAME IN ('source_type', 'box_id')
-      `);
-      const hasSourceType = columns.some(
-        (col) => col.COLUMN_NAME === "source_type"
-      );
-      const hasBoxId = columns.some((col) => col.COLUMN_NAME === "box_id");
-
-      // Create putaway task with appropriate columns
-      // Use INSERT IGNORE or handle duplicate key error gracefully
-      try {
-        if (hasSourceType && hasBoxId) {
-          await connection.execute(
-            `
-            INSERT INTO tabPutawayTask 
-              (title, status, source_type, box_id, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES 
-              (?, 'Open', ?, ?, ?, ?, ?, NOW(), NOW())
-          `,
-            [
-              putawayTaskTitle,
-              scannedBoxId && actualTcId === null ? "Box" : "ASN",
-              scannedBoxId && actualTcId === null ? scannedBoxId : null,
-              asnNo,
-              inboundSession,
-              user_id || "SYSTEM",
-            ]
-          );
-        } else if (hasSourceType) {
-          await connection.execute(
-            `
-            INSERT INTO tabPutawayTask 
-              (title, status, source_type, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES 
-              (?, 'Open', ?, ?, ?, ?, NOW(), NOW())
-          `,
-            [
-              putawayTaskTitle,
-              scannedBoxId && actualTcId === null ? "Box" : "ASN",
-              asnNo,
-              inboundSession,
-              user_id || "SYSTEM",
-            ]
-          );
-        } else if (hasBoxId) {
-          await connection.execute(
-            `
-            INSERT INTO tabPutawayTask 
-              (title, status, box_id, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES 
-              (?, 'Open', ?, ?, ?, ?, NOW(), NOW())
-          `,
-            [
-              putawayTaskTitle,
-              scannedBoxId && actualTcId === null ? scannedBoxId : null,
-              asnNo,
-              inboundSession,
-              user_id || "SYSTEM",
-            ]
-          );
-        } else {
-          await connection.execute(
-            `
-            INSERT INTO tabPutawayTask 
-              (title, status, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES 
-              (?, 'Open', ?, ?, ?, NOW(), NOW())
-          `,
-            [putawayTaskTitle, asnNo, inboundSession, user_id || "SYSTEM"]
-          );
+        } catch (stockUpdateError) {
+          // Log error but don't fail the location update
+          logger.error(`[Putaway] ❌❌❌ CRITICAL ERROR: Failed to trigger stock updates for putaway task ${taskTitleToCheck}`, {
+            errorType: stockUpdateError?.constructor?.name || 'Unknown',
+            message: stockUpdateError?.message || 'No error message',
+            stack: stockUpdateError?.stack || 'No stack trace',
+            code: stockUpdateError?.code || 'No error code',
+            sqlMessage: stockUpdateError?.sqlMessage || 'No SQL message',
+            putaway_task: taskTitleToCheck,
+            location_id: location_id || 'NULL',
+            warehouse: warehouse || 'NULL'
+          });(`[Putaway] ⚠️ Failed to trigger stock updates after location assignment:`, {
+            error: stockUpdateError.message,
+            stack: stockUpdateError.stack,
+            putaway_task: taskTitleToCheck
+          });
+          // Continue - location is still updated, stock can be updated later via PUTAWAY_TO_RACK event
         }
 
-        isNewTask = true;
-      } catch (insertError) {
-        // Handle duplicate entry error gracefully
-        if (insertError.code === "ER_DUP_ENTRY") {
-          console.log(
-            `Putaway task ${putawayTaskTitle} already exists - using existing task`
-          );
-          // Task already exists, just use it
-          isNewTask = false;
-        } else {
-          // Re-throw other errors
-          throw insertError;
-        }
-      }
-    }
+        logger.info(`[Putaway] Updated location for putaway task ${taskTitleToCheck}: ${location_id} (${putawayLines.length} lines updated)`, {
+          putaway_task: taskTitleToCheck,
+          location_id: location_id,
+          rack: rack,
+          bin: bin,
+          lines_updated: putawayLines.length,
+          hasLineLocationIdColumn: hasLineLocationIdColumn,
+          hasLineRack: hasLineRack,
+          hasLineBin: hasLineBin
+        });
 
-    // Lookup location if location_id is provided
-    let locationInfo = null;
-    let rack = null;
-    let bin = null;
-
-    if (actualLocationId) {
-      try {
-        locationInfo = await lookupLocationFromId(connection, actualLocationId);
-        rack = locationInfo.rack;
-        bin = locationInfo.bin;
-        console.log(
-          `[Putaway] Looked up location ${actualLocationId}: rack="${rack}", bin="${bin}"`
-        );
-      } catch (error) {
+        return res.status(200).json({
+          ok: true,
+          message: `Location ID '${location_id}' assigned to all items in putaway task ${taskTitleToCheck}`,
+          data: {
+            putaway_task: taskTitleToCheck,
+            location_id: location_id,
+            rack: rack,
+            bin: bin,
+            items_count: putawayLines.length,
+            items: putawayLines.map(line => ({
+              item_code: line.item_code,
+              carton_id: line.carton_id,
+              qty: parseFloat(line.qty) || 0,
+              rack: rack,
+              bin: bin,
+              location_id: location_id
+            }))
+          }
+        });
+      } catch (updateError) {
         await connection.rollback();
         connection.release();
-        return res.status(400).json({
+        logger.error(`[Putaway] Failed to update location for task ${taskTitleToCheck}:`, updateError);
+        return res.status(500).json({
           ok: false,
           error: {
-            code: "LOCATION_NOT_FOUND",
-            message:
-              error.message ||
-              `Location ID "${actualLocationId}" not found or not available`,
+            code: "UPDATE_ERROR",
+            message: `Failed to update location: ${updateError.message}`,
           },
         });
       }
-    } else {
-      // Backward compatibility: use rack and bin directly
-      rack = actualRack;
-      bin = actualBin;
     }
 
-    // Create or update putaway lines for each item
-    // Use box_id as the carton_id since that's what's physically in the transfer carton
-    const updatedItems = [];
-    // Track processed carton+item combinations to prevent duplicates
-    const processedCartonItems = new Set();
-
-    for (const item of itemEvents) {
-      const itemCode = item.item_code;
-      // Use box_id for putaway since that's the physical box in the transfer carton
-      // Store it in carton_id field (table doesn't have box_id column)
-      const boxId = item.box_id || item.carton_id || null;
-      const qty = parseFloat(item.total_qty) || 0;
-
-      // Create a unique key for this carton+item combination
-      const cartonItemKey = `${putawayTaskTitle}|${
-        boxId || "NULL"
-      }|${itemCode}`;
-
-      // Skip if we've already processed this carton+item combination
-      if (processedCartonItems.has(cartonItemKey)) {
-        console.log(
-          `[Putaway] Skipping duplicate carton+item: ${
-            boxId || "NULL"
-          } + ${itemCode}`
-        );
-        continue;
-      }
-      processedCartonItems.add(cartonItemKey);
-
-      // Check if putaway line already exists (same carton, item, and location)
-      // Handle NULL rack properly - if rack is NULL/empty, check for NULL/empty rack
-      const rackValue = rack || "";
-      const binValue = bin || "";
-      const [existingLines] = await connection.execute(
-        `
-        SELECT id, qty, rack, bin
-        FROM tabPutawayLine
-        WHERE parent_title = ?
-          AND item_code = ?
-          AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
-          AND (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
-          AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))
-      `,
-        [
-          putawayTaskTitle,
-          itemCode,
-          boxId,
-          boxId,
-          rackValue,
-          rackValue,
-          rackValue,
-          binValue,
-          binValue,
-          binValue,
-        ]
-      );
-
-      if (existingLines.length > 0) {
-        // Line exists with same location - update quantity if different
-        const existingQty = parseFloat(existingLines[0].qty) || 0;
-        // binValue already declared above, no need to redeclare
-        if (Math.abs(existingQty - qty) > 0.01) {
-          console.log(
-            `[Putaway] Updating quantity for existing line: ${itemCode} @ ${rack}/${binValue} (${existingQty} -> ${qty})`
-          );
-          await connection.execute(
-            `
-            UPDATE tabPutawayLine
-            SET qty = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `,
-            [qty, existingLines[0].id]
-          );
-        } else {
-          console.log(
-            `[Putaway] Line already exists with same quantity: ${itemCode} @ ${rack}/${binValue}`
-          );
-        }
-      } else {
-        // Check if this carton+item already exists in a different location
-        // Handle NULL rack properly - check if location is different
-        const [existingDifferentLocation] = await connection.execute(
-          `
-          SELECT id, rack, bin, qty
-          FROM tabPutawayLine
-          WHERE parent_title = ?
-            AND item_code = ?
-            AND (carton_id = ? OR (carton_id IS NULL AND ? IS NULL))
-            AND NOT (
-              (rack = ? OR (rack IS NULL AND ? = '') OR (rack = '' AND ? IS NULL))
-              AND (bin = ? OR (bin IS NULL AND ? = '') OR (bin = '' AND ? IS NULL))
-            )
-        `,
-          [
-            putawayTaskTitle,
-            itemCode,
-            boxId,
-            boxId,
-            rackValue,
-            rackValue,
-            rackValue,
-            binValue,
-            binValue,
-            binValue,
-          ]
-        );
-
-        if (existingDifferentLocation.length > 0) {
-          console.warn(
-            `[Putaway] WARNING: Carton ${boxId} with item ${itemCode} already put away to different location: ${
-              existingDifferentLocation[0].rack
-            }/${
-              existingDifferentLocation[0].bin || ""
-            }. Updating to new location ${rack}/${bin || ""}`
-          );
-          // Update the existing line with new location instead of creating duplicate
-          // Use rackValue and binValue (both are empty string if null) to satisfy NOT NULL constraints
-          await connection.execute(
-            `
-            UPDATE tabPutawayLine
-            SET rack = ?,
-                bin = ?,
-                qty = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-          `,
-            [rackValue, binValue, qty, existingDifferentLocation[0].id]
-          );
-          console.log(
-            `[Putaway] Updated existing line ID ${existingDifferentLocation[0].id} with new location`
-          );
-        } else {
-          // No existing line found - safe to insert new line
-          console.log(
-            `[Putaway] Inserting new line: ${itemCode} @ ${rackValue || ""}/${
-              binValue || ""
-            } (carton: ${boxId || "NULL"})`
-          );
-          // Insert new line - store box_id in carton_id field
-          // Use rackValue and binValue (both are empty string if null) to satisfy NOT NULL constraints
-          await connection.execute(
-            `
-            INSERT INTO tabPutawayLine 
-              (parent_title, carton_id, item_code, qty, rack, bin, created_at, updated_at)
-            VALUES 
-              (?, ?, ?, ?, ?, ?, NOW(), NOW())
-          `,
-            [putawayTaskTitle, boxId, itemCode, qty, rackValue, binValue]
-          );
-        }
-      }
-
-      updatedItems.push({
-        item_code: itemCode,
-        box_id: boxId,
-        carton_id: boxId, // For backward compatibility
-        qty: qty,
-        rack: rack,
-        bin: bin || null,
-      });
-    }
-
-    // Update location/rack/bin only - DO NOT update stock here
-    // Stock will be updated only when putaway is completed (status = "Completed")
-    console.log(
-      `[Putaway] Updating location for task ${putawayTaskTitle} - stock will NOT be updated (only on completion)`
-    );
-
-    // Update task status to In Progress (not Completed) so items remain visible
-    // Task will be marked as Completed only when explicitly completed via /api/putaway/complete
-    await connection.execute(
-      `
-      UPDATE tabPutawayTask 
-      SET status = 'In Progress',
-          updated_at = CURRENT_TIMESTAMP
-      WHERE title = ?
-    `,
-      [putawayTaskTitle]
-    );
-
-    await connection.commit();
-
-    res.json({
+    // All validations passed - return success (validation only, no update)
+    // NO CREATION - all creation happens in completePutaway
+    connection.release();
+    return res.status(200).json({
       ok: true,
-      message: isNewTask
-        ? "Putaway task created and items assigned successfully"
-        : "Putaway task updated and items assigned successfully",
-      data: {
-        putaway_task: putawayTaskTitle,
-        transfer_carton: actualTcId,
-        box_id: scannedBoxId || null,
-        asn_no: asnNo,
-        status: "In Progress",
-        stock_updated: false,
-        rack: rack,
-        bin: bin || null,
-        items_count: updatedItems.length,
-        items: updatedItems,
-        is_new_task: isNewTask,
+      message: "Validation successful",
+      validated: {
+        carton_id: validatedCartonId || null,
+        box_id: box_id || null,
+        location_id: location_id,
+        putaway_task: taskTitleToCheck || null, // Always include putaway_task_title for mobile app
+        putaway_task_title: taskTitleToCheck || null, // Alias for consistency
+        location: {
+          location_id: locationInfo.location_id,
+          zone: locationInfo.zone || null,
+          aisle: locationInfo.aisle || null,
+          rack: locationInfo.rack,
+          level: locationInfo.level || null,
+          bin: locationInfo.bin,
+        },
+        putaway_type: isAsnPutaway ? "ASN" : "TRANSFER_IN", // Indicate putaway type
       },
+      ready_for_completion: true, // Enable Complete button in mobile app
     });
   } catch (error) {
-    await connection.rollback();
-
-    // Log detailed error information
-    logger.error("Failed to scan transfer carton for putaway", {
+    connection.release();
+    logger.error("Failed to validate transfer carton for putaway", {
       errorType: error?.constructor?.name || "Unknown",
       message: error?.message || "Unknown error",
       stack: error?.stack,
@@ -3401,50 +4795,23 @@ export const scanTransferCarton = async (req, res) => {
         tc_id: tc_id || null,
         box_id: box_id || null,
         location_id: location_id || null,
-        rack: rack || null,
-        bin: bin || null,
         user_id: user_id || null,
-        putaway_task: putaway_task || null,
       },
-      code: error?.code,
-      errno: error?.errno,
-      sqlState: error?.sqlState,
-      sqlMessage: error?.sqlMessage,
     });
-
-    // Provide more detailed error information
-    const errorDetails = {
-      message: error?.message || "Unknown error occurred",
-      type: error?.constructor?.name || "Unknown",
-    };
-
-    // Include SQL error details if available
-    if (error?.code) {
-      errorDetails.code = error.code;
-    }
-    if (error?.sqlMessage) {
-      errorDetails.sqlMessage = error.sqlMessage;
-    }
-    if (error?.sqlState) {
-      errorDetails.sqlState = error.sqlState;
-    }
-
     res.status(500).json({
       ok: false,
       error: {
         code: "DATABASE_ERROR",
-        message: "Failed to process transfer carton for putaway",
-        details: errorDetails,
+        message: "Failed to validate transfer carton for putaway",
+        details: process.env.NODE_ENV === "development" ? error.message : null,
       },
     });
-  } finally {
-    connection.release();
   }
 };
 
 /**
  * Helper function to lookup location from tabLocation table and extract rack/bin
- * Returns {rack, bin, location_id} or throws error if location not found
+ * Returns {rack, bin, location_id, zone, aisle, level} or throws error if location not found
  */
 async function lookupLocationFromId(connection, locationId) {
   if (!locationId || locationId.trim() === "") {
@@ -3452,7 +4819,7 @@ async function lookupLocationFromId(connection, locationId) {
   }
 
   const [locations] = await connection.execute(
-    `SELECT location_id, parent_rack, bin_id, is_available
+    `SELECT location_id, parent_rack, bin_id, is_available, zone, aisle, level
      FROM tabLocation 
      WHERE location_id = ?`,
     [locationId.trim()]
@@ -3489,8 +4856,11 @@ async function lookupLocationFromId(connection, locationId) {
 
   return {
     location_id: location.location_id,
-    rack: rack || "", // Use empty string if null (database column is NOT NULL)
-    bin: bin || "", // Use empty string if null (database column is NOT NULL)
+    zone: location.zone || null,
+    aisle: location.aisle || null,
+    rack: rack || "",
+    level: location.level || null,
+    bin: bin || "",
     is_available: Boolean(location.is_available),
   };
 }
@@ -3510,11 +4880,28 @@ async function updatePutawayTaskLocation(
   try {
     await connection.beginTransaction();
 
-    // Verify putaway task exists
-    const [tasks] = await connection.execute(
-      `SELECT title, advance_shipping_notice FROM tabPutawayTask WHERE title = ?`,
-      [putawayTaskTitle]
-    );
+    // Verify putaway task exists and get status/location for idempotency check
+    // Check if location_id, rack, bin columns exist
+    const [taskLocationColumns] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabPutawayTask' 
+      AND COLUMN_NAME IN ('location_id', 'rack', 'bin', 'status')
+    `);
+    const hasTaskLocationId = taskLocationColumns.some(col => col.COLUMN_NAME === 'location_id');
+    const hasTaskRack = taskLocationColumns.some(col => col.COLUMN_NAME === 'rack');
+    const hasTaskBin = taskLocationColumns.some(col => col.COLUMN_NAME === 'bin');
+    const hasTaskStatus = taskLocationColumns.some(col => col.COLUMN_NAME === 'status');
+    
+    let taskSelectQuery = `SELECT title, advance_shipping_notice`;
+    if (hasTaskStatus) taskSelectQuery += `, status`;
+    if (hasTaskLocationId) taskSelectQuery += `, location_id`;
+    if (hasTaskRack) taskSelectQuery += `, rack`;
+    if (hasTaskBin) taskSelectQuery += `, bin`;
+    taskSelectQuery += ` FROM tabPutawayTask WHERE title = ?`;
+    
+    const [tasks] = await connection.execute(taskSelectQuery, [putawayTaskTitle]);
 
     if (tasks.length === 0) {
       await connection.rollback();
@@ -3580,6 +4967,78 @@ async function updatePutawayTaskLocation(
         error: {
           code: "VALIDATION_ERROR",
           message: "location_id is required",
+        },
+      });
+    }
+
+    // IDEMPOTENCY CHECK: If task is already assigned to the same location, return success
+    const task = tasks[0];
+    const existingLocationId = task.location_id || null;
+    const existingRack = task.rack || null;
+    const existingBin = task.bin || null;
+    
+    // Check if already assigned to the SAME location
+    const isSameLocation = 
+      (locationInfo?.location_id && existingLocationId && locationInfo.location_id === existingLocationId) ||
+      (!locationInfo?.location_id && existingRack && rack && 
+       existingRack === rack && 
+       (existingBin || "") === (bin || ""));
+
+    // If task is Completed, don't allow reassignment
+    if (task.status === 'Completed') {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "TASK_ALREADY_COMPLETED",
+          message: `Putaway task ${putawayTaskTitle} is already completed. Cannot reassign location.`,
+        },
+      });
+    }
+
+    // If already assigned to same location, return success (idempotent)
+    if (isSameLocation && (task.status === 'In Progress' || task.status === 'Assigned')) {
+      console.log(`✅ [Putaway] Task ${putawayTaskTitle} already assigned to same location - returning success (idempotent)`);
+      
+      await connection.rollback(); // No changes needed
+      connection.release();
+      
+      return res.json({
+        ok: true,
+        message: "Putaway task already assigned to this location",
+        data: {
+          putaway_task: putawayTaskTitle,
+          status: task.status,
+          stock_updated: false,
+          rack: existingRack,
+          bin: existingBin || null,
+          location_id: existingLocationId,
+          items_count: putawayLines.length,
+          items: putawayLines.map(line => ({
+            item_code: line.item_code,
+            carton_id: line.carton_id,
+            qty: parseFloat(line.qty) || 0,
+            rack: existingRack,
+            bin: existingBin || null,
+            location_id: existingLocationId,
+          })),
+          already_assigned: true, // Flag for mobile app to show toast instead of error
+        },
+      });
+    }
+
+    // If assigned to DIFFERENT location, return error
+    if ((existingRack || existingLocationId) && !isSameLocation) {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "ALREADY_ASSIGNED",
+          message: `Putaway task ${putawayTaskTitle} is already assigned to location ${existingLocationId || `${existingRack}/${existingBin || ""}`}. Cannot reassign to different location.`,
+          assigned_location: existingLocationId || `${existingRack}/${existingBin || ""}`,
+          requested_location: locationInfo?.location_id || `${rack}/${bin || ""}`,
         },
       });
     }
@@ -3705,6 +5164,404 @@ async function updatePutawayTaskLocation(
 }
 
 /**
+ * POST /api/putaway/trigger-stock-update
+ * Manual trigger to update stock for an existing putaway task
+ * Useful for backfilling stock when location was scanned but stock wasn't updated
+ * 
+ * Request:
+ * {
+ *   "putaway_task": "PUT-20260120-0001",
+ *   "user_id": "USER-001"
+ * }
+ */
+export const triggerStockUpdate = async (req, res) => {
+  const logPrefix = '[Putaway Stock Update]';
+  logger.info(`${logPrefix} ========================================`);
+  logger.info(`${logPrefix} 🔵 ENTRY: triggerStockUpdate called`);
+  logger.info(`${logPrefix} Request body:`, JSON.stringify(req.body, null, 2));
+  logger.info(`${logPrefix} ========================================`);
+  
+  const { putaway_task, user_id } = req.body;
+  
+  if (!putaway_task) {
+    logger.error(`${logPrefix} ❌ VALIDATION FAILED: putaway_task is required`);
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "putaway_task is required"
+      }
+    });
+  }
+  
+  logger.info(`${logPrefix} Step 1: Getting database connection...`);
+  const { getConnection } = await import('../../db/connection.js');
+  logger.info(`${logPrefix} Step 2: Importing processPutawayCompletionEvent...`);
+  const { processPutawayCompletionEvent } = await import('../events/eventController.js');
+  logger.info(`${logPrefix} Step 3: Getting database connection...`);
+  const connection = await getConnection();
+  logger.info(`${logPrefix} ✅ Got connection and imported processPutawayCompletionEvent`);
+  
+  try {
+    // Verify putaway task exists and get info
+    const [taskCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayTask'
+        AND COLUMN_NAME IN ('warehouse', 'transfer_in', 'source_type', 'status')
+    `);
+    const hasWarehouse = taskCols.some(col => col.COLUMN_NAME === 'warehouse');
+    const hasTransferIn = taskCols.some(col => col.COLUMN_NAME === 'transfer_in');
+    const hasSourceType = taskCols.some(col => col.COLUMN_NAME === 'source_type');
+    const hasStatus = taskCols.some(col => col.COLUMN_NAME === 'status');
+    
+    let taskQuery = `SELECT title`;
+    if (hasWarehouse) taskQuery += `, warehouse`;
+    if (hasTransferIn) taskQuery += `, transfer_in`;
+    if (hasSourceType) taskQuery += `, source_type`;
+    if (hasStatus) taskQuery += `, status`;
+    taskQuery += ` FROM tabPutawayTask WHERE title = ? LIMIT 1`;
+    
+    const [tasks] = await connection.execute(taskQuery, [putaway_task]);
+    
+    if (tasks.length === 0) {
+      connection.release();
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "TASK_NOT_FOUND",
+          message: `Putaway task ${putaway_task} not found`
+        }
+      });
+    }
+    
+    const task = tasks[0];
+    
+    logger.info(`${logPrefix} Step 6: Checking database schema for tabPutawayLine...`);
+    // Get putaway lines with location
+    const [lineCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabPutawayLine'
+        AND COLUMN_NAME IN ('location_id', 'rack', 'bin', 'carton_id', 'box_id')
+    `);
+    const hasLocationId = lineCols.some(col => col.COLUMN_NAME === 'location_id');
+    const hasRack = lineCols.some(col => col.COLUMN_NAME === 'rack');
+    const hasBin = lineCols.some(col => col.COLUMN_NAME === 'bin');
+    const hasCartonId = lineCols.some(col => col.COLUMN_NAME === 'carton_id');
+    const hasBoxId = lineCols.some(col => col.COLUMN_NAME === 'box_id');
+    
+    logger.info(`${logPrefix} Line schema check result:`, {
+      hasLocationId,
+      hasRack,
+      hasBin,
+      hasCartonId,
+      hasBoxId
+    });
+    
+    let lineQuery = `SELECT item_code, qty`;
+    if (hasCartonId) lineQuery += `, carton_id`;
+    if (hasBoxId) lineQuery += `, box_id`;
+    if (hasLocationId) lineQuery += `, location_id`;
+    if (hasRack) lineQuery += `, rack`;
+    if (hasBin) lineQuery += `, bin`;
+    lineQuery += ` FROM tabPutawayLine WHERE parent_title = ? AND item_code IS NOT NULL AND qty > 0`;
+    
+    logger.info(`${logPrefix} Step 7: Querying putaway lines: ${lineQuery}`);
+    logger.info(`${logPrefix} Query params: [${putaway_task}]`);
+    const [putawayLines] = await connection.execute(lineQuery, [putaway_task]);
+    
+    logger.info(`${logPrefix} Putaway lines query result:`, {
+      lines_count: putawayLines.length,
+      lines: putawayLines.map(line => ({
+        item_code: line.item_code,
+        qty: line.qty,
+        location_id: hasLocationId ? (line.location_id || 'NULL') : 'N/A',
+        rack: hasRack ? (line.rack || 'NULL') : 'N/A',
+        bin: hasBin ? (line.bin || 'NULL') : 'N/A',
+        carton_id: hasCartonId ? (line.carton_id || 'NULL') : 'N/A',
+        box_id: hasBoxId ? (line.box_id || 'NULL') : 'N/A'
+      }))
+    });
+    
+    if (putawayLines.length === 0) {
+      logger.error(`${logPrefix} ❌ NO LINES FOUND for task: ${putaway_task}`);
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "NO_LINES",
+          message: `Putaway task ${putaway_task} has no items to update stock for`
+        }
+      });
+    }
+    
+    // Check if any line has location
+    const hasLocation = putawayLines.some(line => 
+      (hasLocationId && line.location_id) || 
+      (hasRack && line.rack) || 
+      (hasBin && line.bin)
+    );
+    
+    logger.info(`${logPrefix} Step 8: Location check:`, {
+      hasLocation: hasLocation,
+      lines_with_location_id: hasLocationId ? putawayLines.filter(l => l.location_id).length : 0,
+      lines_with_rack: hasRack ? putawayLines.filter(l => l.rack).length : 0,
+      lines_with_bin: hasBin ? putawayLines.filter(l => l.bin).length : 0,
+      total_lines: putawayLines.length
+    });
+    
+    if (!hasLocation) {
+      logger.error(`${logPrefix} ❌ NO LOCATION assigned to any line for task: ${putaway_task}`);
+      logger.error(`${logPrefix} Line details:`, putawayLines.map(line => ({
+        item_code: line.item_code,
+        location_id: hasLocationId ? (line.location_id || 'NULL') : 'N/A',
+        rack: hasRack ? (line.rack || 'NULL') : 'N/A',
+        bin: hasBin ? (line.bin || 'NULL') : 'N/A'
+      })));
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "NO_LOCATION",
+          message: `Putaway task ${putaway_task} has no location assigned. Please scan a location first.`
+        }
+      });
+    }
+    
+    // Get warehouse
+    let warehouse = null;
+    if (hasWarehouse && task.warehouse) {
+      warehouse = task.warehouse;
+    } else if (hasTransferIn && task.transfer_in) {
+      const [tiInfo] = await connection.execute(
+        `SELECT to_warehouse FROM tabTransferIn WHERE title = ? LIMIT 1`,
+        [task.transfer_in]
+      );
+      if (tiInfo.length > 0 && tiInfo[0].to_warehouse) {
+        warehouse = tiInfo[0].to_warehouse;
+      }
+    }
+    
+    if (!warehouse) {
+      warehouse = 'WH-MAIN'; // Default
+    }
+    
+    logger.info(`${logPrefix} Step 10: Getting location and carton_id from putaway lines...`);
+    // Get location from lines - use the first line that has a valid location_id
+    // CRITICAL: Prefer location_id over rack/bin (location_id is more reliable)
+    let locationId = null;
+    let rack = null;
+    let bin = null;
+    
+    // Find first line with location_id
+    for (const line of putawayLines) {
+      if (hasLocationId && line.location_id && line.location_id.trim() !== '' && !line.location_id.includes('TBD')) {
+        locationId = line.location_id;
+        logger.info(`${logPrefix} ✅ Found location_id from line: ${locationId}`);
+        break;
+      }
+    }
+    
+    // If no location_id found, try to get from rack/bin
+    if (!locationId) {
+      const firstLine = putawayLines[0];
+      rack = hasRack ? firstLine.rack : null;
+      bin = hasBin ? firstLine.bin : null;
+      
+      // Build location from rack/bin if both are set and not TBD
+      if (rack && bin && rack !== 'TBD' && bin !== 'TBD') {
+        const rackStr = String(rack).trim();
+        const binStr = String(bin).trim();
+        if (rackStr.endsWith(`-${binStr}`) || rackStr === binStr) {
+          locationId = rackStr;
+        } else {
+          locationId = `${rackStr}-${binStr}`;
+        }
+        logger.info(`${logPrefix} ✅ Built location_id from rack/bin: ${locationId}`);
+      } else if (rack && rack !== 'TBD') {
+        locationId = String(rack).trim();
+        logger.info(`${logPrefix} ✅ Using rack as location_id: ${locationId}`);
+      } else if (bin && bin !== 'TBD') {
+        locationId = String(bin).trim();
+        logger.info(`${logPrefix} ✅ Using bin as location_id: ${locationId}`);
+      }
+    } else {
+      // If we have location_id, still get rack/bin for logging
+      const firstLine = putawayLines[0];
+      rack = hasRack ? firstLine.rack : null;
+      bin = hasBin ? firstLine.bin : null;
+    }
+    
+    const firstLine = putawayLines[0];
+    const cartonId = hasCartonId ? firstLine.carton_id : (hasBoxId ? firstLine.box_id : null);
+    const boxId = cartonId; // For Transfer In, box_id = carton_id
+    
+    logger.info(`${logPrefix} First line values:`, {
+      location_id: locationId || 'NULL',
+      rack: rack || 'NULL',
+      bin: bin || 'NULL',
+      carton_id: cartonId || 'NULL',
+      box_id: boxId || 'NULL'
+    });
+    
+    // CRITICAL: If location_id is not in lines, try to get from tabPutawayTask
+    if (!locationId) {
+      logger.info(`${logPrefix} Step 10a: location_id not in lines, checking tabPutawayTask...`);
+      const [taskLocationCols] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabPutawayTask'
+          AND COLUMN_NAME = 'location_id'
+      `);
+      const hasTaskLocationId = taskLocationCols.length > 0;
+      
+      if (hasTaskLocationId) {
+        const [taskLocation] = await connection.execute(
+          `SELECT location_id FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+          [putaway_task]
+        );
+        if (taskLocation.length > 0 && taskLocation[0].location_id) {
+          locationId = taskLocation[0].location_id;
+          logger.info(`${logPrefix} ✅ Got location_id from putaway task: ${locationId}`);
+        } else {
+          logger.warn(`${logPrefix} ⚠️ Task location_id is NULL`);
+        }
+      } else {
+        logger.warn(`${logPrefix} ⚠️ tabPutawayTask.location_id column does not exist`);
+      }
+    }
+    
+    logger.info(`${logPrefix} Step 11: Final values before calling processPutawayCompletionEvent:`, {
+      warehouse,
+      location_id: locationId || 'NULL',
+      rack: rack || 'NULL',
+      bin: bin || 'NULL',
+      carton_id: cartonId || 'NULL',
+      box_id: boxId || 'NULL',
+      lines_count: putawayLines.length,
+      lines_with_location: putawayLines.filter(line => 
+        (hasLocationId && line.location_id) || 
+        (hasRack && line.rack) || 
+        (hasBin && line.bin)
+      ).length
+    });
+    
+    // CRITICAL: Validate location_id before calling processPutawayCompletionEvent
+    if (!locationId || locationId.trim() === '' || locationId.includes('TBD')) {
+      logger.error(`${logPrefix} ========================================`);
+      logger.error(`${logPrefix} ❌ CRITICAL ERROR: Invalid location_id:`, {
+        location_id: locationId || 'NULL',
+        rack: rack || 'NULL',
+        bin: bin || 'NULL',
+        putaway_task: putaway_task,
+        lines_checked: putawayLines.length
+      });
+      logger.error(`${logPrefix} Line details:`, putawayLines.map(line => ({
+        item_code: line.item_code,
+        location_id: hasLocationId ? (line.location_id || 'NULL') : 'N/A',
+        rack: hasRack ? (line.rack || 'NULL') : 'N/A',
+        bin: hasBin ? (line.bin || 'NULL') : 'N/A'
+      })));
+      logger.error(`${logPrefix} ========================================`);
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INVALID_LOCATION",
+          message: `Putaway task ${putaway_task} has invalid location. location_id=${locationId || 'NULL'}, rack=${rack || 'NULL'}, bin=${bin || 'NULL'}. Please ensure location is scanned and set on putaway lines.`
+        }
+      });
+    }
+    
+    // Trigger stock update
+    logger.info(`${logPrefix} ========================================`);
+    logger.info(`${logPrefix} Step 12: CALLING processPutawayCompletionEvent`);
+    logger.info(`${logPrefix} Event params:`, JSON.stringify({
+      event_type: 'PUTAWAY_TO_RACK',
+      putaway_task: putaway_task,
+      box_id: boxId || 'NULL',
+      carton_id: cartonId || 'NULL',
+      location_id: locationId || 'NULL',
+      rack: rack || 'NULL',
+      bin: bin || 'NULL',
+      item_code: null,
+      qty: null,
+      user_id: user_id || 'SYSTEM',
+      store: warehouse || 'NULL',
+      tc_id: null
+    }, null, 2));
+    logger.info(`${logPrefix} ========================================`);
+    
+    try {
+      const result = await processPutawayCompletionEvent(connection, {
+        event_type: 'PUTAWAY_TO_RACK',
+        putaway_task: putaway_task,
+        box_id: boxId,
+        carton_id: cartonId,
+        location_id: locationId, // CRITICAL: Must be valid (not NULL, not empty, not TBD)
+        rack: rack,
+        bin: bin,
+        item_code: null, // Process all items
+        qty: null, // Use qty from putaway lines
+        user_id: user_id || 'SYSTEM',
+        store: warehouse,
+        tc_id: null
+      });
+      
+      logger.info(`${logPrefix} Step 13: processPutawayCompletionEvent returned:`, result || 'undefined (no return value)');
+    } catch (stockError) {
+      logger.error(`${logPrefix} ========================================`);
+      logger.error(`${logPrefix} ❌ ERROR in processPutawayCompletionEvent:`, {
+        error: stockError.message,
+        stack: stockError.stack,
+        putaway_task: putaway_task,
+        location_id: locationId || 'NULL',
+        carton_id: cartonId || 'NULL'
+      });
+      logger.error(`${logPrefix} ========================================`);
+      throw stockError; // Re-throw to return error response
+    }
+    
+    connection.release();
+    
+    logger.info(`${logPrefix} ========================================`);
+    logger.info(`${logPrefix} ✅ Stock updates completed for task ${putaway_task}`);
+    logger.info(`${logPrefix} ========================================`);
+    
+    return res.status(200).json({
+      ok: true,
+      message: `Stock updates triggered for putaway task ${putaway_task}`,
+      data: {
+        putaway_task: putaway_task,
+        warehouse: warehouse,
+        location_id: locationId,
+        items_updated: putawayLines.length
+      }
+    });
+    
+  } catch (error) {
+    connection.release();
+    logger.error(`[Putaway Stock Update] Failed to trigger stock update:`, {
+      error: error.message,
+      stack: error.stack,
+      putaway_task: putaway_task
+    });
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: "STOCK_UPDATE_ERROR",
+        message: `Failed to trigger stock update: ${error.message}`,
+        details: process.env.NODE_ENV === 'development' ? error.stack : null
+      }
+    });
+  }
+};
+
+/**
  * POST /api/putaway/create-tasks
  * Legacy endpoint - Putaway Tasks are now auto-created
  * This endpoint exists for backward compatibility but returns success immediately
@@ -3716,8 +5573,6 @@ async function updatePutawayTaskLocation(
 export const createTasks = async (req, res) => {
   // Putaway Tasks are now auto-created, so this endpoint is a no-op
   // Return success to maintain backward compatibility with mobile app
-  console.log('⚠️ POST /api/putaway/create-tasks called - Putaway Tasks are auto-created, no action needed');
-  
   res.json({
     ok: true,
     message: "Putaway Tasks are automatically created. No manual creation needed.",

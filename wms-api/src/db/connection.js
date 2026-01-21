@@ -31,7 +31,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   enableKeepAlive: true,
-  keepAliveInitialDelay: 0
+  keepAliveInitialDelay: 0,
+  connectTimeout: 30000 // 30 seconds connection timeout (valid option)
 });
 
 // Add error handlers to the pool

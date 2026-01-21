@@ -140,12 +140,15 @@
                         <DataGridTextColumn Header="Carton ID"
                                             Binding="{Binding CartonId}"
                                             Width="150" />
+                        <DataGridTextColumn Header="Status"
+                                            Binding="{Binding Status}"
+                                            Width="120" />
                     </DataGrid.Columns>
                 </DataGrid>
             </Grid>
         </Border>
 
-        <!-- Totals + Close -->
+        <!-- Totals + Buttons -->
         <StackPanel Grid.Row="3"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
@@ -163,8 +166,35 @@
                        FontWeight="Bold"
                        Foreground="#1D4ED8"
                        VerticalAlignment="Center" />
+            <Button Content="Submit"
+                    Width="100"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="BtnSubmit_Click"
+                    IsEnabled="{Binding CanSubmit}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#1D4ED8" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Padding" Value="12,6" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#9CA3AF" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1E40AF" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
             <Button Content="Close"
                     Width="80"
+                    Height="32"
                     IsCancel="True" />
         </StackPanel>
     </Grid>

@@ -12,6 +12,7 @@
     <Grid Background="#F3F4F6" Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -40,20 +41,96 @@
                     Click="ShowLocationsButton_OnClick" />
         </Grid>
 
+        <!-- Filter Bar -->
         <Border Grid.Row="1"
+                Background="#F6F6F6"
+                CornerRadius="6"
+                Padding="10"
+                Margin="0,0,0,12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="280"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="120"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Item Code -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Item Code" Margin="0,0,0,5" FontSize="12" Foreground="#374151"/>
+                    <TextBox Text="{Binding FilterItemCode, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="6,4"
+                             FontSize="13"/>
+                </StackPanel>
+
+                <!-- Description / Name -->
+                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                    <TextBlock Text="Description" Margin="0,0,0,5" FontSize="12" Foreground="#374151"/>
+                    <TextBox Text="{Binding FilterDescription, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="6,4"
+                             FontSize="13"/>
+                </StackPanel>
+
+                <!-- Qty Operator -->
+                <StackPanel Grid.Column="2" Margin="10,0,0,0">
+                    <TextBlock Text="Qty Op" Margin="0,0,0,5" FontSize="12" Foreground="#374151"/>
+                    <ComboBox ItemsSource="{Binding QtyOperators}"
+                              SelectedItem="{Binding SelectedQtyOperator}"
+                              Padding="6,4"
+                              FontSize="13"/>
+                </StackPanel>
+
+                <!-- Qty Value 1 -->
+                <StackPanel Grid.Column="3" Margin="10,0,0,0">
+                    <TextBlock Text="Qty" Margin="0,0,0,5" FontSize="12" Foreground="#374151"/>
+                    <TextBox Text="{Binding QtyValue1Text, UpdateSourceTrigger=PropertyChanged}"
+                             Padding="6,4"
+                             FontSize="13"/>
+                </StackPanel>
+
+                <!-- Qty Value 2 (for Between) -->
+                <StackPanel Grid.Column="4" Margin="10,0,0,0">
+                    <TextBlock Text="Qty To" Margin="0,0,0,5" FontSize="12" Foreground="#374151"/>
+                    <TextBox Text="{Binding QtyValue2Text, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsQtyToEnabled}"
+                             Padding="6,4"
+                             FontSize="13"/>
+                </StackPanel>
+
+                <!-- Clear -->
+                <StackPanel Grid.Column="5" Margin="10,0,0,0" VerticalAlignment="Bottom">
+                    <Button Content="Clear"
+                            Command="{Binding ClearFiltersCommand}"
+                            Height="30"
+                            Padding="12,4"
+                            Margin="0,0,0,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
                 Background="White"
                 CornerRadius="8"
                 Padding="12"
                 BorderBrush="#E5E7EB"
                 BorderThickness="1">
             <DataGrid x:Name="ItemsGrid"
-                      ItemsSource="{Binding Items}"
+                      ItemsSource="{Binding ItemsView}"
                       AutoGenerateColumns="False"
                       HeadersVisibility="Column"
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       CanUserResizeRows="False"
                       IsReadOnly="True"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      ScrollViewer.CanContentScroll="True"
                       SelectionChanged="ItemsGrid_OnSelectionChanged">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Code"

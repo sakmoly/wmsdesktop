@@ -43,7 +43,7 @@ export const getStockTransactions = async (req, res) => {
   const connection = await getConnection();
   
   try {
-    const { warehouse, item_code, transaction_type, reference_doc, from_date, to_date, limit } = req.query;
+    const { warehouse, item_code, transaction_type, reference_doc, reference_id, action, from_date, to_date, limit } = req.query;
     
     // Check if carton_id column exists
     const [cartonIdColumn] = await connection.execute(`
@@ -99,6 +99,18 @@ export const getStockTransactions = async (req, res) => {
     if (reference_doc) {
       query += ' AND reference_doc = ?';
       params.push(reference_doc);
+    }
+    
+    // Support reference_id alias (for putaway validation)
+    if (reference_id && !reference_doc) {
+      query += ' AND reference_doc = ?';
+      params.push(reference_id);
+    }
+    
+    // Support action parameter (alias for transaction_type, e.g., action=PUTAWAY)
+    if (action && !transaction_type) {
+      query += ' AND transaction_type = ?';
+      params.push(action);
     }
     
     if (from_date) {

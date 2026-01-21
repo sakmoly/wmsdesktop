@@ -9,7 +9,8 @@ import {
   completePutaway,
   scanTransferCarton,
   createTaskForRemainingItems,
-  createTasks
+  createTasks,
+  triggerStockUpdate
 } from '../modules/putaway/putawayController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -35,6 +36,9 @@ router.post('/scan-transfer-carton', authenticateToken, scanTransferCarton);
 
 // POST /api/putaway/complete - Complete putaway task
 router.post('/complete', authenticateToken, completePutaway);
+
+// POST /api/putaway/trigger-stock-update - Manually trigger stock update for putaway task
+router.post('/trigger-stock-update', authenticateToken, triggerStockUpdate);
 
 export default router;
 

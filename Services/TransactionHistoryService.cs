@@ -29,6 +29,15 @@ public static class TransactionHistoryService
     {
         try
         {
+            // Validate API key before making request
+            if (string.IsNullOrWhiteSpace(settings.ApiKey) || 
+                settings.ApiKey.Contains("MOCK-KEY") || 
+                settings.ApiKey.Contains("******"))
+            {
+                ErrorLogService.LogError("TransactionHistoryService: Invalid API key in settings. Please login to get a valid token.");
+                throw new InvalidOperationException("API key is missing or invalid. Please login to get a valid token.");
+            }
+            
             using var httpClient = new HttpClient();
             httpClient.Timeout = TimeSpan.FromSeconds(30); // 30 second timeout
             httpClient.DefaultRequestHeaders.Authorization = 
@@ -103,7 +112,9 @@ public static class TransactionHistoryService
                 
                 if (responseMessage.StatusCode == System.Net.HttpStatusCode.Forbidden)
                 {
-                    ErrorLogService.LogError("TransactionHistoryService: 403 Forbidden - Check if API key is valid. You may need to login to get a new token.");
+                    var errorMsg = "TransactionHistoryService: 403 Forbidden - API token is invalid or expired.\n" +
+                                   "To fix: Run .\\SCRIPTS\\GetApiToken.ps1 -UserCode \"YOUR_USER\" -Password \"YOUR_PASSWORD\" or login via Postman and update wms_settings.json";
+                    ErrorLogService.LogError(errorMsg);
                 }
                 
                 responseMessage.EnsureSuccessStatusCode(); // This will throw the exception
@@ -112,6 +123,7 @@ public static class TransactionHistoryService
             var response = await responseMessage.Content.ReadAsStringAsync();
             
             ErrorLogService.LogInfo($"TransactionHistoryService: API Response received (length: {response.Length})");
+            ErrorLogService.LogInfo($"TransactionHistoryService: API Response preview (first 1000 chars): {response.Substring(0, Math.Min(1000, response.Length))}");
             
             // Parse JSON response (API returns { ok: true, data: [...] })
             var jsonDoc = JsonDocument.Parse(response);
@@ -124,6 +136,9 @@ public static class TransactionHistoryService
                     {
                         PropertyNameCaseInsensitive = true
                     };
+                    
+                    // Log data element details
+                    ErrorLogService.LogInfo($"TransactionHistoryService: Data element type: {dataElement.ValueKind}, Array length: {(dataElement.ValueKind == System.Text.Json.JsonValueKind.Array ? dataElement.GetArrayLength() : 0)}");
                     
                     // Log first transaction for debugging
                     if (dataElement.ValueKind == System.Text.Json.JsonValueKind.Array && dataElement.GetArrayLength() > 0)
@@ -139,7 +154,11 @@ public static class TransactionHistoryService
                     if (transactions != null && transactions.Count > 0)
                     {
                         var first = transactions[0];
-                        ErrorLogService.LogInfo($"TransactionHistoryService: Deserialized first transaction - ID: {first.Id}, TransactionNumber: {first.TransactionNumber}, TransactionDate: {first.TransactionDate}, ItemCode: {first.ItemCode}, TransactionType: {first.TransactionType}");
+                        ErrorLogService.LogInfo($"TransactionHistoryService: Deserialized first transaction - ID: {first.Id}, TransactionNumber: {first.TransactionNumber ?? "NULL"}, TransactionDate: {first.TransactionDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "NULL"}, ItemCode: {first.ItemCode ?? "NULL"}, TransactionType: {first.TransactionType ?? "NULL"}, QtyChange: {first.QtyChange}, QtyBefore: {first.QtyBefore}, QtyAfter: {first.QtyAfter}");
+                    }
+                    else
+                    {
+                        ErrorLogService.LogError($"TransactionHistoryService: Deserialization returned null or empty list. transactions is null: {transactions == null}, count: {transactions?.Count ?? 0}");
                     }
                     
                     var count = transactions?.Count ?? 0;
@@ -150,6 +169,7 @@ public static class TransactionHistoryService
                 else
                 {
                     ErrorLogService.LogError("TransactionHistoryService: API response has 'ok: true' but no 'data' property");
+                    ErrorLogService.LogError($"TransactionHistoryService: Available properties: {string.Join(", ", jsonDoc.RootElement.EnumerateObject().Select(p => p.Name))}");
                 }
             }
             else

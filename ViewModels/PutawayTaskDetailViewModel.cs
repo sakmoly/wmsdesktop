@@ -23,6 +23,7 @@ public partial class PutawayTaskDetailViewModel : ObservableObject
                 OnPropertyChanged(nameof(TotalLines));
                 OnPropertyChanged(nameof(TotalQty));
                 OnPropertyChanged(nameof(CanComplete));
+                OnPropertyChanged(nameof(CanUpdateLocation));
             }
         }
     }
@@ -32,6 +33,22 @@ public partial class PutawayTaskDetailViewModel : ObservableObject
     public double TotalQty => PutawayTask.Lines?.Sum(l => l.Qty) ?? 0;
 
     public bool CanComplete => PutawayTask.Status == "In Progress" || PutawayTask.Status == "Pending";
+
+    private string? _scannedLocationId;
+    public string? ScannedLocationId
+    {
+        get => _scannedLocationId;
+        set
+        {
+            if (SetProperty(ref _scannedLocationId, value))
+            {
+                OnPropertyChanged(nameof(CanUpdateLocation));
+            }
+        }
+    }
+
+    public bool CanUpdateLocation => !string.IsNullOrWhiteSpace(ScannedLocationId) && 
+                                     (PutawayTask.Status == "Draft" || PutawayTask.Status == "Open" || PutawayTask.Status == "In Progress");
 
     public event EventHandler? TaskUpdated;
 
@@ -122,6 +139,66 @@ public partial class PutawayTaskDetailViewModel : ObservableObject
     {
         var carton = GetCarton(cartonId);
         return carton?.Status ?? "N/A";
+    }
+
+    [RelayCommand]
+    private async Task UpdateLocationAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ScannedLocationId))
+        {
+            MessageBox.Show("Please scan or enter a Location ID", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // Confirm with user before updating
+        var result = MessageBox.Show(
+            $"Assign Location ID '{ScannedLocationId.Trim()}' to all items in Putaway Task '{PutawayTask.Title}'?\n\nThis will update all putaway lines with this location.",
+            "Confirm Update Location",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            var settings = SettingsService.LoadSettings();
+            if (settings == null)
+            {
+                MessageBox.Show("Settings not configured", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var apiResult = await PutawayApiService.UpdatePutawayLocationAsync(
+                settings, 
+                PutawayTask.Title, 
+                ScannedLocationId.Trim());
+
+            if (apiResult.Success)
+            {
+                MessageBox.Show($"Location ID '{ScannedLocationId.Trim()}' successfully assigned to all items in this putaway task.", 
+                    "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                
+                // Clear scanned location ID after successful update
+                ScannedLocationId = null;
+                
+                // Reload task data from database to show updated location
+                await RefreshTaskAsync();
+                
+                TaskUpdated?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                MessageBox.Show(apiResult.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("Error updating Putaway Task location", ex);
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     [RelayCommand]

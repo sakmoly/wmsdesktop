@@ -97,13 +97,13 @@ public sealed class TransactionHistory
     public string? SerialNo { get; init; }
     
     [JsonPropertyName("qty_change")]
-    public double QtyChange { get; init; }
+    public double QtyChange { get; init; } = 0;
     
     [JsonPropertyName("qty_before")]
-    public double QtyBefore { get; init; }
+    public double QtyBefore { get; init; } = 0;
     
     [JsonPropertyName("qty_after")]
-    public double QtyAfter { get; init; }
+    public double QtyAfter { get; init; } = 0;
     
     [JsonPropertyName("stock_direction")]
     public string? StockDirection { get; init; }

@@ -1,0 +1,181 @@
+<UserControl x:Class="Wms.Desktop.Views.RelocationListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:Wms.Desktop.ViewModels"
+             mc:Ignorable="d">
+    <UserControl.DataContext>
+        <viewModels:RelocationListViewModel />
+    </UserControl.DataContext>
+
+    <Grid Background="#F3F4F6" Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
+            <TextBlock Text="Relocation / Bin Transfer"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827" />
+            <TextBlock Text="Move cartons and items between bin locations"
+                       FontSize="12"
+                       Foreground="#6B7280" />
+        </StackPanel>
+
+        <!-- Action buttons -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,12">
+            <Button x:Name="NewFullCartonButton"
+                    Content="New Full Carton Move"
+                    Width="180"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#1D4ED8"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Click="NewFullCartonButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#1D4ED8" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#1E40AF" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button x:Name="NewPartialMoveButton"
+                    Content="New Partial Move"
+                    Width="160"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#059669"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Click="NewPartialMoveButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#059669" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#047857" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button x:Name="NewCartonToCartonButton"
+                    Content="Carton → Carton (Move All)"
+                    Width="200"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#DC2626"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Click="NewCartonToCartonButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#DC2626" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#B91C1C" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button x:Name="RefreshButton"
+                    Content="Refresh"
+                    Width="100"
+                    Height="36"
+                    Padding="12,6"
+                    Background="#6B7280"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Click="RefreshButton_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#6B7280" />
+                        <Setter Property="Foreground" Value="White" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#4B5563" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1">
+            <DataGrid x:Name="SessionsGrid"
+                      ItemsSource="{Binding Sessions}"
+                      AutoGenerateColumns="False"
+                      HeadersVisibility="Column"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserResizeRows="False"
+                      IsReadOnly="True"
+                      MouseDoubleClick="SessionsGrid_OnMouseDoubleClick">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Session ID"
+                                        Binding="{Binding SessionId}"
+                                        Width="180" />
+                    <DataGridTextColumn Header="Mode"
+                                        Binding="{Binding Mode}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Policy"
+                                        Binding="{Binding Policy}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Warehouse"
+                                        Binding="{Binding WarehouseId}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="From Bin"
+                                        Binding="{Binding FromBin}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="From Carton"
+                                        Binding="{Binding FromCarton}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="To Bin"
+                                        Binding="{Binding ToBin}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="To Carton"
+                                        Binding="{Binding ToCarton}"
+                                        Width="140" />
+                    <DataGridTextColumn Header="Status"
+                                        Binding="{Binding Status}"
+                                        Width="120" />
+                    <DataGridTextColumn Header="Created By"
+                                        Binding="{Binding CreatedBy}"
+                                        Width="120" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+    </Grid>
+</UserControl>

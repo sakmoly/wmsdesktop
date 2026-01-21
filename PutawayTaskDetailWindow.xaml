@@ -10,6 +10,7 @@
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
     </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
@@ -88,10 +89,35 @@
                 <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,0,4" Grid.RowSpan="2">
                     <TextBlock Text="Location ID"
                                FontWeight="SemiBold"
-                               Foreground="#6B7280" />
-                    <TextBlock Text="{Binding PutawayTask.LocationId}"
-                               FontSize="14"
-                               Foreground="#111827" />
+                               Foreground="#6B7280"
+                               Margin="0,0,0,4" />
+                    <TextBox x:Name="LocationIdTextBox"
+                             Text="{Binding ScannedLocationId, UpdateSourceTrigger=PropertyChanged}"
+                             FontSize="14"
+                             Padding="8,4"
+                             Margin="0,0,0,4"
+                             KeyDown="LocationIdTextBox_KeyDown"
+                             GotFocus="LocationIdTextBox_GotFocus">
+                        <TextBox.Style>
+                            <Style TargetType="TextBox">
+                                <Setter Property="ToolTip" Value="Scan or enter Location ID (e.g., A1-R02-L2-B2)" />
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                    <Button Content="Update Location"
+                            Command="{Binding UpdateLocationCommand}"
+                            Padding="8,4"
+                            Background="#3B82F6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold"
+                            IsEnabled="{Binding CanUpdateLocation}" />
+                    <TextBlock Text="{Binding PutawayTask.LocationId, StringFormat='Current: {0}'}"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,4,0,0"
+                               Visibility="{Binding PutawayTask.LocationId, Converter={StaticResource StringToVisibilityConverter}}" />
                 </StackPanel>
             </Grid>
         </Border>

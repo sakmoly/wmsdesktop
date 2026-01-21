@@ -299,13 +299,22 @@
                             Click="TransactionHistoryButton_OnClick" />
 
                     <Button Content="Cycle Count"
-                            Margin="8,4,8,16"
+                            Margin="8,4"
                             Padding="8"
                             Foreground="White"
                             Background="#111827"
                             BorderBrush="#4B5563"
                             HorizontalAlignment="Stretch"
                             Click="CycleCountButton_OnClick" />
+
+                    <Button Content="Relocation / Bin Transfer"
+                            Margin="8,4,8,16"
+                            Padding="8"
+                            Foreground="White"
+                            Background="#111827"
+                            BorderBrush="#4B5563"
+                            HorizontalAlignment="Stretch"
+                            Click="RelocationButton_OnClick" />
                 </StackPanel>
             </Expander>
         </StackPanel>

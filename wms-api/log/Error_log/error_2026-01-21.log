@@ -1,0 +1,198 @@
+[2026-01-21T08:49:20.476Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:49:20.476Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:49:20.477Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:49:20.477Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:49:20.478Z] [ERROR] [Putaway Stock Update] ❌ ERROR in processPutawayCompletionEvent:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001",
+  "location_id": "A1-R02-L1-B2",
+  "carton_id": "CTN-TI-123457-20260121-111153-371"
+}
+[2026-01-21T08:49:20.480Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:49:20.480Z] [ERROR] [Putaway Stock Update] Failed to trigger stock update:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001"
+}
+[2026-01-21T08:49:54.599Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:49:54.600Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:49:54.600Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:49:54.600Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:49:54.601Z] [ERROR] [Putaway Stock Update] ❌ ERROR in processPutawayCompletionEvent:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001",
+  "location_id": "A1-R02-L1-B2",
+  "carton_id": "CTN-TI-123457-20260121-111153-371"
+}
+[2026-01-21T08:49:54.601Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:49:54.602Z] [ERROR] [Putaway Stock Update] Failed to trigger stock update:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001"
+}
+[2026-01-21T08:51:47.017Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:51:47.018Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:51:47.019Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:51:47.024Z] [ERROR] [Putaway] Failed to update location for task PUT-20260121-0001:
+{}
+[2026-01-21T08:51:53.048Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:51:53.049Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:51:53.050Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:51:53.054Z] [ERROR] [Putaway] Failed to update location for task PUT-20260121-0001:
+{}
+[2026-01-21T08:54:20.879Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:54:20.880Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:54:20.881Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:54:20.882Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:54:20.885Z] [ERROR] [Putaway Stock Update] ❌ ERROR in processPutawayCompletionEvent:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001",
+  "location_id": "A1-R02-L1-B2",
+  "carton_id": "CTN-TI-123457-20260121-111153-371"
+}
+[2026-01-21T08:54:20.886Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:54:20.887Z] [ERROR] [Putaway Stock Update] Failed to trigger stock update:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001"
+}
+[2026-01-21T08:54:30.709Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:54:30.711Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:54:30.712Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:54:30.714Z] [ERROR] [Putaway] Failed to update location for task PUT-20260121-0001:
+{}
+[2026-01-21T08:54:32.222Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:54:32.224Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:54:32.225Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:54:32.227Z] [ERROR] [Putaway] Failed to update location for task PUT-20260121-0001:
+{}
+[2026-01-21T08:55:36.351Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:55:36.351Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:55:36.352Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:55:36.353Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:55:36.354Z] [ERROR] [Putaway Stock Update] ❌ ERROR in processPutawayCompletionEvent:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001",
+  "location_id": "A1-R02-L1-B2",
+  "carton_id": "CTN-TI-123457-20260121-111153-371"
+}
+[2026-01-21T08:55:36.355Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:55:36.355Z] [ERROR] [Putaway Stock Update] Failed to trigger stock update:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001"
+}
+[2026-01-21T08:57:21.839Z] [ERROR] [Putaway Completion] Transaction rolled back due to error:
+"Cannot access 'fromLocation' before initialization"
+[2026-01-21T08:57:21.840Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-21T08:57:21.841Z] [ERROR] [Putaway Completion] ❌❌❌ ERROR PROCESSING PUTAWAY COMPLETION EVENT ❌❌❌
+[2026-01-21T08:57:21.841Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:57:21.843Z] [ERROR] [Putaway Stock Update] ❌ ERROR in processPutawayCompletionEvent:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001",
+  "location_id": "A1-R02-L1-B2",
+  "carton_id": "CTN-TI-123457-20260121-111153-371"
+}
+[2026-01-21T08:57:21.843Z] [ERROR] [Putaway Stock Update] ========================================
+[2026-01-21T08:57:21.845Z] [ERROR] [Putaway Stock Update] Failed to trigger stock update:
+{
+  "error": "putawayTaskTitle is not defined",
+  "stack": "ReferenceError: putawayTaskTitle is not defined\n    at processPutawayCompletionEvent (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/events/eventController.js:3730:40)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async triggerStockUpdate (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:5432:22)",
+  "putaway_task": "PUT-20260121-0001"
+}
+[2026-01-21T08:58:11.014Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-BLU-OS
+{
+  "error": "The value specified for generated column 'stock_direction' in table 'tabtransactionhistory' is not allowed.",
+  "item_code": "SKU-HAT-301-BLU-OS"
+}
+[2026-01-21T08:58:11.052Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-GRN-OS
+{
+  "error": "The value specified for generated column 'stock_direction' in table 'tabtransactionhistory' is not allowed.",
+  "item_code": "SKU-HAT-301-GRN-OS"
+}
+[2026-01-21T09:10:24.390Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-BLU-OS
+{
+  "error": "Field 'transaction_id' doesn't have a default value",
+  "item_code": "SKU-HAT-301-BLU-OS"
+}
+[2026-01-21T09:10:24.430Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-GRN-OS
+{
+  "error": "Field 'transaction_id' doesn't have a default value",
+  "item_code": "SKU-HAT-301-GRN-OS"
+}
+[2026-01-21T09:22:06.550Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-BLU-OS
+{
+  "error": "Incorrect integer value: 'TXN-1768987326549-5380' for column 'transaction_id' at row 1",
+  "item_code": "SKU-HAT-301-BLU-OS"
+}
+[2026-01-21T09:22:06.569Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-GRN-OS
+{
+  "error": "Incorrect integer value: 'TXN-1768987326567-1084' for column 'transaction_id' at row 1",
+  "item_code": "SKU-HAT-301-GRN-OS"
+}
+[2026-01-21T09:25:08.477Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-BLU-OS
+{
+  "error": "Field 'qty_before' doesn't have a default value",
+  "item_code": "SKU-HAT-301-BLU-OS"
+}
+[2026-01-21T09:25:08.508Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-GRN-OS
+{
+  "error": "Field 'qty_before' doesn't have a default value",
+  "item_code": "SKU-HAT-301-GRN-OS"
+}
+[2026-01-21T09:51:31.452Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-BLU-OS
+{
+  "error": "Field 'qty_before' doesn't have a default value",
+  "item_code": "SKU-HAT-301-BLU-OS"
+}
+[2026-01-21T09:51:31.503Z] [ERROR] [Putaway Event] ⚠️ Could not insert audit trail (tabTransactionHistory) for SKU-HAT-301-GRN-OS
+{
+  "error": "Field 'qty_before' doesn't have a default value",
+  "item_code": "SKU-HAT-301-GRN-OS"
+}
+[2026-01-21T12:00:58.157Z] [ERROR] Failed to validate transfer carton for putaway
+{
+  "errorType": "Error",
+  "message": "Unknown column 'pt.status' in 'field list'",
+  "stack": "Error: Unknown column 'pt.status' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at scanTransferCarton (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:4197:53)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "tc_id": null,
+    "box_id": "PAW-ASN365425479-1768995821165",
+    "location_id": "A1-R01-L2-B1",
+    "user_id": "USER-402498"
+  }
+}
+[2026-01-21T12:04:15.162Z] [ERROR] Failed to validate transfer carton for putaway
+{
+  "errorType": "Error",
+  "message": "Unknown column 'pt.box_id' in 'where clause'",
+  "stack": "Error: Unknown column 'pt.box_id' in 'where clause'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at scanTransferCarton (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:4197:53)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "tc_id": null,
+    "box_id": "PAW-ASN365425479-1768995821165",
+    "location_id": "A1-R01-L3-B1",
+    "user_id": "USER-402498"
+  }
+}

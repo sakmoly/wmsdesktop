@@ -297,6 +297,15 @@ public partial class MainWindow : Window
         }
         MainContent.Content = new CycleCountTaskListView();
     }
+
+    private void RelocationButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            UpdateButtonSelection(button);
+        }
+        MainContent.Content = new RelocationListView();
+    }
 }
 
 

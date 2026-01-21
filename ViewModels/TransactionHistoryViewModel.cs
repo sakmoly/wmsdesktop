@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -203,22 +204,44 @@ public sealed partial class TransactionHistoryViewModel : ObservableObject
             
             ErrorLogService.LogInfo($"TransactionHistoryViewModel: Service returned {transactions?.Count ?? 0} transactions");
 
-            Transactions.Clear();
-            foreach (var transaction in transactions)
+            // Update UI on UI thread (using Application dispatcher for reliability)
+            await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                Transactions.Add(transaction);
-            }
+                Transactions.Clear();
+                
+                if (transactions != null && transactions.Count > 0)
+                {
+                    ErrorLogService.LogInfo($"TransactionHistoryViewModel: Adding {transactions.Count} transactions to collection on UI thread");
+                    
+                    foreach (var transaction in transactions)
+                    {
+                        // Log first transaction details for debugging
+                        if (Transactions.Count == 0)
+                        {
+                            ErrorLogService.LogInfo($"TransactionHistoryViewModel: First transaction - ID: {transaction.Id}, TransactionNumber: {transaction.TransactionNumber ?? "NULL"}, TransactionDate: {transaction.TransactionDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "NULL"}, ItemCode: {transaction.ItemCode ?? "NULL"}, TransactionType: {transaction.TransactionType ?? "NULL"}");
+                        }
+                        
+                        Transactions.Add(transaction);
+                    }
+                    
+                    ErrorLogService.LogInfo($"TransactionHistoryViewModel: Added {Transactions.Count} transactions to ObservableCollection on UI thread");
+                }
+                else
+                {
+                    ErrorLogService.LogInfo($"TransactionHistoryViewModel: transactions is null or empty. transactions == null: {transactions == null}, count: {transactions?.Count ?? 0}");
+                }
 
-            TotalCount = Transactions.Count;
-            
-            if (TotalCount == 0)
-            {
-                ErrorLogService.LogInfo("TransactionHistoryViewModel: No transactions found. Check API endpoint and filters.");
-            }
-            else
-            {
-                ErrorLogService.LogInfo($"TransactionHistoryViewModel: Loaded {TotalCount} transactions");
-            }
+                TotalCount = Transactions.Count;
+                
+                if (TotalCount == 0)
+                {
+                    ErrorLogService.LogInfo("TransactionHistoryViewModel: No transactions found. Check API endpoint and filters.");
+                }
+                else
+                {
+                    ErrorLogService.LogInfo($"TransactionHistoryViewModel: Loaded {TotalCount} transactions into UI collection");
+                }
+            }, System.Windows.Threading.DispatcherPriority.Normal);
         }
         catch (Exception ex)
         {

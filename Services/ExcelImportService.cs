@@ -841,8 +841,8 @@ public static class ExcelImportService
     /// Import Transfer In data from Excel file
     /// Format: One row per item, with header fields repeated in each row
     /// Columns A-I: TO Title (Transfer In Title), From Warehouse, To Showroom, Requested Date, Require Date, Status, Item Code, Barcode, Qty
-    /// Note: "From Warehouse" in Excel = to_warehouse in Transfer In (destination)
-    ///       "To Showroom" in Excel = from_showroom in Transfer In (source)
+    /// Note: "From Warehouse" in Excel (Column B) = from_showroom in Transfer In (source)
+    ///       "To Showroom" in Excel (Column C) = to_warehouse in Transfer In (destination)
     /// </summary>
     public static async Task<(bool Success, string Message, int ImportedCount)> ImportTransferInFromExcelAsync(
         string filePath, WmsSettings settings)
@@ -894,24 +894,24 @@ public static class ExcelImportService
                     var firstRow = rows[0];
 
                     // Read Transfer In Header data from first row (all rows should have same header data)
-                    // Note: Excel "From Warehouse" = Transfer In "to_warehouse" (destination)
-                    //       Excel "To Showroom" = Transfer In "from_showroom" (source)
-                    var toWarehouse = worksheet.Cells[firstRow, 2].Text?.Trim() ?? ""; // Column B: From Warehouse (destination)
-                    var fromShowroom = worksheet.Cells[firstRow, 3].Text?.Trim() ?? ""; // Column C: To Showroom (source)
+                    // Note: Excel "From Warehouse" (Column B) = Transfer In "from_showroom" (source)
+                    //       Excel "To Showroom" (Column C) = Transfer In "to_warehouse" (destination)
+                    var fromShowroom = worksheet.Cells[firstRow, 2].Text?.Trim() ?? ""; // Column B: From Warehouse (source)
+                    var toWarehouse = worksheet.Cells[firstRow, 3].Text?.Trim() ?? ""; // Column C: To Showroom (destination)
                     var requestedDateStr = worksheet.Cells[firstRow, 4].Text?.Trim(); // Column D: Requested Date
                     var requiredDateStr = worksheet.Cells[firstRow, 5].Text?.Trim(); // Column E: Require Date
                     var status = worksheet.Cells[firstRow, 6].Text?.Trim() ?? "Draft"; // Column F: Status
 
                     // Validate required fields
-                    if (string.IsNullOrEmpty(toWarehouse))
+                    if (string.IsNullOrEmpty(fromShowroom))
                     {
-                        errors.Add($"Transfer In {title}: From Warehouse (destination) is required");
+                        errors.Add($"Transfer In {title}: From Warehouse (source) is required");
                         continue;
                     }
 
-                    if (string.IsNullOrEmpty(fromShowroom))
+                    if (string.IsNullOrEmpty(toWarehouse))
                     {
-                        errors.Add($"Transfer In {title}: To Showroom (source) is required");
+                        errors.Add($"Transfer In {title}: To Showroom (destination) is required");
                         continue;
                     }
 
