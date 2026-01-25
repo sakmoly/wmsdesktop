@@ -4,6 +4,68 @@
 import { getConnection } from '../../db/connection.js';
 
 /**
+ * Helper function to sync tabItem.stock_qty with tabStockLedger
+ * Call this after any stock-affecting operation
+ */
+async function syncItemStock(connection, itemCode) {
+  try {
+    // Calculate total stock from TRANSACTION HISTORY (source of truth)
+    // This is more reliable than Stock Ledger which can get out of sync
+    const [txnSum] = await connection.execute(
+      `SELECT COALESCE(SUM(qty_change), 0) as total_qty FROM tabTransactionHistory WHERE item_code = ?`,
+      [itemCode]
+    );
+    const txnTotal = parseFloat(txnSum[0].total_qty) || 0;
+    
+    // Update tabItem.stock_qty from transaction history
+    await connection.execute(
+      `UPDATE tabItem SET stock_qty = ?, updated_at = NOW() WHERE code = ?`,
+      [txnTotal, itemCode]
+    );
+    
+    // Also recalculate Stock Ledger per location from transaction history
+    // This ensures Stock Ledger stays in sync with transaction history
+    const [stockByLocation] = await connection.execute(`
+      SELECT
+        CASE
+          WHEN stock_direction = 'IN' THEN COALESCE(NULLIF(target_bin, ''), location_id, bin_location)
+          WHEN stock_direction = 'OUT' THEN COALESCE(NULLIF(source_bin, ''), location_id, bin_location)
+          ELSE COALESCE(location_id, bin_location)
+        END AS bin_location,
+        SUM(qty_change) AS correct_qty
+      FROM tabTransactionHistory
+      WHERE item_code = ?
+      GROUP BY 1
+    `, [itemCode]);
+    
+    // Get warehouse from existing Stock Ledger entry or default
+    const [warehouseRow] = await connection.execute(
+      `SELECT warehouse FROM tabStockLedger WHERE item_code = ? LIMIT 1`,
+      [itemCode]
+    );
+    const warehouse = warehouseRow.length > 0 ? warehouseRow[0].warehouse : 'WH-MAIN';
+    
+    // Delete all Stock Ledger entries for this item and recreate from transaction history
+    await connection.execute(`DELETE FROM tabStockLedger WHERE item_code = ?`, [itemCode]);
+    
+    for (const row of stockByLocation) {
+      const qty = parseFloat(row.correct_qty) || 0;
+      if (qty > 0 && row.bin_location) {
+        await connection.execute(`
+          INSERT INTO tabStockLedger (item_code, warehouse, bin_location, qty, reserved_qty, 
+            last_transaction_date, last_transaction_type, updated_at, created_at)
+          VALUES (?, ?, ?, ?, 0, NOW(), 'SYNC', NOW(), NOW())
+        `, [itemCode, warehouse, row.bin_location, qty]);
+      }
+    }
+    
+    console.log(`📊 Synced stock for ${itemCode} from transaction history: ${txnTotal}`);
+  } catch (error) {
+    console.warn(`⚠️ Failed to sync stock for ${itemCode}: ${error.message}`);
+  }
+}
+
+/**
  * Generate relocation session ID
  */
 function generateSessionId() {
@@ -390,6 +452,57 @@ export const setRelocationFrom = async (req, res) => {
             // For Transfer In cartons, bin_location might not exist yet
             // If user scanned a bin, we'll allow it (validation for bin match will be skipped if cartonActualBinLocation is null)
             // This allows relocating Transfer In cartons even if not yet putaway
+          }
+        }
+      }
+      
+      // Fallback 3: Check tabTransactionHistory or tabStockLedger for cartons that exist in stock but not in carton tables
+      // This handles putaway cartons (PAW-...) that were created during putaway but may not be in tabCarton
+      if (!cartonFound) {
+        // Check tabStockLedger (if carton_id column exists)
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [stockLedgerRows] = await connection.execute(`
+            SELECT DISTINCT bin_location, warehouse
+            FROM tabStockLedger
+            WHERE carton_id = ?
+              AND bin_location IS NOT NULL
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (stockLedgerRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = stockLedgerRows[0].bin_location;
+            cartonWarehouse = stockLedgerRows[0].warehouse || null;
+            console.log(`📦 Found carton ${from_carton} in tabStockLedger (bin: ${cartonActualBinLocation})`);
+          }
+        }
+        
+        // Also check tabTransactionHistory as final fallback
+        if (!cartonFound) {
+          const [historyRows] = await connection.execute(`
+            SELECT 
+              COALESCE(location_id, bin_location, target_bin) as bin_location,
+              warehouse
+            FROM tabTransactionHistory
+            WHERE carton_id = ?
+              AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+            ORDER BY transaction_date DESC, id DESC
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (historyRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = historyRows[0].bin_location;
+            cartonWarehouse = historyRows[0].warehouse || null;
+            console.log(`📦 Found carton ${from_carton} in tabTransactionHistory (bin: ${cartonActualBinLocation})`);
           }
         }
       }
@@ -792,14 +905,63 @@ export const getCartonContents = async (req, res) => {
       }
     }
     
-    // Only throw error if carton not found at all (not in tabCarton or tabTransferInCarton)
+    // Fallback: Check tabStockLedger or tabTransactionHistory for cartons that exist in stock but not in carton tables
+    // This handles putaway cartons (PAW-...) that were created during putaway but may not be in tabCarton
+    if (!warehouseId && !isTransferInCarton) {
+      // Check tabStockLedger (if carton_id column exists)
+      const [stockLedgerCartonCheck] = await connection.execute(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabStockLedger'
+          AND COLUMN_NAME = 'carton_id'
+      `);
+      
+      if (stockLedgerCartonCheck.length > 0) {
+        const [stockLedgerRows] = await connection.execute(`
+          SELECT DISTINCT bin_location, warehouse
+          FROM tabStockLedger
+          WHERE carton_id = ?
+            AND bin_location IS NOT NULL
+          LIMIT 1
+        `, [carton_id]);
+        
+        if (stockLedgerRows.length > 0) {
+          warehouseId = stockLedgerRows[0].warehouse;
+          binLocation = stockLedgerRows[0].bin_location;
+          console.log(`📦 Found carton ${carton_id} in tabStockLedger (bin: ${binLocation}, warehouse: ${warehouseId})`);
+        }
+      }
+      
+      // Also check tabTransactionHistory as final fallback
+      if (!warehouseId) {
+        const [historyRows] = await connection.execute(`
+          SELECT 
+            COALESCE(location_id, bin_location, target_bin) as bin_location,
+            warehouse
+          FROM tabTransactionHistory
+          WHERE carton_id = ?
+            AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+          ORDER BY transaction_date DESC, id DESC
+          LIMIT 1
+        `, [carton_id]);
+        
+        if (historyRows.length > 0) {
+          warehouseId = historyRows[0].warehouse;
+          binLocation = historyRows[0].bin_location;
+          console.log(`📦 Found carton ${carton_id} in tabTransactionHistory (bin: ${binLocation}, warehouse: ${warehouseId})`);
+        }
+      }
+    }
+    
+    // Only throw error if carton not found at all (not in tabCarton, tabTransferInCarton, tabStockLedger, or tabTransactionHistory)
     // For Transfer In cartons, allow warehouseId to be null if not yet set
     if (!warehouseId && !isTransferInCarton) {
       return res.status(404).json({
         ok: false,
         error: {
           code: "NOT_FOUND",
-          message: `Carton ${carton_id} not found in tabCarton or tabTransferInCarton`
+          message: `Carton ${carton_id} not found in tabCarton, tabTransferInCarton, tabStockLedger, or tabTransactionHistory`
         }
       });
     }
@@ -864,6 +1026,81 @@ export const getCartonContents = async (req, res) => {
         batch_no: item.batch_no || null,
         serial_no: item.serial_no || null
       }));
+      
+      // Fallback: If no items found in tabCartonStock, check tabStockLedger (for putaway cartons)
+      if (items.length === 0 && warehouseId) {
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [stockLedgerItems] = await connection.execute(`
+            SELECT 
+              item_code,
+              qty,
+              NULL as uom,
+              NULL as batch_no,
+              NULL as serial_no
+            FROM tabStockLedger
+            WHERE carton_id = ? AND warehouse = ?
+            ORDER BY item_code
+          `, [carton_id, warehouseId]);
+          
+          if (stockLedgerItems.length > 0) {
+            items = stockLedgerItems.map(item => ({
+              item_code: item.item_code,
+              qty: parseFloat(item.qty || 0),
+              uom: null,
+              batch_no: null,
+              serial_no: null
+            }));
+            console.log(`📦 Found ${items.length} item(s) in tabStockLedger for carton ${carton_id}`);
+          }
+        }
+      }
+      
+      // Final fallback: Check tabTransactionHistory (for putaway cartons that might not be in stock ledger yet)
+      if (items.length === 0 && warehouseId) {
+        const [historyItems] = await connection.execute(`
+          SELECT 
+            th.item_code,
+            th.qty_after as qty
+          FROM tabTransactionHistory th
+          INNER JOIN (
+            SELECT 
+              item_code,
+              MAX(transaction_date) as max_date,
+              MAX(id) as max_id
+            FROM tabTransactionHistory
+            WHERE carton_id = ? 
+              AND warehouse = ?
+              AND qty_after > 0
+            GROUP BY item_code
+          ) latest ON 
+            th.item_code = latest.item_code
+            AND th.transaction_date = latest.max_date
+            AND th.id = latest.max_id
+          WHERE th.carton_id = ?
+            AND th.warehouse = ?
+            AND th.qty_after > 0
+          ORDER BY th.item_code
+        `, [carton_id, warehouseId, carton_id, warehouseId]);
+        
+        if (historyItems.length > 0) {
+          items = historyItems.map(item => ({
+            item_code: item.item_code,
+            qty: parseFloat(item.qty || 0),
+            uom: null,
+            batch_no: null,
+            serial_no: null
+          }));
+          console.log(`📦 Found ${items.length} item(s) in tabTransactionHistory for carton ${carton_id}`);
+        }
+      }
     } else {
       // Fallback to tabCartonItem
       const [itemTableCheck] = await connection.execute(`
@@ -1429,11 +1666,28 @@ export const commitFullCartonMove = async (req, res) => {
         });
       }
       
-      // Store items for transaction history
+      // Store items for transaction history (with source qty)
       movedItemsForHistory = fromCartonItems.map(item => ({
         item_code: item.item_code,
-        qty: item.qty
+        qty: item.qty,
+        source_qty: item.qty // qty in source carton before merge
       }));
+      
+      // Get destination carton quantities BEFORE merge (for qty_before in IN transaction)
+      const destCartonQtysBeforeMerge = new Map();
+      if (hasStockTable) {
+        for (const item of fromCartonItems) {
+          const [destStock] = await connection.execute(`
+            SELECT qty
+            FROM tabCartonStock
+            WHERE carton_id = ? AND item_code = ?
+            LIMIT 1
+          `, [actualToCarton, item.item_code]);
+          
+          const destQty = destStock.length > 0 ? (parseFloat(destStock[0].qty) || 0) : 0;
+          destCartonQtysBeforeMerge.set(item.item_code, destQty);
+        }
+      }
       
       console.log(`📦 Found ${fromCartonItems.length} item(s) in carton ${session.from_carton}${isFromTransferInCarton ? ' (Transfer In carton)' : ''}`);
       
@@ -1960,6 +2214,16 @@ export const commitFullCartonMove = async (req, res) => {
           const qtyBeforeNew = newBinQty;
           const qtyReducedNew = qty; // Positive for increase
           
+          // Check if carton_id column exists in tabStockLedger
+          const [stockLedgerCartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabStockLedger' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          const hasStockLedgerCartonIdColumn = stockLedgerCartonIdColumn.length > 0;
+          
           // Build INSERT/UPDATE query with optional qty_before and qty_reduced
           let insertFields = 'item_code, warehouse, bin_location, qty, reserved_qty';
           let insertValues = '?, ?, ?, ?, ?';
@@ -1967,6 +2231,15 @@ export const commitFullCartonMove = async (req, res) => {
           
           let updateFields = 'qty = ?';
           let updateParams = [updatedNewBinQty];
+          
+          // ✅ Include carton_id if column exists
+          if (hasStockLedgerCartonIdColumn && session.from_carton) {
+            insertFields += ', carton_id';
+            insertValues += ', ?';
+            insertParams.push(session.from_carton);
+            updateFields += ', carton_id = ?';
+            updateParams.push(session.from_carton);
+          }
           
           if (hasQtyBefore) {
             insertFields += ', qty_before';
@@ -2012,36 +2285,53 @@ export const commitFullCartonMove = async (req, res) => {
     // This ensures history is ONLY created when relocation is successfully completed
     
     // Insert transaction history
-    // Check if from_carton/to_carton columns exist
+    // Check if from_carton/to_carton columns exist in tabTransactionHistory (audit trail)
     const [txnCols] = await connection.execute(`
-      SELECT COLUMN_NAME
+      SELECT COLUMN_NAME, EXTRA, IS_NULLABLE, COLUMN_DEFAULT, DATA_TYPE
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'tabStockTransaction'
-        AND COLUMN_NAME IN ('from_carton', 'to_carton')
+        AND TABLE_NAME = 'tabTransactionHistory'
+        AND COLUMN_NAME IN ('transaction_id', 'from_carton', 'to_carton')
     `);
     
     const hasFromCarton = txnCols.some(col => col.COLUMN_NAME === 'from_carton');
     const hasToCarton = txnCols.some(col => col.COLUMN_NAME === 'to_carton');
+    
+    // Check if transaction_id is required
+    const transactionIdCol = txnCols.find(col => col.COLUMN_NAME === 'transaction_id');
+    const hasTransactionId = !!transactionIdCol;
+    const isTransactionIdAutoIncrement = transactionIdCol && transactionIdCol.EXTRA && transactionIdCol.EXTRA.toLowerCase().includes('auto_increment');
+    const needsTransactionId = hasTransactionId && !isTransactionIdAutoIncrement && transactionIdCol.IS_NULLABLE === 'NO' && !transactionIdCol.COLUMN_DEFAULT;
+    const isTransactionIdInteger = transactionIdCol && (transactionIdCol.DATA_TYPE === 'int' || transactionIdCol.DATA_TYPE === 'bigint' || transactionIdCol.DATA_TYPE === 'integer');
+    
+    // Helper function to generate transaction_id based on column type
+    const generateTransactionId = (suffix = '') => {
+      if (isTransactionIdInteger) {
+        // Generate numeric ID (safe range for INT/BIGINT)
+        return parseInt(`${Date.now()}${Math.floor(Math.random() * 1000)}`.substring(0, 15));
+      } else {
+        return `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}${suffix}`;
+      }
+    };
     
     // Get carton_id column position
     const [cartonIdCol] = await connection.execute(`
       SELECT COLUMN_NAME
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'tabStockTransaction'
+        AND TABLE_NAME = 'tabTransactionHistory'
         AND COLUMN_NAME = 'carton_id'
     `);
     
     const hasCartonId = cartonIdCol.length > 0;
     
-    // Insert transaction history
-    // Check what bin columns exist in tabStockTransaction
+    // Insert transaction history into tabTransactionHistory (audit trail)
+    // Check what bin columns exist in tabTransactionHistory
     const [binCols] = await connection.execute(`
       SELECT COLUMN_NAME
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'tabStockTransaction'
+        AND TABLE_NAME = 'tabTransactionHistory'
         AND COLUMN_NAME IN ('from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location')
     `);
     
@@ -2051,12 +2341,12 @@ export const commitFullCartonMove = async (req, res) => {
     const hasTargetBin = binCols.some(col => col.COLUMN_NAME === 'target_bin');
     const hasBinLocation = binCols.some(col => col.COLUMN_NAME === 'bin_location');
     
-    // Check required fields for tabStockTransaction
+    // Check required fields for tabTransactionHistory (audit trail)
     const [requiredCols] = await connection.execute(`
       SELECT COLUMN_NAME, IS_NULLABLE
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'tabStockTransaction'
+        AND TABLE_NAME = 'tabTransactionHistory'
         AND COLUMN_NAME IN ('transaction_date', 'reference_doc_type', 'reference_doc', 'performed_by', 'created_at', 'qty_change', 'qty_before', 'qty_after', 'item_code')
     `);
     
@@ -2074,122 +2364,284 @@ export const commitFullCartonMove = async (req, res) => {
     
     // Insert transaction history
     // For carton merges, we can insert item-level transactions since we have item_code
-    // For simple relocations, skip if item_code is required (carton-level operation)
+    // CRITICAL: Create TWO transactions per item (OUT from source, IN to destination)
+    // This ensures proper ledger accounting and correct Item Location Breakdown
     if (isCartonMerge && movedItemsForHistory.length > 0) {
-      // Insert one transaction per item moved (for carton merge)
+      // Check if stock_direction column exists and is NOT a generated column
+      const [stockDirectionCol] = await connection.execute(`
+        SELECT COLUMN_NAME, GENERATION_EXPRESSION, EXTRA
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabTransactionHistory'
+          AND COLUMN_NAME = 'stock_direction'
+      `);
+      const stockDirColInfo = stockDirectionCol.length > 0 ? stockDirectionCol[0] : null;
+      const isStockDirectionGenerated = stockDirColInfo && (
+        (stockDirColInfo.GENERATION_EXPRESSION && stockDirColInfo.GENERATION_EXPRESSION.length > 0) ||
+        (stockDirColInfo.EXTRA && stockDirColInfo.EXTRA.toLowerCase().includes('generated'))
+      );
+      const hasStockDirection = stockDirectionCol.length > 0 && !isStockDirectionGenerated;
+      
+      // Get source and destination quantities for transactions
+      // NOTE: movedItemsForHistory already contains source qty (captured before deletion)
+      // NOTE: destCartonQtysBeforeMerge was captured before merge (if available)
+      const sourceCartonQtys = new Map();
+      const destCartonQtys = new Map();
+      
       for (const item of movedItemsForHistory) {
-        const txnFields = [];
-        const txnValues = [];
+        // Source qty: Use qty from movedItemsForHistory (captured before deletion)
+        const sourceQty = item.source_qty || item.qty;
+        sourceCartonQtys.set(item.item_code, sourceQty);
         
-        if (hasTransactionDate) {
-          txnFields.push('transaction_date');
-          txnValues.push(new Date());
-        }
+        // Destination qty_before: Use captured value or default to 0
+        // destCartonQtysBeforeMerge is defined in the same scope (above in the isCartonMerge block)
+        const destQtyBefore = (typeof destCartonQtysBeforeMerge !== 'undefined' && destCartonQtysBeforeMerge) 
+          ? (destCartonQtysBeforeMerge.get(item.item_code) || 0)
+          : 0;
+        destCartonQtys.set(item.item_code, destQtyBefore);
+      }
+      
+      // Use actual warehouse from item (not session.warehouse_id if DEFAULT)
+      let itemWarehouse = session.warehouse_id;
+      if (hasStockTable && movedItemsForHistory.length > 0) {
+        const [itemStock] = await connection.execute(`
+          SELECT warehouse
+          FROM tabCartonStock
+          WHERE carton_id = ? AND item_code = ?
+          LIMIT 1
+        `, [actualToCarton, movedItemsForHistory[0].item_code]);
         
-        txnFields.push('transaction_type');
-        txnValues.push('CARTON_MERGE');
-        
-        if (hasRefDocType) {
-          txnFields.push('reference_doc_type');
-          txnValues.push('Relocation Session');
-        }
-        
-        if (hasRefDoc) {
-          txnFields.push('reference_doc');
-          txnValues.push(session_id);
-        }
-        
-        // Use actual warehouse from item (not session.warehouse_id if DEFAULT)
-        // Get warehouse from the moved item's carton stock
-        let itemWarehouse = session.warehouse_id;
-        if (hasStockTable) {
-          const [itemStock] = await connection.execute(`
-            SELECT warehouse
-            FROM tabCartonStock
-            WHERE carton_id = ? AND item_code = ?
-            LIMIT 1
-          `, [actualToCarton, item.item_code]);
-          
-          if (itemStock.length > 0 && itemStock[0].warehouse && itemStock[0].warehouse !== 'DEFAULT') {
-            itemWarehouse = itemStock[0].warehouse;
-          }
-        }
-        
-        txnFields.push('warehouse');
-        txnValues.push(itemWarehouse);
-        
-        // Add item_code (required for merge transactions)
-        if (hasItemCode) {
-          txnFields.push('item_code');
-          txnValues.push(item.item_code);
-        }
-        
-        // Add bin location fields
-        // IMPORTANT: Set bin_location to destination bin (to_bin) for desktop display
-        // Desktop app displays bin_location column, not from_bin/to_bin
-        if (hasBinLocation) {
-          txnFields.push('bin_location');
-          txnValues.push(session.to_bin); // Destination bin where carton ends up
-        }
-        
-        // Also set from_bin and to_bin if columns exist (for detailed tracking)
-        if (hasFromBin && hasToBin) {
-          txnFields.push('from_bin', 'to_bin');
-          txnValues.push(session.from_bin, session.to_bin);
-        } else if (hasSourceBin && hasTargetBin) {
-          txnFields.push('source_bin', 'target_bin');
-          txnValues.push(session.from_bin, session.to_bin);
-        }
-        
-        if (hasCartonId) {
-          txnFields.push('carton_id');
-          txnValues.push(actualToCarton); // TO carton
-        }
-        
-        if (hasFromCarton) {
-          txnFields.push('from_carton');
-          txnValues.push(session.from_carton);
-        }
-        
-        if (hasToCarton) {
-          txnFields.push('to_carton');
-          txnValues.push(actualToCarton);
-        }
-        
-        // Add quantity fields
-        if (hasQtyChange) {
-          txnFields.push('qty_change');
-          txnValues.push(item.qty); // Quantity moved
-        }
-        if (hasQtyBefore) {
-          txnFields.push('qty_before');
-          txnValues.push(0); // Could query actual before qty if needed
-        }
-        if (hasQtyAfter) {
-          txnFields.push('qty_after');
-          txnValues.push(item.qty); // Quantity after merge
-        }
-        
-        if (hasPerformedBy) {
-          txnFields.push('performed_by');
-          txnValues.push(req.user?.user_id || session.created_by || 'SYSTEM');
-        }
-        
-        if (hasCreatedAt) {
-          txnFields.push('created_at');
-          txnValues.push(new Date());
-        }
-        
-        // Only insert if we have required fields
-        if (txnFields.length > 0 && (!hasItemCode || itemCodeNullable || item.item_code)) {
-          await connection.execute(`
-            INSERT INTO tabStockTransaction (${txnFields.join(', ')})
-            VALUES (${txnFields.map(() => '?').join(', ')})
-          `, txnValues);
+        if (itemStock.length > 0 && itemStock[0].warehouse && itemStock[0].warehouse !== 'DEFAULT') {
+          itemWarehouse = itemStock[0].warehouse;
         }
       }
       
-      console.log(`✅ Inserted ${movedItemsForHistory.length} transaction(s) for carton merge`);
+      const performedBy = req.user?.user_id || session.created_by || 'SYSTEM';
+      const transactionDate = new Date();
+      
+      // Insert TWO transactions per item: OUT from source, IN to destination
+      let transactionsInserted = 0;
+      for (const item of movedItemsForHistory) {
+        const sourceQty = sourceCartonQtys.get(item.item_code) || item.qty;
+        const destQtyBefore = destCartonQtys.get(item.item_code) || 0;
+        const destQtyAfter = destQtyBefore + item.qty;
+        
+        // ============================================================
+        // TRANSACTION 1: Source Carton (OUT) - Negative qty_change
+        // ============================================================
+        const sourceTxnFields = [];
+        const sourceTxnValues = [];
+        
+        // Add transaction_id if required
+        if (needsTransactionId) {
+          sourceTxnFields.push('transaction_id');
+          sourceTxnValues.push(generateTransactionId('-OUT'));
+        }
+        
+        if (hasTransactionDate) {
+          sourceTxnFields.push('transaction_date');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        sourceTxnFields.push('transaction_type');
+        sourceTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          sourceTxnFields.push('reference_doc_type');
+          sourceTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          sourceTxnFields.push('reference_doc');
+          sourceTxnValues.push(session_id);
+        }
+        
+        sourceTxnFields.push('warehouse');
+        sourceTxnValues.push(itemWarehouse);
+        
+        if (hasItemCode) {
+          sourceTxnFields.push('item_code');
+          sourceTxnValues.push(item.item_code);
+        }
+        
+        // Source carton location
+        if (hasBinLocation) {
+          sourceTxnFields.push('bin_location');
+          sourceTxnValues.push(session.from_bin); // Source bin
+        }
+        
+        if (hasFromBin && hasToBin) {
+          sourceTxnFields.push('from_bin', 'to_bin');
+          sourceTxnValues.push(session.from_bin, session.to_bin);
+        } else if (hasSourceBin && hasTargetBin) {
+          sourceTxnFields.push('source_bin', 'target_bin');
+          sourceTxnValues.push(session.from_bin, session.to_bin);
+        }
+        
+        if (hasCartonId) {
+          sourceTxnFields.push('carton_id');
+          sourceTxnValues.push(session.from_carton); // FROM carton
+        }
+        
+        if (hasFromCarton) {
+          sourceTxnFields.push('from_carton');
+          sourceTxnValues.push(session.from_carton);
+        }
+        
+        if (hasToCarton) {
+          sourceTxnFields.push('to_carton');
+          sourceTxnValues.push(actualToCarton);
+        }
+        
+        // Source transaction: OUT (negative qty_change)
+        if (hasQtyChange) {
+          sourceTxnFields.push('qty_change');
+          sourceTxnValues.push(-item.qty); // Negative for OUT
+        }
+        if (hasQtyBefore) {
+          sourceTxnFields.push('qty_before');
+          sourceTxnValues.push(sourceQty); // Current qty in source carton
+        }
+        if (hasQtyAfter) {
+          sourceTxnFields.push('qty_after');
+          sourceTxnValues.push(0); // Source carton becomes empty
+        }
+        
+        // Add stock_direction if column exists
+        if (hasStockDirection) {
+          sourceTxnFields.push('stock_direction');
+          sourceTxnValues.push('OUT');
+        }
+        
+        if (hasPerformedBy) {
+          sourceTxnFields.push('performed_by');
+          sourceTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          sourceTxnFields.push('created_at');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        // Insert source transaction (OUT) into tabTransactionHistory (audit trail)
+        if (sourceTxnFields.length > 0 && (!hasItemCode || itemCodeNullable || item.item_code)) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${sourceTxnFields.join(', ')})
+            VALUES (${sourceTxnFields.map(() => '?').join(', ')})
+          `, sourceTxnValues);
+          transactionsInserted++;
+          console.log(`📝 Inserted CARTON_MERGE OUT transaction for ${item.item_code} into tabTransactionHistory`);
+        }
+        
+        // ============================================================
+        // TRANSACTION 2: Destination Carton (IN) - Positive qty_change
+        // ============================================================
+        const destTxnFields = [];
+        const destTxnValues = [];
+        
+        // Add transaction_id if required
+        if (needsTransactionId) {
+          destTxnFields.push('transaction_id');
+          destTxnValues.push(generateTransactionId('-IN'));
+        }
+        
+        if (hasTransactionDate) {
+          destTxnFields.push('transaction_date');
+          destTxnValues.push(transactionDate);
+        }
+        
+        destTxnFields.push('transaction_type');
+        destTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          destTxnFields.push('reference_doc_type');
+          destTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          destTxnFields.push('reference_doc');
+          destTxnValues.push(session_id);
+        }
+        
+        destTxnFields.push('warehouse');
+        destTxnValues.push(itemWarehouse);
+        
+        if (hasItemCode) {
+          destTxnFields.push('item_code');
+          destTxnValues.push(item.item_code);
+        }
+        
+        // Destination carton location
+        if (hasBinLocation) {
+          destTxnFields.push('bin_location');
+          destTxnValues.push(session.to_bin); // Destination bin
+        }
+        
+        if (hasFromBin && hasToBin) {
+          destTxnFields.push('from_bin', 'to_bin');
+          destTxnValues.push(session.from_bin, session.to_bin);
+        } else if (hasSourceBin && hasTargetBin) {
+          destTxnFields.push('source_bin', 'target_bin');
+          destTxnValues.push(session.from_bin, session.to_bin);
+        }
+        
+        if (hasCartonId) {
+          destTxnFields.push('carton_id');
+          destTxnValues.push(actualToCarton); // TO carton
+        }
+        
+        if (hasFromCarton) {
+          destTxnFields.push('from_carton');
+          destTxnValues.push(session.from_carton);
+        }
+        
+        if (hasToCarton) {
+          destTxnFields.push('to_carton');
+          destTxnValues.push(actualToCarton);
+        }
+        
+        // Destination transaction: IN (positive qty_change)
+        if (hasQtyChange) {
+          destTxnFields.push('qty_change');
+          destTxnValues.push(item.qty); // Positive for IN
+        }
+        if (hasQtyBefore) {
+          destTxnFields.push('qty_before');
+          destTxnValues.push(destQtyBefore); // Existing qty in destination (might be 0)
+        }
+        if (hasQtyAfter) {
+          destTxnFields.push('qty_after');
+          destTxnValues.push(destQtyAfter); // New qty in destination
+        }
+        
+        // Add stock_direction if column exists
+        if (hasStockDirection) {
+          destTxnFields.push('stock_direction');
+          destTxnValues.push('IN');
+        }
+        
+        if (hasPerformedBy) {
+          destTxnFields.push('performed_by');
+          destTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          destTxnFields.push('created_at');
+          destTxnValues.push(transactionDate);
+        }
+        
+        // Insert destination transaction (IN) into tabTransactionHistory (audit trail)
+        if (destTxnFields.length > 0 && (!hasItemCode || itemCodeNullable || item.item_code)) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${destTxnFields.join(', ')})
+            VALUES (${destTxnFields.map(() => '?').join(', ')})
+          `, destTxnValues);
+          transactionsInserted++;
+          console.log(`📝 Inserted CARTON_MERGE IN transaction for ${item.item_code} into tabTransactionHistory`);
+        }
+      }
+      
+      console.log(`✅ Inserted ${transactionsInserted} transaction(s) for carton merge (${movedItemsForHistory.length} items × 2 transactions each: OUT + IN) into tabTransactionHistory`);
     } else if (!isCartonMerge) {
       // FULL_CARTON_RELOCATE: Insert one transaction per item (spec requires item-level history)
       // Get all items from carton to insert individual transactions
@@ -2225,6 +2677,12 @@ export const commitFullCartonMove = async (req, res) => {
           const txnFields = [];
           const txnValues = [];
           
+          // Add transaction_id if required
+          if (needsTransactionId) {
+            txnFields.push('transaction_id');
+            txnValues.push(generateTransactionId());
+          }
+          
           // transaction_date is REQUIRED (spec says desktop needs it)
           if (hasTransactionDate) {
             txnFields.push('transaction_date');
@@ -2253,12 +2711,12 @@ export const commitFullCartonMove = async (req, res) => {
             txnValues.push(itemCode);
           }
           
-          // Add item_name if column exists
+          // Add item_name if column exists in tabTransactionHistory
           const [itemNameCol] = await connection.execute(`
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'tabStockTransaction'
+              AND TABLE_NAME = 'tabTransactionHistory'
               AND COLUMN_NAME = 'item_name'
           `);
           if (itemNameCol.length > 0) {
@@ -2274,14 +2732,13 @@ export const commitFullCartonMove = async (req, res) => {
             txnValues.push(session.to_bin); // Destination bin where carton ends up
           }
           
-          // Also set from_bin and to_bin if columns exist (for detailed tracking)
+          // NOTE: from_bin/to_bin and source_bin/target_bin will be added separately
+          // to OUT and IN transactions below (OUT gets source_bin, IN gets target_bin)
           if (hasFromBin && hasToBin) {
             txnFields.push('from_bin', 'to_bin');
             txnValues.push(session.from_bin, session.to_bin);
-          } else if (hasSourceBin && hasTargetBin) {
-            txnFields.push('source_bin', 'target_bin');
-            txnValues.push(session.from_bin, session.to_bin);
           }
+          // Don't add source_bin/target_bin here - they're added per-transaction below
           
           if (hasCartonId) {
             txnFields.push('carton_id');
@@ -2298,12 +2755,12 @@ export const commitFullCartonMove = async (req, res) => {
             txnValues.push(session.from_carton); // Same carton for FULL_CARTON
           }
           
-          // Add batch_no if available
+          // Add batch_no if available in tabTransactionHistory
           const [batchNoCol] = await connection.execute(`
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'tabStockTransaction'
+              AND TABLE_NAME = 'tabTransactionHistory'
               AND COLUMN_NAME = 'batch_no'
           `);
           if (batchNoCol.length > 0 && item.batch_no) {
@@ -2311,85 +2768,179 @@ export const commitFullCartonMove = async (req, res) => {
             txnValues.push(item.batch_no);
           }
           
-          // Add quantity fields (qty_change = 0, qty_before = qty_after = qty for relocation)
-          if (hasQtyChange) {
-            txnFields.push('qty_change');
-            txnValues.push(0); // Relocation doesn't change quantity
-          }
-          if (hasQtyBefore) {
-            txnFields.push('qty_before');
-            txnValues.push(qty); // Same qty before and after
-          }
-          if (hasQtyAfter) {
-            txnFields.push('qty_after');
-            txnValues.push(qty); // Same qty before and after
-          }
+          // FIXED: Insert TWO transactions for relocation (OUT from old bin, IN to new bin)
+          // This allows Item Location Breakdown to correctly calculate balances per location
           
-          // Add stock_direction if column exists
-          const [stockDirectionCol] = await connection.execute(`
-            SELECT COLUMN_NAME
+          // Check if stock_direction column exists and is NOT a generated column
+          const [stockDirectionCol2] = await connection.execute(`
+            SELECT COLUMN_NAME, GENERATION_EXPRESSION, EXTRA
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'tabStockTransaction'
+              AND TABLE_NAME = 'tabTransactionHistory'
               AND COLUMN_NAME = 'stock_direction'
           `);
-          if (stockDirectionCol.length > 0) {
-            txnFields.push('stock_direction');
-            txnValues.push('MOVE');
-          }
+          const stockDirColInfo2 = stockDirectionCol2.length > 0 ? stockDirectionCol2[0] : null;
+          const isStockDirectionGenerated2 = stockDirColInfo2 && (
+            (stockDirColInfo2.GENERATION_EXPRESSION && stockDirColInfo2.GENERATION_EXPRESSION.length > 0) ||
+            (stockDirColInfo2.EXTRA && stockDirColInfo2.EXTRA.toLowerCase().includes('generated'))
+          );
+          const hasStockDirection2 = stockDirectionCol2.length > 0 && !isStockDirectionGenerated2;
           
-          // Add notes if column exists
+          // Check if notes column exists
           const [notesCol] = await connection.execute(`
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'tabStockTransaction'
+              AND TABLE_NAME = 'tabTransactionHistory'
               AND COLUMN_NAME = 'notes'
           `);
-          if (notesCol.length > 0) {
-            txnFields.push('notes');
-            txnValues.push(`Full carton relocation (${actualPolicy}). Carton moved bin only.`);
-          }
+          const hasNotes = notesCol.length > 0;
           
+          // Check if location_id column exists
+          const [locationIdCol] = await connection.execute(`
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'tabTransactionHistory'
+              AND COLUMN_NAME = 'location_id'
+          `);
+          const hasLocationId = locationIdCol.length > 0;
+          
+          const performedBy = req.user?.user_id || session.created_by || 'SYSTEM';
+          const now = new Date();
+          
+          // === INSERT OUT TRANSACTION (from old bin) ===
+          const outFields = [...txnFields];
+          const outValues = [...txnValues];
+          
+          if (hasQtyChange) {
+            outFields.push('qty_change');
+            outValues.push(-qty); // Negative for OUT
+          }
+          if (hasQtyBefore) {
+            outFields.push('qty_before');
+            outValues.push(qty);
+          }
+          if (hasQtyAfter) {
+            outFields.push('qty_after');
+            outValues.push(0); // 0 after moving out
+          }
+          if (hasStockDirection2) {
+            outFields.push('stock_direction');
+            outValues.push('OUT');
+          }
+          if (hasLocationId) {
+            outFields.push('location_id');
+            outValues.push(session.from_bin);
+          }
+          // CRITICAL: Set source_bin for OUT transaction (Item Location Breakdown uses this)
+          if (hasSourceBin) {
+            outFields.push('source_bin');
+            outValues.push(session.from_bin);
+          }
+          if (hasNotes) {
+            outFields.push('notes');
+            outValues.push(`Carton relocated OUT to ${session.to_bin}`);
+          }
           if (hasPerformedBy) {
-            txnFields.push('performed_by');
-            txnValues.push(req.user?.user_id || session.created_by || 'SYSTEM');
+            outFields.push('performed_by');
+            outValues.push(performedBy);
           }
-          
           if (hasCreatedAt) {
-            txnFields.push('created_at');
-            txnValues.push(new Date());
+            outFields.push('created_at');
+            outValues.push(now);
           }
           
-          // Insert transaction (item_code is required, so we always have it)
-          // IMPORTANT: Session status is already set to COMPLETED above, so duplicate commits will be prevented
-          // by the idempotency check at the beginning of the function
-          // Also check if transaction already exists to prevent duplicates from concurrent requests
-          if (txnFields.length > 0 && hasItemCode) {
-            // Check if transaction already exists for this session+item combination
-            const [existingTxn] = await connection.execute(`
-              SELECT id FROM tabStockTransaction 
+          // Check for duplicate OUT transaction
+          if (outFields.length > 0 && hasItemCode) {
+            const [existingOutTxn] = await connection.execute(`
+              SELECT id FROM tabTransactionHistory 
               WHERE transaction_type = 'CARTON_RELOCATION' 
                 AND reference_doc = ? 
                 AND item_code = ? 
-                AND warehouse = ?
-                AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))
+                AND stock_direction = 'OUT'
               LIMIT 1
-            `, [session_id, itemCode, itemWarehouse, session.to_bin, session.to_bin]);
+            `, [session_id, itemCode]);
             
-            if (existingTxn.length === 0) {
-              // No existing transaction - safe to insert
+            if (existingOutTxn.length === 0) {
               await connection.execute(`
-                INSERT INTO tabStockTransaction (${txnFields.join(', ')})
-                VALUES (${txnFields.map(() => '?').join(', ')})
-              `, txnValues);
-            } else {
-              console.log(`⚠️  Skipping duplicate transaction for ${itemCode} in session ${session_id} (already exists)`);
+                INSERT INTO tabTransactionHistory (${outFields.join(', ')})
+                VALUES (${outFields.map(() => '?').join(', ')})
+              `, outValues);
+              console.log(`📝 Inserted CARTON_RELOCATION OUT transaction for ${itemCode}`);
+            }
+          }
+          
+          // === INSERT IN TRANSACTION (to new bin) ===
+          const inFields = [...txnFields];
+          const inValues = [...txnValues];
+          
+          // Update bin_location to target bin for IN transaction
+          const binLocIdx = inFields.indexOf('bin_location');
+          if (binLocIdx !== -1) {
+            inValues[binLocIdx] = session.to_bin;
+          }
+          
+          if (hasQtyChange) {
+            inFields.push('qty_change');
+            inValues.push(qty); // Positive for IN
+          }
+          if (hasQtyBefore) {
+            inFields.push('qty_before');
+            inValues.push(0); // 0 before moving in
+          }
+          if (hasQtyAfter) {
+            inFields.push('qty_after');
+            inValues.push(qty);
+          }
+          if (hasStockDirection2) {
+            inFields.push('stock_direction');
+            inValues.push('IN');
+          }
+          if (hasLocationId) {
+            inFields.push('location_id');
+            inValues.push(session.to_bin);
+          }
+          // CRITICAL: Set target_bin for IN transaction (Item Location Breakdown uses this)
+          if (hasTargetBin) {
+            inFields.push('target_bin');
+            inValues.push(session.to_bin);
+          }
+          if (hasNotes) {
+            inFields.push('notes');
+            inValues.push(`Carton relocated IN from ${session.from_bin}`);
+          }
+          if (hasPerformedBy) {
+            inFields.push('performed_by');
+            inValues.push(performedBy);
+          }
+          if (hasCreatedAt) {
+            inFields.push('created_at');
+            inValues.push(now);
+          }
+          
+          // Check for duplicate IN transaction
+          if (inFields.length > 0 && hasItemCode) {
+            const [existingInTxn] = await connection.execute(`
+              SELECT id FROM tabTransactionHistory 
+              WHERE transaction_type = 'CARTON_RELOCATION' 
+                AND reference_doc = ? 
+                AND item_code = ? 
+                AND stock_direction = 'IN'
+              LIMIT 1
+            `, [session_id, itemCode]);
+            
+            if (existingInTxn.length === 0) {
+              await connection.execute(`
+                INSERT INTO tabTransactionHistory (${inFields.join(', ')})
+                VALUES (${inFields.map(() => '?').join(', ')})
+              `, inValues);
+              console.log(`📝 Inserted CARTON_RELOCATION IN transaction for ${itemCode}`);
             }
           }
         }
         
-        console.log(`✅ Inserted ${cartonItems.length} transaction(s) for full carton relocation (one per item with transaction_date)`);
+        console.log(`✅ Inserted ${cartonItems.length} transaction(s) for full carton relocation into tabTransactionHistory`);
       } else {
         // If hasStockTable is false or cartonItems is empty, log warning
         console.warn(`⚠️  Cannot insert item-level transaction history: hasStockTable=${hasStockTable}, cartonItems.length=${cartonItems ? cartonItems.length : 0}`);
@@ -2412,6 +2963,19 @@ export const commitFullCartonMove = async (req, res) => {
     
     // Commit transaction - if any step fails, entire transaction rolls back
     await connection.commit();
+    
+    // Sync item stock with stock ledger for all affected items
+    if (isCartonMerge && movedItemsForHistory && movedItemsForHistory.length > 0) {
+      const itemCodes = [...new Set(movedItemsForHistory.map(i => i.item_code))];
+      for (const itemCode of itemCodes) {
+        await syncItemStock(connection, itemCode);
+      }
+    } else if (cartonItems && cartonItems.length > 0) {
+      const itemCodes = [...new Set(cartonItems.map(i => i.item_code))];
+      for (const itemCode of itemCodes) {
+        await syncItemStock(connection, itemCode);
+      }
+    }
     
     if (isCartonMerge) {
       console.log(`✅ Committed carton merge: ${session.from_carton} -> ${actualToCarton} (${movedItemsForHistory.length} items) from ${session.from_bin} to ${session.to_bin} (policy: ${actualPolicy})`);
@@ -2630,19 +3194,132 @@ export const commitPartialMove = async (req, res) => {
       
       // Get current stock in source carton (SUM all rows for same carton/item/warehouse)
       // There may be multiple rows with same carton_id/item_code/warehouse but different batch_no
+      // For Transfer In cartons, also check tabTransferInCartonLine if not found in tabCartonStock
       const [sourceStockRows] = await connection.execute(`
         SELECT qty, uom, batch_no
         FROM tabCartonStock
         WHERE carton_id = ? AND item_code = ? AND warehouse = ?
       `, [session.from_carton, item_code, session.warehouse_id]);
       
-      if (sourceStockRows.length === 0) {
-        console.warn(`⚠️  Item ${item_code} not found in source carton ${session.from_carton}`);
-        continue;
+      let sourceQty = 0;
+      let sourceRows = sourceStockRows;
+      
+      // If not found in tabCartonStock and it's a Transfer In carton, check tabTransferInCartonLine
+      if (sourceStockRows.length === 0 && session.from_carton && session.from_carton.startsWith('CTN-TI-')) {
+        // Get Transfer In title from carton
+        const [transferInCartonTableCheck] = await connection.execute(`
+          SELECT TABLE_NAME
+          FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabTransferInCarton'
+        `);
+        
+        if (transferInCartonTableCheck.length > 0) {
+          const [transferInCartonRows] = await connection.execute(`
+            SELECT transfer_in
+            FROM tabTransferInCarton
+            WHERE carton_id = ?
+          `, [session.from_carton]);
+          
+          if (transferInCartonRows.length > 0) {
+            const transferInTitle = transferInCartonRows[0].transfer_in;
+            
+            // Check tabTransferInCartonLine
+            const [transferInLineTableCheck] = await connection.execute(`
+              SELECT TABLE_NAME
+              FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'tabTransferInCartonLine'
+            `);
+            
+            if (transferInLineTableCheck.length > 0) {
+              const [transferInLineRows] = await connection.execute(`
+                SELECT received_qty as qty
+                FROM tabTransferInCartonLine
+                WHERE carton_id = ? AND transfer_in = ? AND item_code = ?
+              `, [session.from_carton, transferInTitle, item_code]);
+              
+              if (transferInLineRows.length > 0) {
+                // Convert to same format as tabCartonStock rows
+                sourceRows = transferInLineRows.map(row => ({
+                  qty: row.qty,
+                  uom: null,
+                  batch_no: null
+                }));
+                console.log(`✅ Found item ${item_code} in tabTransferInCartonLine for Transfer In carton ${session.from_carton}`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: Check tabStockLedger for putaway cartons (PAW-...)
+      if (sourceRows.length === 0 && session.from_carton && session.from_carton.startsWith('PAW-')) {
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [ledgerItemRows] = await connection.execute(`
+            SELECT qty, uom
+            FROM tabStockLedger
+            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+          `, [session.from_carton, item_code, session.warehouse_id]);
+          
+          if (ledgerItemRows.length > 0) {
+            sourceRows = ledgerItemRows.map(row => ({
+              qty: row.qty,
+              uom: row.uom || null,
+              batch_no: null
+            }));
+            console.log(`✅ Found item ${item_code} in tabStockLedger for putaway carton ${session.from_carton}`);
+          }
+        }
+      }
+      
+      // Final fallback: Check tabTransactionHistory for putaway cartons
+      if (sourceRows.length === 0 && session.from_carton && (session.from_carton.startsWith('PAW-') || !session.from_carton.startsWith('CTN-'))) {
+        const [historyItemRows] = await connection.execute(`
+          SELECT 
+            qty_after as qty,
+            item_code
+          FROM tabTransactionHistory
+          WHERE carton_id = ?
+            AND item_code = ?
+            AND warehouse = ?
+            AND qty_after > 0
+          ORDER BY transaction_date DESC, id DESC
+          LIMIT 1
+        `, [session.from_carton, item_code, session.warehouse_id]);
+        
+        if (historyItemRows.length > 0) {
+          sourceRows = [{
+            qty: parseFloat(historyItemRows[0].qty) || 0,
+            uom: null,
+            batch_no: null
+          }];
+          console.log(`✅ Found item ${item_code} in tabTransactionHistory for carton ${session.from_carton} (qty: ${sourceRows[0].qty})`);
+        }
+      }
+      
+      if (sourceRows.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "ITEM_NOT_FOUND",
+            message: `Item "${item_code}" not found in source carton.`,
+            details: `Please scan an item that exists in carton ${session.from_carton}.`
+          }
+        });
       }
       
       // SUM all quantities across multiple rows (e.g., different batch_no)
-      const sourceQty = sourceStockRows.reduce((sum, row) => sum + parseFloat(row.qty || 0), 0);
+      sourceQty = sourceRows.reduce((sum, row) => sum + parseFloat(row.qty || 0), 0);
       
       if (sourceQty < qtyToMove) {
         await connection.rollback();
@@ -2659,45 +3336,92 @@ export const commitPartialMove = async (req, res) => {
       // Strategy: Reduce quantities across rows, removing rows that become 0
       let remainingToMove = qtyToMove;
       
-      for (const stockRow of sourceStockRows) {
-        if (remainingToMove <= 0) break;
+      // Check if this is a Transfer In carton using tabTransferInCartonLine
+      const isFromTransferInLine = sourceRows.length > 0 && sourceStockRows.length === 0 && session.from_carton && session.from_carton.startsWith('CTN-TI-');
+      
+      if (isFromTransferInLine) {
+        // For Transfer In cartons, update tabTransferInCartonLine
+        const [transferInCartonRows] = await connection.execute(`
+          SELECT transfer_in
+          FROM tabTransferInCarton
+          WHERE carton_id = ?
+        `, [session.from_carton]);
         
-        const rowQty = parseFloat(stockRow.qty || 0);
-        const batchNo = stockRow.batch_no || null;
-        
-        if (rowQty <= 0) continue;
-        
-        if (rowQty <= remainingToMove) {
-          // This row will be completely consumed - delete it
-          await connection.execute(`
-            DELETE FROM tabCartonStock
-            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
-              AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
-          `, [session.from_carton, item_code, session.warehouse_id, batchNo, batchNo]);
-          remainingToMove -= rowQty;
-        } else {
-          // This row has more than needed - reduce its quantity
-          const newRowQty = rowQty - remainingToMove;
-          await connection.execute(`
-            UPDATE tabCartonStock
-            SET qty = ?,
-                updated_at = NOW()
-            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
-              AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
-          `, [newRowQty, session.from_carton, item_code, session.warehouse_id, batchNo, batchNo]);
-          remainingToMove = 0;
+        if (transferInCartonRows.length > 0) {
+          const transferInTitle = transferInCartonRows[0].transfer_in;
+          
+          // Update received_qty in tabTransferInCartonLine
+          for (const stockRow of sourceRows) {
+            if (remainingToMove <= 0) break;
+            
+            const rowQty = parseFloat(stockRow.qty || 0);
+            if (rowQty <= 0) continue;
+            
+            const qtyToDeduct = Math.min(rowQty, remainingToMove);
+            const newQty = rowQty - qtyToDeduct;
+            
+            await connection.execute(`
+              UPDATE tabTransferInCartonLine
+              SET received_qty = ?
+              WHERE carton_id = ? AND transfer_in = ? AND item_code = ?
+            `, [newQty, session.from_carton, transferInTitle, item_code]);
+            
+            remainingToMove -= qtyToDeduct;
+          }
+        }
+      } else {
+        // For regular cartons, update tabCartonStock
+        for (const stockRow of sourceStockRows) {
+          if (remainingToMove <= 0) break;
+          
+          const rowQty = parseFloat(stockRow.qty || 0);
+          const batchNo = stockRow.batch_no || null;
+          
+          if (rowQty <= 0) continue;
+          
+          if (rowQty <= remainingToMove) {
+            // This row will be completely consumed - delete it
+            await connection.execute(`
+              DELETE FROM tabCartonStock
+              WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+                AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
+            `, [session.from_carton, item_code, session.warehouse_id, batchNo, batchNo]);
+            remainingToMove -= rowQty;
+          } else {
+            // This row has more than needed - reduce its quantity
+            const newRowQty = rowQty - remainingToMove;
+            await connection.execute(`
+              UPDATE tabCartonStock
+              SET qty = ?,
+                  updated_at = NOW()
+              WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+                AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
+            `, [newRowQty, session.from_carton, item_code, session.warehouse_id, batchNo, batchNo]);
+            remainingToMove = 0;
+          }
         }
       }
       
       // Safety check: if we couldn't move all requested quantity, log warning
       if (remainingToMove > 0) {
-        console.warn(`⚠️  Could not fully consume ${remainingToMove} units from ${sourceStockRows.length} row(s) for ${item_code} in carton ${session.from_carton}`);
+        console.warn(`⚠️  Could not fully consume ${remainingToMove} units from ${sourceRows.length} row(s) for ${item_code} in carton ${session.from_carton}`);
       }
       
       // Increment in destination carton
       // Note: When moving from multiple source rows, we combine quantities into destination
       // Using first source row's UOM and batch_no for destination (business logic may need refinement)
-      const firstSourceRow = sourceStockRows[0];
+      const firstSourceRow = sourceRows.length > 0 ? sourceRows[0] : null;
+      
+      if (!firstSourceRow) {
+        await connection.rollback();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "DATA_ERROR",
+            message: `Cannot determine source row properties for ${item_code} in carton ${session.from_carton}`
+          }
+        });
+      }
       
       // SUM all existing destination stock (may have multiple rows with same carton/item/warehouse)
       const [destStockRows] = await connection.execute(`
@@ -2829,27 +3553,43 @@ export const commitPartialMove = async (req, res) => {
         `, [item_code, session.warehouse_id, session.to_bin, updatedNewBinQty, newBinReservedQty, txnType, session_id, updatedNewBinQty, txnType, session_id]);
       }
       
-      // Insert transaction history
+      // Insert transaction history into tabTransactionHistory (audit trail table)
       const [txnCols] = await connection.execute(`
-        SELECT COLUMN_NAME
+        SELECT COLUMN_NAME, EXTRA, IS_NULLABLE, COLUMN_DEFAULT, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'tabStockTransaction'
-          AND COLUMN_NAME IN ('from_carton', 'to_carton', 'carton_id')
+          AND TABLE_NAME = 'tabTransactionHistory'
+          AND COLUMN_NAME IN ('transaction_id', 'from_carton', 'to_carton', 'carton_id')
       `);
       
       const hasFromCarton = txnCols.some(col => col.COLUMN_NAME === 'from_carton');
       const hasToCarton = txnCols.some(col => col.COLUMN_NAME === 'to_carton');
       const hasCartonId = txnCols.some(col => col.COLUMN_NAME === 'carton_id');
       
+      // Check if transaction_id is required
+      const transactionIdCol = txnCols.find(col => col.COLUMN_NAME === 'transaction_id');
+      const hasTransactionId = !!transactionIdCol;
+      const isTransactionIdAutoIncrement = transactionIdCol && transactionIdCol.EXTRA && transactionIdCol.EXTRA.toLowerCase().includes('auto_increment');
+      const needsTransactionId = hasTransactionId && !isTransactionIdAutoIncrement && transactionIdCol.IS_NULLABLE === 'NO' && !transactionIdCol.COLUMN_DEFAULT;
+      const isTransactionIdInteger = transactionIdCol && (transactionIdCol.DATA_TYPE === 'int' || transactionIdCol.DATA_TYPE === 'bigint' || transactionIdCol.DATA_TYPE === 'integer');
+      
+      // Helper function to generate transaction_id based on column type
+      const generateTransactionId = () => {
+        if (isTransactionIdInteger) {
+          return parseInt(`${Date.now()}${Math.floor(Math.random() * 1000)}`.substring(0, 15));
+        } else {
+          return `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        }
+      };
+      
       // Note: txnType is already defined before the loop (line ~2373)
       
-      // Check what columns exist in tabStockTransaction
+      // Check what columns exist in tabTransactionHistory (audit trail table)
       const [binCols] = await connection.execute(`
         SELECT COLUMN_NAME
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'tabStockTransaction'
+          AND TABLE_NAME = 'tabTransactionHistory'
           AND COLUMN_NAME IN ('from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location', 
                               'transaction_date', 'reference_doc_type', 'reference_doc', 
                               'performed_by', 'created_at', 'qty_change', 'qty_before', 'qty_after')
@@ -2873,93 +3613,309 @@ export const commitPartialMove = async (req, res) => {
       const txnFields = [];
       const txnValues = [];
       
-      if (hasTransactionDate) {
-        txnFields.push('transaction_date');
-        txnValues.push(new Date());
-      }
+      // Check if stock_direction column exists and is NOT a generated column
+      const [stockDirectionCol] = await connection.execute(`
+        SELECT COLUMN_NAME, GENERATION_EXPRESSION, EXTRA
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabTransactionHistory'
+          AND COLUMN_NAME = 'stock_direction'
+      `);
+      const stockDirColInfo = stockDirectionCol.length > 0 ? stockDirectionCol[0] : null;
+      const isStockDirectionGenerated = stockDirColInfo && (
+        (stockDirColInfo.GENERATION_EXPRESSION && stockDirColInfo.GENERATION_EXPRESSION.length > 0) ||
+        (stockDirColInfo.EXTRA && stockDirColInfo.EXTRA.toLowerCase().includes('generated'))
+      );
+      const hasStockDirection = stockDirectionCol.length > 0 && !isStockDirectionGenerated;
       
-      txnFields.push('transaction_type');
-      txnValues.push(txnType);
+      const transactionDate = new Date();
+      const performedBy = req.user?.user_id || session.created_by || 'SYSTEM';
       
-      if (hasRefDocType) {
-        txnFields.push('reference_doc_type');
-        txnValues.push('Relocation Session');
-      }
-      
-      if (hasRefDoc) {
-        txnFields.push('reference_doc');
-        txnValues.push(session_id);
-      }
-      
-      txnFields.push('item_code', 'warehouse');
-      txnValues.push(item_code, session.warehouse_id);
-      
-      // Add bin location fields based on what exists
-      // For CARTON_MERGE and CARTON_TO_CARTON: prioritize destination (to_bin/to_carton) for display
-      // For PARTIAL_RELOCATION: use destination bin
-      const displayBin = session.to_bin || session.from_bin; // Destination bin for display
-      const displayCarton = (txnType === 'CARTON_MERGE' || session.mode === 'CARTON_TO_CARTON') 
-        ? (session.to_carton || session.from_carton)  // For merge: use destination carton
-        : session.from_carton;  // For partial: use source carton
-      
-      if (hasFromBin && hasToBin) {
-        txnFields.push('from_bin', 'to_bin');
-        txnValues.push(session.from_bin, session.to_bin);
-      } else if (hasSourceBin && hasTargetBin) {
-        txnFields.push('source_bin', 'target_bin');
-        txnValues.push(session.from_bin, session.to_bin);
-      } else if (hasBinLocation) {
-        txnFields.push('bin_location');
-        txnValues.push(displayBin); // Use destination bin for display
-      }
-      
-      if (hasCartonId) {
-        txnFields.push('carton_id');
-        txnValues.push(displayCarton); // Use destination carton for merge, source for partial
-      }
-      
-      if (hasFromCarton) {
-        txnFields.push('from_carton');
-        txnValues.push(session.from_carton);
-      }
-      
-      if (hasToCarton) {
-        txnFields.push('to_carton');
-        txnValues.push(session.to_carton || session.from_carton);
-      }
-      
-      // Add quantity fields
-      if (hasQtyChange) {
-        txnFields.push('qty_change');
-        txnValues.push(qtyToMove);
-      }
-      if (hasQtyBefore) {
-        txnFields.push('qty_before');
-        txnValues.push(sourceQty);
-      }
-      if (hasQtyAfter) {
-        txnFields.push('qty_after');
-        txnValues.push(sourceQty - qtyToMove); // Remaining in source
-      }
-      
-      if (hasPerformedBy) {
-        txnFields.push('performed_by');
-        txnValues.push(req.user?.user_id || session.created_by || 'SYSTEM');
-      }
-      
-      if (hasCreatedAt) {
-        txnFields.push('created_at');
-        txnValues.push(new Date());
-      }
-      
-      // Only insert if we have at least the basic required fields
-      if (txnFields.length > 0) {
-        await connection.execute(`
-          INSERT INTO tabStockTransaction (${txnFields.join(', ')})
-          VALUES (${txnFields.map(() => '?').join(', ')})
-        `, txnValues);
+      // For CARTON_MERGE, create TWO transactions: OUT from source, IN to destination
+      if (txnType === 'CARTON_MERGE') {
+        // ============================================================
+        // TRANSACTION 1: Source Carton (OUT) - Negative qty_change
+        // ============================================================
+        const sourceTxnFields = [];
+        const sourceTxnValues = [];
+        
+        if (needsTransactionId) {
+          sourceTxnFields.push('transaction_id');
+          sourceTxnValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          sourceTxnFields.push('transaction_date');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        sourceTxnFields.push('transaction_type');
+        sourceTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          sourceTxnFields.push('reference_doc_type');
+          sourceTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          sourceTxnFields.push('reference_doc');
+          sourceTxnValues.push(session_id);
+        }
+        
+        sourceTxnFields.push('item_code', 'warehouse');
+        sourceTxnValues.push(item_code, session.warehouse_id);
+        
+        if (hasBinLocation) {
+          sourceTxnFields.push('bin_location');
+          sourceTxnValues.push(session.from_bin);
+        }
+        
+        if (hasFromBin && hasToBin) {
+          sourceTxnFields.push('from_bin', 'to_bin');
+          sourceTxnValues.push(session.from_bin, session.to_bin);
+        } else if (hasSourceBin && hasTargetBin) {
+          sourceTxnFields.push('source_bin', 'target_bin');
+          sourceTxnValues.push(session.from_bin, session.to_bin);
+        }
+        
+        if (hasCartonId) {
+          sourceTxnFields.push('carton_id');
+          sourceTxnValues.push(session.from_carton);
+        }
+        
+        if (hasFromCarton) {
+          sourceTxnFields.push('from_carton');
+          sourceTxnValues.push(session.from_carton);
+        }
+        
+        if (hasToCarton) {
+          sourceTxnFields.push('to_carton');
+          sourceTxnValues.push(session.to_carton);
+        }
+        
+        if (hasQtyChange) {
+          sourceTxnFields.push('qty_change');
+          sourceTxnValues.push(-qtyToMove); // Negative for OUT
+        }
+        if (hasQtyBefore) {
+          sourceTxnFields.push('qty_before');
+          sourceTxnValues.push(sourceQty);
+        }
+        if (hasQtyAfter) {
+          sourceTxnFields.push('qty_after');
+          sourceTxnValues.push(0);
+        }
+        
+        if (hasStockDirection) {
+          sourceTxnFields.push('stock_direction');
+          sourceTxnValues.push('OUT');
+        }
+        
+        if (hasPerformedBy) {
+          sourceTxnFields.push('performed_by');
+          sourceTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          sourceTxnFields.push('created_at');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        if (sourceTxnFields.length > 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${sourceTxnFields.join(', ')})
+            VALUES (${sourceTxnFields.map(() => '?').join(', ')})
+          `, sourceTxnValues);
+          console.log(`📝 Inserted CARTON_MERGE OUT transaction for ${item_code}`);
+        }
+        
+        // ============================================================
+        // TRANSACTION 2: Destination Carton (IN) - Positive qty_change
+        // ============================================================
+        const destTxnFields = [];
+        const destTxnValues = [];
+        
+        if (needsTransactionId) {
+          destTxnFields.push('transaction_id');
+          destTxnValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          destTxnFields.push('transaction_date');
+          destTxnValues.push(transactionDate);
+        }
+        
+        destTxnFields.push('transaction_type');
+        destTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          destTxnFields.push('reference_doc_type');
+          destTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          destTxnFields.push('reference_doc');
+          destTxnValues.push(session_id);
+        }
+        
+        destTxnFields.push('item_code', 'warehouse');
+        destTxnValues.push(item_code, session.warehouse_id);
+        
+        if (hasBinLocation) {
+          destTxnFields.push('bin_location');
+          destTxnValues.push(session.to_bin);
+        }
+        
+        if (hasFromBin && hasToBin) {
+          destTxnFields.push('from_bin', 'to_bin');
+          destTxnValues.push(session.from_bin, session.to_bin);
+        } else if (hasSourceBin && hasTargetBin) {
+          destTxnFields.push('source_bin', 'target_bin');
+          destTxnValues.push(session.from_bin, session.to_bin);
+        }
+        
+        if (hasCartonId) {
+          destTxnFields.push('carton_id');
+          destTxnValues.push(session.to_carton);
+        }
+        
+        if (hasFromCarton) {
+          destTxnFields.push('from_carton');
+          destTxnValues.push(session.from_carton);
+        }
+        
+        if (hasToCarton) {
+          destTxnFields.push('to_carton');
+          destTxnValues.push(session.to_carton);
+        }
+        
+        if (hasQtyChange) {
+          destTxnFields.push('qty_change');
+          destTxnValues.push(qtyToMove); // Positive for IN
+        }
+        if (hasQtyBefore) {
+          destTxnFields.push('qty_before');
+          destTxnValues.push(0);
+        }
+        if (hasQtyAfter) {
+          destTxnFields.push('qty_after');
+          destTxnValues.push(qtyToMove);
+        }
+        
+        if (hasStockDirection) {
+          destTxnFields.push('stock_direction');
+          destTxnValues.push('IN');
+        }
+        
+        if (hasPerformedBy) {
+          destTxnFields.push('performed_by');
+          destTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          destTxnFields.push('created_at');
+          destTxnValues.push(transactionDate);
+        }
+        
+        if (destTxnFields.length > 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${destTxnFields.join(', ')})
+            VALUES (${destTxnFields.map(() => '?').join(', ')})
+          `, destTxnValues);
+          console.log(`📝 Inserted CARTON_MERGE IN transaction for ${item_code}`);
+        }
       } else {
-        console.warn(`⚠️  Could not insert transaction history for ${item_code} - no compatible columns found`);
+        // For PARTIAL_RELOCATION, create single transaction
+        const txnFields = [];
+        const txnValues = [];
+        
+        if (needsTransactionId) {
+          txnFields.push('transaction_id');
+          txnValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          txnFields.push('transaction_date');
+          txnValues.push(transactionDate);
+        }
+        
+        txnFields.push('transaction_type');
+        txnValues.push(txnType);
+        
+        if (hasRefDocType) {
+          txnFields.push('reference_doc_type');
+          txnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          txnFields.push('reference_doc');
+          txnValues.push(session_id);
+        }
+        
+        txnFields.push('item_code', 'warehouse');
+        txnValues.push(item_code, session.warehouse_id);
+        
+        const displayBin = session.to_bin || session.from_bin;
+        const displayCarton = session.from_carton;
+        
+        if (hasFromBin && hasToBin) {
+          txnFields.push('from_bin', 'to_bin');
+          txnValues.push(session.from_bin, session.to_bin);
+        } else if (hasSourceBin && hasTargetBin) {
+          txnFields.push('source_bin', 'target_bin');
+          txnValues.push(session.from_bin, session.to_bin);
+        } else if (hasBinLocation) {
+          txnFields.push('bin_location');
+          txnValues.push(displayBin);
+        }
+        
+        if (hasCartonId) {
+          txnFields.push('carton_id');
+          txnValues.push(displayCarton);
+        }
+        
+        if (hasFromCarton) {
+          txnFields.push('from_carton');
+          txnValues.push(session.from_carton);
+        }
+        
+        if (hasToCarton) {
+          txnFields.push('to_carton');
+          txnValues.push(session.to_carton || session.from_carton);
+        }
+        
+        if (hasQtyChange) {
+          txnFields.push('qty_change');
+          txnValues.push(qtyToMove);
+        }
+        if (hasQtyBefore) {
+          txnFields.push('qty_before');
+          txnValues.push(sourceQty);
+        }
+        if (hasQtyAfter) {
+          txnFields.push('qty_after');
+          txnValues.push(sourceQty - qtyToMove);
+        }
+        
+        if (hasPerformedBy) {
+          txnFields.push('performed_by');
+          txnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          txnFields.push('created_at');
+          txnValues.push(transactionDate);
+        }
+        
+        if (txnFields.length > 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${txnFields.join(', ')})
+            VALUES (${txnFields.map(() => '?').join(', ')})
+          `, txnValues);
+          console.log(`📝 Inserted transaction history for ${item_code} (${txnType})`);
+        } else {
+          console.warn(`⚠️  Could not insert transaction history for ${item_code} - no compatible columns found`);
+        }
       }
       
       movedItems.push({
@@ -2977,6 +3933,14 @@ export const commitPartialMove = async (req, res) => {
     `, [session_id]);
     
     await connection.commit();
+    
+    // Sync item stock with stock ledger for all affected items
+    if (movedItems && movedItems.length > 0) {
+      const itemCodes = [...new Set(movedItems.map(i => i.item_code))];
+      for (const itemCode of itemCodes) {
+        await syncItemStock(connection, itemCode);
+      }
+    }
     
     console.log(`✅ Committed partial move: ${movedItems.length} item(s) from ${session.from_carton} to ${session.to_carton}`);
     
@@ -3354,6 +4318,55 @@ export const completeFullCartonRelocation = async (req, res) => {
         }
       }
       
+      // Fallback 3: Check tabStockLedger or tabTransactionHistory for cartons that exist in stock but not in carton tables
+      // This handles putaway cartons (PAW-...) that were created during putaway but may not be in tabCarton
+      if (!cartonFound) {
+        // Check tabStockLedger (if carton_id column exists)
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [stockLedgerRows] = await connection.execute(`
+            SELECT DISTINCT bin_location, warehouse
+            FROM tabStockLedger
+            WHERE carton_id = ?
+              AND bin_location IS NOT NULL
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (stockLedgerRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = stockLedgerRows[0].bin_location;
+            console.log(`📦 Found carton ${from_carton} in tabStockLedger (bin: ${cartonActualBinLocation})`);
+          }
+        }
+        
+        // Also check tabTransactionHistory as final fallback
+        if (!cartonFound) {
+          const [historyRows] = await connection.execute(`
+            SELECT 
+              COALESCE(location_id, bin_location, target_bin) as bin_location,
+              warehouse
+            FROM tabTransactionHistory
+            WHERE carton_id = ?
+              AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+            ORDER BY transaction_date DESC, id DESC
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (historyRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = historyRows[0].bin_location;
+            console.log(`📦 Found carton ${from_carton} in tabTransactionHistory (bin: ${cartonActualBinLocation})`);
+          }
+        }
+      }
+      
       if (!cartonFound) {
         await connection.rollback();
         return res.status(400).json({
@@ -3370,7 +4383,9 @@ export const completeFullCartonRelocation = async (req, res) => {
       // Validate bin location match (skip for Transfer In cartons without bin_location)
       if (!isTransferInCarton || cartonActualBinLocation) {
         let isAtScannedBin = false;
-        if (stockTableCheck.length > 0 && cartonActualBinLocation) {
+        
+        // Check tabCartonStock first (if table exists)
+        if (stockTableCheck.length > 0) {
           const [matchCheck] = await connection.execute(`
             SELECT COUNT(*) as cnt
             FROM tabCartonStock
@@ -3380,8 +4395,67 @@ export const completeFullCartonRelocation = async (req, res) => {
           if (matchCheck.length > 0 && matchCheck[0].cnt > 0) {
             isAtScannedBin = true;
           }
-        } else if (cartonActualBinLocation === from_bin) {
-          isAtScannedBin = true;
+        }
+        
+        // If not found in tabCartonStock, check tabStockLedger
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const [stockLedgerCartonCheck] = await connection.execute(`
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'tabStockLedger'
+              AND COLUMN_NAME = 'carton_id'
+          `);
+          
+          if (stockLedgerCartonCheck.length > 0) {
+            const [ledgerMatchCheck] = await connection.execute(`
+              SELECT COUNT(*) as cnt
+              FROM tabStockLedger
+              WHERE carton_id = ? AND bin_location = ?
+            `, [from_carton, from_bin]);
+            
+            if (ledgerMatchCheck.length > 0 && ledgerMatchCheck[0].cnt > 0) {
+              isAtScannedBin = true;
+            }
+          }
+        }
+        
+        // If still not found, check tabTransactionHistory (latest transaction location)
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const [historyMatchCheck] = await connection.execute(`
+            SELECT COUNT(*) as cnt
+            FROM (
+              SELECT 
+                COALESCE(location_id, bin_location, target_bin) as latest_bin,
+                transaction_date,
+                id
+              FROM tabTransactionHistory
+              WHERE carton_id = ?
+                AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+                AND qty_after > 0
+              ORDER BY transaction_date DESC, id DESC
+              LIMIT 1
+            ) latest
+            WHERE latest_bin = ?
+          `, [from_carton, from_bin]);
+          
+          if (historyMatchCheck.length > 0 && historyMatchCheck[0].cnt > 0) {
+            isAtScannedBin = true;
+          }
+        }
+        
+        // Final fallback: Direct comparison (with normalization for case/whitespace)
+        // This should match since cartonActualBinLocation was set from the latest transaction
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const normalizedActual = (cartonActualBinLocation || '').trim().toUpperCase();
+          const normalizedScanned = (from_bin || '').trim().toUpperCase();
+          
+          if (normalizedActual === normalizedScanned) {
+            isAtScannedBin = true;
+            console.log(`✅ Bin location match confirmed: ${normalizedActual} === ${normalizedScanned}`);
+          } else {
+            console.log(`⚠️ Bin location mismatch: actual="${normalizedActual}" vs scanned="${normalizedScanned}"`);
+          }
         }
         
         if (!isAtScannedBin) {
@@ -3428,6 +4502,7 @@ export const completeFullCartonRelocation = async (req, res) => {
         
         if (cartonWarehouseRows.length > 0 && cartonWarehouseRows[0].warehouse) {
           actualWarehouse = cartonWarehouseRows[0].warehouse;
+          console.log(`📦 Found warehouse from tabCarton: ${actualWarehouse} for carton ${from_carton}`);
         }
       }
       
@@ -3450,7 +4525,53 @@ export const completeFullCartonRelocation = async (req, res) => {
           
           if (stockWarehouseRows.length > 0 && stockWarehouseRows[0].warehouse) {
             actualWarehouse = stockWarehouseRows[0].warehouse;
+            console.log(`📦 Found warehouse from tabCartonStock: ${actualWarehouse} for carton ${from_carton}`);
           }
+        }
+      }
+      
+      // Fallback to tabStockLedger (for putaway cartons)
+      if (!actualWarehouse || actualWarehouse === 'DEFAULT') {
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [ledgerWarehouseRows] = await connection.execute(`
+            SELECT DISTINCT warehouse
+            FROM tabStockLedger
+            WHERE carton_id = ?
+              AND warehouse IS NOT NULL
+              AND warehouse != 'DEFAULT'
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (ledgerWarehouseRows.length > 0 && ledgerWarehouseRows[0].warehouse) {
+            actualWarehouse = ledgerWarehouseRows[0].warehouse;
+            console.log(`📦 Found warehouse from tabStockLedger: ${actualWarehouse} for carton ${from_carton}`);
+          }
+        }
+      }
+      
+      // Final fallback to tabTransactionHistory (for putaway cartons)
+      if (!actualWarehouse || actualWarehouse === 'DEFAULT') {
+        const [historyWarehouseRows] = await connection.execute(`
+          SELECT warehouse
+          FROM tabTransactionHistory
+          WHERE carton_id = ?
+            AND warehouse IS NOT NULL
+            AND warehouse != 'DEFAULT'
+          ORDER BY transaction_date DESC, id DESC
+          LIMIT 1
+        `, [from_carton]);
+        
+        if (historyWarehouseRows.length > 0 && historyWarehouseRows[0].warehouse) {
+          actualWarehouse = historyWarehouseRows[0].warehouse;
+          console.log(`📦 Found warehouse from tabTransactionHistory: ${actualWarehouse} for carton ${from_carton}`);
         }
       }
     }
@@ -3739,12 +4860,31 @@ export const completeFullCartonRelocation = async (req, res) => {
           const qtyBeforeNew = newBinQty;
           const qtyReducedNew = qty;
           
+          // Check if carton_id column exists in tabStockLedger
+          const [stockLedgerCartonIdColumn] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'tabStockLedger' 
+            AND COLUMN_NAME = 'carton_id'
+          `);
+          const hasStockLedgerCartonIdColumn = stockLedgerCartonIdColumn.length > 0;
+          
           let insertFields = 'item_code, warehouse, bin_location, qty, reserved_qty';
           let insertValues = '?, ?, ?, ?, ?';
           let insertParams = [itemCode, itemWarehouse, to_bin, updatedNewBinQty, newBinReservedQty];
           
           let updateFields = 'qty = ?';
           let updateParams = [updatedNewBinQty];
+          
+          // ✅ Include carton_id if column exists
+          if (hasStockLedgerCartonIdColumn && from_carton) {
+            insertFields += ', carton_id';
+            insertValues += ', ?';
+            insertParams.push(from_carton);
+            updateFields += ', carton_id = ?';
+            updateParams.push(from_carton);
+          }
           
           if (hasQtyBefore) {
             insertFields += ', qty_before';
@@ -3782,14 +4922,14 @@ export const completeFullCartonRelocation = async (req, res) => {
       }
     }
     
-    // Insert transaction history (copy from commitFullCartonMove lines ~2006-2389)
-    // Check what columns exist in tabStockTransaction
+    // Insert transaction history into tabTransactionHistory (audit trail)
+    // Check what columns exist in tabTransactionHistory
     const [txnCols] = await connection.execute(`
-      SELECT COLUMN_NAME
+      SELECT COLUMN_NAME, EXTRA, IS_NULLABLE, COLUMN_DEFAULT, DATA_TYPE
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'tabStockTransaction'
-        AND COLUMN_NAME IN ('from_carton', 'to_carton', 'carton_id', 'from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location',
+        AND TABLE_NAME = 'tabTransactionHistory'
+        AND COLUMN_NAME IN ('transaction_id', 'from_carton', 'to_carton', 'carton_id', 'from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location',
           'transaction_date', 'reference_doc_type', 'reference_doc', 'performed_by', 'created_at', 'qty_change', 'qty_before', 'qty_after', 'item_code')
     `);
     
@@ -3798,6 +4938,8 @@ export const completeFullCartonRelocation = async (req, res) => {
     const hasCartonId = txnCols.some(col => col.COLUMN_NAME === 'carton_id');
     const hasFromBin = txnCols.some(col => col.COLUMN_NAME === 'from_bin');
     const hasToBin = txnCols.some(col => col.COLUMN_NAME === 'to_bin');
+    const hasSourceBin = txnCols.some(col => col.COLUMN_NAME === 'source_bin');
+    const hasTargetBin = txnCols.some(col => col.COLUMN_NAME === 'target_bin');
     const hasBinLocation = txnCols.some(col => col.COLUMN_NAME === 'bin_location');
     const hasTransactionDate = txnCols.some(col => col.COLUMN_NAME === 'transaction_date');
     const hasRefDocType = txnCols.some(col => col.COLUMN_NAME === 'reference_doc_type');
@@ -3805,6 +4947,22 @@ export const completeFullCartonRelocation = async (req, res) => {
     const hasPerformedBy = txnCols.some(col => col.COLUMN_NAME === 'performed_by');
     const hasCreatedAt = txnCols.some(col => col.COLUMN_NAME === 'created_at');
     const hasItemCode = txnCols.some(col => col.COLUMN_NAME === 'item_code');
+    
+    // Check if transaction_id is required
+    const transactionIdCol = txnCols.find(col => col.COLUMN_NAME === 'transaction_id');
+    const hasTransactionId = !!transactionIdCol;
+    const isTransactionIdAutoIncrement = transactionIdCol && transactionIdCol.EXTRA && transactionIdCol.EXTRA.toLowerCase().includes('auto_increment');
+    const needsTransactionId = hasTransactionId && !isTransactionIdAutoIncrement && transactionIdCol.IS_NULLABLE === 'NO' && !transactionIdCol.COLUMN_DEFAULT;
+    const isTransactionIdInteger = transactionIdCol && (transactionIdCol.DATA_TYPE === 'int' || transactionIdCol.DATA_TYPE === 'bigint' || transactionIdCol.DATA_TYPE === 'integer');
+    
+    // Helper function to generate transaction_id based on column type
+    const generateTransactionId = () => {
+      if (isTransactionIdInteger) {
+        return parseInt(`${Date.now()}${Math.floor(Math.random() * 1000)}`.substring(0, 15));
+      } else {
+        return `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      }
+    };
     
     // Insert transaction history for FULL_CARTON_RELOCATE (one per item)
     if (hasStockTable && cartonItems && cartonItems.length > 0 && !isCartonMerge) {
@@ -3832,6 +4990,12 @@ export const completeFullCartonRelocation = async (req, res) => {
         
         const txnFields = [];
         const txnValues = [];
+        
+        // Add transaction_id if required
+        if (needsTransactionId) {
+          txnFields.push('transaction_id');
+          txnValues.push(generateTransactionId());
+        }
         
         if (hasTransactionDate) {
           txnFields.push('transaction_date');
@@ -3894,33 +5058,84 @@ export const completeFullCartonRelocation = async (req, res) => {
           txnValues.push(new Date());
         }
         
-        // Check for duplicate before inserting
-        if (txnFields.length > 0 && hasItemCode) {
-          const [existingTxn] = await connection.execute(`
-            SELECT id FROM tabStockTransaction 
-            WHERE transaction_type = 'CARTON_RELOCATION' 
-              AND reference_doc = ? 
-              AND item_code = ? 
-              AND warehouse = ?
-              AND (bin_location = ? OR (bin_location IS NULL AND ? IS NULL))
-            LIMIT 1
-          `, [sessionId, itemCode, itemWarehouse, to_bin, to_bin]);
-          
-          if (existingTxn.length === 0) {
-            await connection.execute(`
-              INSERT INTO tabStockTransaction (${txnFields.join(', ')})
-              VALUES (${txnFields.map(() => '?').join(', ')})
-            `, txnValues);
-          }
+        // FIX: Insert TWO transactions (OUT from old bin, IN to new bin) for Item Location Breakdown
+        // OUT transaction
+        const outFields = [...txnFields];
+        const outValues = [...txnValues];
+        outFields.push('qty_change');
+        outValues.push(-qty); // Negative for OUT
+        outFields.push('qty_before');
+        outValues.push(qty); // Before moving out: qty
+        outFields.push('qty_after');
+        outValues.push(0); // After moving out: 0
+        if (hasSourceBin) {
+          outFields.push('source_bin');
+          outValues.push(from_bin);
+        }
+        
+        const [existingOutTxn] = await connection.execute(`
+          SELECT id FROM tabTransactionHistory 
+          WHERE transaction_type = 'CARTON_RELOCATION' 
+            AND reference_doc = ? 
+            AND item_code = ? 
+            AND qty_change < 0
+          LIMIT 1
+        `, [sessionId, itemCode]);
+        
+        if (existingOutTxn.length === 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${outFields.join(', ')})
+            VALUES (${outFields.map(() => '?').join(', ')})
+          `, outValues);
+          console.log(`📝 Inserted CARTON_RELOCATION OUT transaction for ${itemCode}`);
+        }
+        
+        // IN transaction
+        const inFields = [...txnFields];
+        const inValues = [...txnValues];
+        inFields.push('qty_change');
+        inValues.push(qty); // Positive for IN
+        inFields.push('qty_before');
+        inValues.push(0); // Before moving in: 0
+        inFields.push('qty_after');
+        inValues.push(qty); // After moving in: qty
+        if (hasTargetBin) {
+          inFields.push('target_bin');
+          inValues.push(to_bin);
+        }
+        
+        const [existingInTxn] = await connection.execute(`
+          SELECT id FROM tabTransactionHistory 
+          WHERE transaction_type = 'CARTON_RELOCATION' 
+            AND reference_doc = ? 
+            AND item_code = ? 
+            AND qty_change > 0
+          LIMIT 1
+        `, [sessionId, itemCode]);
+        
+        if (existingInTxn.length === 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${inFields.join(', ')})
+            VALUES (${inFields.map(() => '?').join(', ')})
+          `, inValues);
+          console.log(`📝 Inserted CARTON_RELOCATION IN transaction for ${itemCode}`);
         }
       }
       
-      console.log(`✅ Inserted ${cartonItems.length} transaction(s) for full carton relocation`);
+      console.log(`✅ Inserted ${cartonItems.length} transaction(s) for full carton relocation into tabTransactionHistory`);
     }
     
     // Note: Session is already COMPLETED (created as COMPLETED), so no need to update status
     
     await connection.commit();
+    
+    // Sync item stock with stock ledger for all affected items
+    if (cartonItems && cartonItems.length > 0) {
+      const itemCodes = [...new Set(cartonItems.map(i => i.item_code))];
+      for (const itemCode of itemCodes) {
+        await syncItemStock(connection, itemCode);
+      }
+    }
     
     console.log(`✅ Completed full carton relocation: ${from_carton} from ${from_bin} to ${to_bin}`);
     
@@ -3980,7 +5195,7 @@ export const completePartialRelocation = async (req, res) => {
   const connection = await getConnection();
   
   try {
-    const { mode, warehouse_id, from_bin, from_carton, to_bin, to_carton, lines, user_id, device_id } = req.body;
+    const { mode, warehouse_id, from_bin, from_carton, to_bin, to_carton, lines, user_id, device_id, create_carton_if_missing } = req.body;
     
     // Validation
     if (!mode || !warehouse_id || !user_id) {
@@ -4024,7 +5239,56 @@ export const completePartialRelocation = async (req, res) => {
       });
     }
     
+    // VALIDATION: Cannot move to the same carton
+    if (from_carton === to_carton) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "SAME_CARTON_ERROR",
+          message: "Cannot move items to the same carton. Source and destination cartons must be different."
+        }
+      });
+    }
+    
     await connection.beginTransaction();
+    
+    // VALIDATION: Target carton must exist (unless create_carton_if_missing is true)
+    const [targetCartonCheck] = await connection.execute(`
+      SELECT carton_id FROM tabCarton WHERE carton_id = ?
+    `, [to_carton]);
+    
+    let targetCartonCreated = false;
+    
+    if (targetCartonCheck.length === 0) {
+      // Also check tabCartonStock in case carton exists there but not in tabCarton
+      const [targetCartonStockCheck] = await connection.execute(`
+        SELECT DISTINCT carton_id FROM tabCartonStock WHERE carton_id = ?
+      `, [to_carton]);
+      
+      if (targetCartonStockCheck.length === 0) {
+        // Target carton doesn't exist - check if we should create it
+        if (create_carton_if_missing === true) {
+          // Create the target carton
+          await connection.execute(`
+            INSERT INTO tabCarton
+              (carton_id, warehouse, current_bin_id, status, created_on, updated_at)
+            VALUES (?, ?, ?, 'PUTAWAY', NOW(), NOW())
+          `, [to_carton, warehouse_id, to_bin || null]);
+          
+          targetCartonCreated = true;
+          console.log(`✅ Created new target carton: ${to_carton} at bin ${to_bin || 'unassigned'}`);
+        } else {
+          await connection.rollback();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "TARGET_CARTON_NOT_FOUND",
+              message: `Target carton "${to_carton}" does not exist. Please scan an existing carton or enable create_carton_if_missing.`
+            }
+          });
+        }
+      }
+    }
     
     // Validate carton exists and bin location match (same as complete-full)
     if (from_bin && from_carton) {
@@ -4105,6 +5369,55 @@ export const completePartialRelocation = async (req, res) => {
         }
       }
       
+      // Fallback 3: Check tabStockLedger or tabTransactionHistory for cartons that exist in stock but not in carton tables
+      // This handles putaway cartons (PAW-...) that were created during putaway but may not be in tabCarton
+      if (!cartonFound) {
+        // Check tabStockLedger (if carton_id column exists)
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [stockLedgerRows] = await connection.execute(`
+            SELECT DISTINCT bin_location, warehouse
+            FROM tabStockLedger
+            WHERE carton_id = ?
+              AND bin_location IS NOT NULL
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (stockLedgerRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = stockLedgerRows[0].bin_location;
+            console.log(`📦 Found carton ${from_carton} in tabStockLedger (bin: ${cartonActualBinLocation})`);
+          }
+        }
+        
+        // Also check tabTransactionHistory as final fallback
+        if (!cartonFound) {
+          const [historyRows] = await connection.execute(`
+            SELECT 
+              COALESCE(location_id, bin_location, target_bin) as bin_location,
+              warehouse
+            FROM tabTransactionHistory
+            WHERE carton_id = ?
+              AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+            ORDER BY transaction_date DESC, id DESC
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (historyRows.length > 0) {
+            cartonFound = true;
+            cartonActualBinLocation = historyRows[0].bin_location;
+            console.log(`📦 Found carton ${from_carton} in tabTransactionHistory (bin: ${cartonActualBinLocation})`);
+          }
+        }
+      }
+      
       if (!cartonFound) {
         await connection.rollback();
         return res.status(400).json({
@@ -4121,7 +5434,9 @@ export const completePartialRelocation = async (req, res) => {
       // Validate bin location match (skip for Transfer In cartons without bin_location)
       if (!isTransferInCarton || cartonActualBinLocation) {
         let isAtScannedBin = false;
-        if (stockTableCheck.length > 0 && cartonActualBinLocation) {
+        
+        // Check tabCartonStock first (if table exists)
+        if (stockTableCheck.length > 0) {
           const [matchCheck] = await connection.execute(`
             SELECT COUNT(*) as cnt
             FROM tabCartonStock
@@ -4131,8 +5446,67 @@ export const completePartialRelocation = async (req, res) => {
           if (matchCheck.length > 0 && matchCheck[0].cnt > 0) {
             isAtScannedBin = true;
           }
-        } else if (cartonActualBinLocation === from_bin) {
-          isAtScannedBin = true;
+        }
+        
+        // If not found in tabCartonStock, check tabStockLedger
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const [stockLedgerCartonCheck] = await connection.execute(`
+            SELECT COLUMN_NAME
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'tabStockLedger'
+              AND COLUMN_NAME = 'carton_id'
+          `);
+          
+          if (stockLedgerCartonCheck.length > 0) {
+            const [ledgerMatchCheck] = await connection.execute(`
+              SELECT COUNT(*) as cnt
+              FROM tabStockLedger
+              WHERE carton_id = ? AND bin_location = ?
+            `, [from_carton, from_bin]);
+            
+            if (ledgerMatchCheck.length > 0 && ledgerMatchCheck[0].cnt > 0) {
+              isAtScannedBin = true;
+            }
+          }
+        }
+        
+        // If still not found, check tabTransactionHistory (latest transaction location)
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const [historyMatchCheck] = await connection.execute(`
+            SELECT COUNT(*) as cnt
+            FROM (
+              SELECT 
+                COALESCE(location_id, bin_location, target_bin) as latest_bin,
+                transaction_date,
+                id
+              FROM tabTransactionHistory
+              WHERE carton_id = ?
+                AND (location_id IS NOT NULL OR bin_location IS NOT NULL OR target_bin IS NOT NULL)
+                AND qty_after > 0
+              ORDER BY transaction_date DESC, id DESC
+              LIMIT 1
+            ) latest
+            WHERE latest_bin = ?
+          `, [from_carton, from_bin]);
+          
+          if (historyMatchCheck.length > 0 && historyMatchCheck[0].cnt > 0) {
+            isAtScannedBin = true;
+          }
+        }
+        
+        // Final fallback: Direct comparison (with normalization for case/whitespace)
+        // This should match since cartonActualBinLocation was set from the latest transaction
+        if (!isAtScannedBin && cartonActualBinLocation) {
+          const normalizedActual = (cartonActualBinLocation || '').trim().toUpperCase();
+          const normalizedScanned = (from_bin || '').trim().toUpperCase();
+          
+          if (normalizedActual === normalizedScanned) {
+            isAtScannedBin = true;
+            console.log(`✅ Bin location match confirmed: ${normalizedActual} === ${normalizedScanned}`);
+          } else {
+            console.log(`⚠️ Bin location mismatch: actual="${normalizedActual}" vs scanned="${normalizedScanned}"`);
+          }
         }
         
         if (!isAtScannedBin) {
@@ -4197,7 +5571,53 @@ export const completePartialRelocation = async (req, res) => {
           
           if (stockWarehouseRows.length > 0 && stockWarehouseRows[0].warehouse) {
             actualWarehouse = stockWarehouseRows[0].warehouse;
+            console.log(`📦 Found warehouse from tabCartonStock: ${actualWarehouse} for carton ${from_carton}`);
           }
+        }
+      }
+      
+      // Fallback to tabStockLedger (for putaway cartons)
+      if (!actualWarehouse || actualWarehouse === 'DEFAULT') {
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [ledgerWarehouseRows] = await connection.execute(`
+            SELECT DISTINCT warehouse
+            FROM tabStockLedger
+            WHERE carton_id = ?
+              AND warehouse IS NOT NULL
+              AND warehouse != 'DEFAULT'
+            LIMIT 1
+          `, [from_carton]);
+          
+          if (ledgerWarehouseRows.length > 0 && ledgerWarehouseRows[0].warehouse) {
+            actualWarehouse = ledgerWarehouseRows[0].warehouse;
+            console.log(`📦 Found warehouse from tabStockLedger: ${actualWarehouse} for carton ${from_carton}`);
+          }
+        }
+      }
+      
+      // Final fallback to tabTransactionHistory (for putaway cartons)
+      if (!actualWarehouse || actualWarehouse === 'DEFAULT') {
+        const [historyWarehouseRows] = await connection.execute(`
+          SELECT warehouse
+          FROM tabTransactionHistory
+          WHERE carton_id = ?
+            AND warehouse IS NOT NULL
+            AND warehouse != 'DEFAULT'
+          ORDER BY transaction_date DESC, id DESC
+          LIMIT 1
+        `, [from_carton]);
+        
+        if (historyWarehouseRows.length > 0 && historyWarehouseRows[0].warehouse) {
+          actualWarehouse = historyWarehouseRows[0].warehouse;
+          console.log(`📦 Found warehouse from tabTransactionHistory: ${actualWarehouse} for carton ${from_carton}`);
         }
       }
     }
@@ -4285,13 +5705,125 @@ export const completePartialRelocation = async (req, res) => {
         WHERE carton_id = ? AND item_code = ? AND warehouse = ?
       `, [from_carton, item_code, actualWarehouse]);
       
-      if (sourceStockRows.length === 0) {
-        console.warn(`⚠️  Item ${item_code} not found in source carton ${from_carton}`);
-        continue;
+      let sourceQty = 0;
+      let sourceRows = sourceStockRows;
+      
+      // If not found in tabCartonStock and it's a Transfer In carton, check tabTransferInCartonLine
+      if (sourceStockRows.length === 0 && from_carton && from_carton.startsWith('CTN-TI-')) {
+        // Get Transfer In title from carton
+        const [transferInCartonTableCheck] = await connection.execute(`
+          SELECT TABLE_NAME
+          FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabTransferInCarton'
+        `);
+        
+        if (transferInCartonTableCheck.length > 0) {
+          const [transferInCartonRows] = await connection.execute(`
+            SELECT transfer_in
+            FROM tabTransferInCarton
+            WHERE carton_id = ?
+          `, [from_carton]);
+          
+          if (transferInCartonRows.length > 0) {
+            const transferInTitle = transferInCartonRows[0].transfer_in;
+            
+            // Check tabTransferInCartonLine
+            const [transferInLineTableCheck] = await connection.execute(`
+              SELECT TABLE_NAME
+              FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'tabTransferInCartonLine'
+            `);
+            
+            if (transferInLineTableCheck.length > 0) {
+              const [transferInLineRows] = await connection.execute(`
+                SELECT received_qty as qty
+                FROM tabTransferInCartonLine
+                WHERE carton_id = ? AND transfer_in = ? AND item_code = ?
+              `, [from_carton, transferInTitle, item_code]);
+              
+              if (transferInLineRows.length > 0) {
+                // Convert to same format as tabCartonStock rows
+                sourceRows = transferInLineRows.map(row => ({
+                  qty: row.qty,
+                  uom: null,
+                  batch_no: null
+                }));
+                console.log(`✅ Found item ${item_code} in tabTransferInCartonLine for Transfer In carton ${from_carton}`);
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: Check tabStockLedger for putaway cartons (PAW-...)
+      if (sourceRows.length === 0 && from_carton && from_carton.startsWith('PAW-')) {
+        const [stockLedgerCartonCheck] = await connection.execute(`
+          SELECT COLUMN_NAME
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = 'tabStockLedger'
+            AND COLUMN_NAME = 'carton_id'
+        `);
+        
+        if (stockLedgerCartonCheck.length > 0) {
+          const [ledgerItemRows] = await connection.execute(`
+            SELECT qty, uom
+            FROM tabStockLedger
+            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+          `, [from_carton, item_code, actualWarehouse]);
+          
+          if (ledgerItemRows.length > 0) {
+            sourceRows = ledgerItemRows.map(row => ({
+              qty: row.qty,
+              uom: row.uom || null,
+              batch_no: null
+            }));
+            console.log(`✅ Found item ${item_code} in tabStockLedger for putaway carton ${from_carton}`);
+          }
+        }
+      }
+      
+      // Final fallback: Check tabTransactionHistory for putaway cartons
+      if (sourceRows.length === 0 && from_carton && (from_carton.startsWith('PAW-') || !from_carton.startsWith('CTN-'))) {
+        const [historyItemRows] = await connection.execute(`
+          SELECT 
+            qty_after as qty,
+            item_code
+          FROM tabTransactionHistory
+          WHERE carton_id = ?
+            AND item_code = ?
+            AND warehouse = ?
+            AND qty_after > 0
+          ORDER BY transaction_date DESC, id DESC
+          LIMIT 1
+        `, [from_carton, item_code, actualWarehouse]);
+        
+        if (historyItemRows.length > 0) {
+          sourceRows = [{
+            qty: parseFloat(historyItemRows[0].qty) || 0,
+            uom: null,
+            batch_no: null
+          }];
+          console.log(`✅ Found item ${item_code} in tabTransactionHistory for carton ${from_carton} (qty: ${sourceRows[0].qty})`);
+        }
+      }
+      
+      if (sourceRows.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "ITEM_NOT_FOUND",
+            message: `Item "${item_code}" not found in source carton.`,
+            details: `Please scan an item that exists in carton ${from_carton}.`
+          }
+        });
       }
       
       // SUM all quantities across multiple rows
-      const sourceQty = sourceStockRows.reduce((sum, row) => sum + parseFloat(row.qty || 0), 0);
+      sourceQty = sourceRows.reduce((sum, row) => sum + parseFloat(row.qty || 0), 0);
       
       if (sourceQty < qtyToMove) {
         await connection.rollback();
@@ -4307,38 +5839,86 @@ export const completePartialRelocation = async (req, res) => {
       // Decrement from source carton (handle multiple rows)
       let remainingToMove = qtyToMove;
       
-      for (const stockRow of sourceStockRows) {
-        if (remainingToMove <= 0) break;
+      // Check if this is a Transfer In carton using tabTransferInCartonLine
+      const isFromTransferInLine2 = sourceRows.length > 0 && sourceStockRows.length === 0 && from_carton && from_carton.startsWith('CTN-TI-');
+      
+      if (isFromTransferInLine2) {
+        // For Transfer In cartons, update tabTransferInCartonLine
+        const [transferInCartonRows2] = await connection.execute(`
+          SELECT transfer_in
+          FROM tabTransferInCarton
+          WHERE carton_id = ?
+        `, [from_carton]);
         
-        const rowQty = parseFloat(stockRow.qty || 0);
-        const batchNo = stockRow.batch_no || null;
-        
-        if (rowQty <= 0) continue;
-        
-        if (rowQty <= remainingToMove) {
-          // This row will be completely consumed - delete it
-          await connection.execute(`
-            DELETE FROM tabCartonStock
-            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
-              AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
-          `, [from_carton, item_code, actualWarehouse, batchNo, batchNo]);
-          remainingToMove -= rowQty;
-        } else {
-          // This row has more than needed - reduce its quantity
-          const newRowQty = rowQty - remainingToMove;
-          await connection.execute(`
-            UPDATE tabCartonStock
-            SET qty = ?,
-                updated_at = NOW()
-            WHERE carton_id = ? AND item_code = ? AND warehouse = ?
-              AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
-          `, [newRowQty, from_carton, item_code, actualWarehouse, batchNo, batchNo]);
-          remainingToMove = 0;
+        if (transferInCartonRows2.length > 0) {
+          const transferInTitle2 = transferInCartonRows2[0].transfer_in;
+          
+          // Update received_qty in tabTransferInCartonLine
+          for (const stockRow of sourceRows) {
+            if (remainingToMove <= 0) break;
+            
+            const rowQty = parseFloat(stockRow.qty || 0);
+            if (rowQty <= 0) continue;
+            
+            const qtyToDeduct = Math.min(rowQty, remainingToMove);
+            const newQty = rowQty - qtyToDeduct;
+            
+            await connection.execute(`
+              UPDATE tabTransferInCartonLine
+              SET received_qty = ?
+              WHERE carton_id = ? AND transfer_in = ? AND item_code = ?
+            `, [newQty, from_carton, transferInTitle2, item_code]);
+            
+            remainingToMove -= qtyToDeduct;
+          }
+        }
+      } else {
+        // For regular cartons, update tabCartonStock
+        for (const stockRow of sourceStockRows) {
+          if (remainingToMove <= 0) break;
+          
+          const rowQty = parseFloat(stockRow.qty || 0);
+          const batchNo = stockRow.batch_no || null;
+          
+          if (rowQty <= 0) continue;
+          
+          if (rowQty <= remainingToMove) {
+            // This row will be completely consumed - delete it
+            await connection.execute(`
+              DELETE FROM tabCartonStock
+              WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+                AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
+            `, [from_carton, item_code, actualWarehouse, batchNo, batchNo]);
+            remainingToMove -= rowQty;
+          } else {
+            // This row has more than needed - reduce its quantity
+            const newRowQty = rowQty - remainingToMove;
+            await connection.execute(`
+              UPDATE tabCartonStock
+              SET qty = ?,
+                  updated_at = NOW()
+              WHERE carton_id = ? AND item_code = ? AND warehouse = ?
+                AND (batch_no = ? OR (batch_no IS NULL AND ? IS NULL))
+            `, [newRowQty, from_carton, item_code, actualWarehouse, batchNo, batchNo]);
+            remainingToMove = 0;
+          }
         }
       }
       
       // Increment in destination carton
-      const firstSourceRow = sourceStockRows[0];
+      // Use sourceRows[0] (works for both regular cartons and Transfer In cartons)
+      const firstSourceRow = sourceRows.length > 0 ? sourceRows[0] : null;
+      
+      if (!firstSourceRow) {
+        await connection.rollback();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "DATA_ERROR",
+            message: `Cannot determine source row properties for ${item_code} in carton ${from_carton}`
+          }
+        });
+      }
       
       const [destStockRows] = await connection.execute(`
         SELECT qty, batch_no
@@ -4372,23 +5952,8 @@ export const completePartialRelocation = async (req, res) => {
           rowToUpdate.batch_no || null
         ]);
       } else {
-        // Create new entry - check if destination carton exists
-        const [destCarton] = await connection.execute(`
-          SELECT carton_id
-          FROM tabCarton
-          WHERE carton_id = ?
-        `, [to_carton]);
-        
-        if (destCarton.length === 0) {
-          // Create destination carton
-          await connection.execute(`
-            INSERT INTO tabCarton
-              (carton_id, warehouse, current_bin_id, status, created_on, updated_at)
-            VALUES (?, ?, ?, 'PUTAWAY', NOW(), NOW())
-          `, [to_carton, actualWarehouse, to_bin || null]);
-        }
-        
-        // Insert new stock entry
+        // Create new stock entry in existing destination carton
+        // NOTE: Target carton existence is validated at the start of the function
         await connection.execute(`
           INSERT INTO tabCartonStock
             (carton_id, item_code, warehouse, bin_location, qty, uom, batch_no, status, created_on, updated_at)
@@ -4468,13 +6033,13 @@ export const completePartialRelocation = async (req, res) => {
         `, [item_code, actualWarehouse, to_bin, updatedNewBinQty, newBinReservedQty, txnType, sessionId, updatedNewBinQty, txnType, sessionId]);
       }
       
-      // Insert transaction history
+      // Insert transaction history into tabTransactionHistory (audit trail table)
       const [txnCols] = await connection.execute(`
-        SELECT COLUMN_NAME
+        SELECT COLUMN_NAME, EXTRA, IS_NULLABLE, COLUMN_DEFAULT, DATA_TYPE
         FROM INFORMATION_SCHEMA.COLUMNS
         WHERE TABLE_SCHEMA = DATABASE()
-          AND TABLE_NAME = 'tabStockTransaction'
-          AND COLUMN_NAME IN ('from_carton', 'to_carton', 'carton_id', 'from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location',
+          AND TABLE_NAME = 'tabTransactionHistory'
+          AND COLUMN_NAME IN ('transaction_id', 'from_carton', 'to_carton', 'carton_id', 'from_bin', 'to_bin', 'source_bin', 'target_bin', 'bin_location',
             'transaction_date', 'reference_doc_type', 'reference_doc', 'performed_by', 'created_at', 'qty_change', 'qty_before', 'qty_after')
       `);
       
@@ -4483,6 +6048,8 @@ export const completePartialRelocation = async (req, res) => {
       const hasCartonId = txnCols.some(col => col.COLUMN_NAME === 'carton_id');
       const hasFromBin = txnCols.some(col => col.COLUMN_NAME === 'from_bin');
       const hasToBin = txnCols.some(col => col.COLUMN_NAME === 'to_bin');
+      const hasSourceBin = txnCols.some(col => col.COLUMN_NAME === 'source_bin');
+      const hasTargetBin = txnCols.some(col => col.COLUMN_NAME === 'target_bin');
       const hasBinLocation = txnCols.some(col => col.COLUMN_NAME === 'bin_location');
       const hasTransactionDate = txnCols.some(col => col.COLUMN_NAME === 'transaction_date');
       const hasRefDocType = txnCols.some(col => col.COLUMN_NAME === 'reference_doc_type');
@@ -4493,92 +6060,401 @@ export const completePartialRelocation = async (req, res) => {
       const hasQtyBefore = txnCols.some(col => col.COLUMN_NAME === 'qty_before');
       const hasQtyAfter = txnCols.some(col => col.COLUMN_NAME === 'qty_after');
       
-      // Build transaction fields
-      const txnFields = [];
-      const txnValues = [];
+      // Check if transaction_id is required
+      const transactionIdCol = txnCols.find(col => col.COLUMN_NAME === 'transaction_id');
+      const hasTransactionId = !!transactionIdCol;
+      const isTransactionIdAutoIncrement = transactionIdCol && transactionIdCol.EXTRA && transactionIdCol.EXTRA.toLowerCase().includes('auto_increment');
+      const needsTransactionId = hasTransactionId && !isTransactionIdAutoIncrement && transactionIdCol.IS_NULLABLE === 'NO' && !transactionIdCol.COLUMN_DEFAULT;
+      const isTransactionIdInteger = transactionIdCol && (transactionIdCol.DATA_TYPE === 'int' || transactionIdCol.DATA_TYPE === 'bigint' || transactionIdCol.DATA_TYPE === 'integer');
       
-      if (hasTransactionDate) {
-        txnFields.push('transaction_date');
-        txnValues.push(new Date());
-      }
+      // Helper function to generate transaction_id based on column type
+      const generateTransactionId = () => {
+        if (isTransactionIdInteger) {
+          return parseInt(`${Date.now()}${Math.floor(Math.random() * 1000)}`.substring(0, 15));
+        } else {
+          return `TXN-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        }
+      };
       
-      txnFields.push('transaction_type');
-      txnValues.push(txnType);
+      // Check if stock_direction column exists and is NOT a generated column
+      const [stockDirectionCol] = await connection.execute(`
+        SELECT COLUMN_NAME, GENERATION_EXPRESSION, EXTRA
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabTransactionHistory'
+          AND COLUMN_NAME = 'stock_direction'
+      `);
+      const stockDirColInfo = stockDirectionCol.length > 0 ? stockDirectionCol[0] : null;
+      const isStockDirectionGenerated = stockDirColInfo && (
+        (stockDirColInfo.GENERATION_EXPRESSION && stockDirColInfo.GENERATION_EXPRESSION.length > 0) ||
+        (stockDirColInfo.EXTRA && stockDirColInfo.EXTRA.toLowerCase().includes('generated'))
+      );
+      const hasStockDirection = stockDirectionCol.length > 0 && !isStockDirectionGenerated;
       
-      if (hasRefDocType) {
-        txnFields.push('reference_doc_type');
-        txnValues.push('Relocation Session');
-      }
+      const transactionDate = new Date();
+      const performedBy = user_id || 'SYSTEM';
       
-      if (hasRefDoc) {
-        txnFields.push('reference_doc');
-        txnValues.push(sessionId);
-      }
-      
-      txnFields.push('item_code', 'warehouse');
-      txnValues.push(item_code, actualWarehouse);
-      
-      // Add bin location fields - prioritize destination (to_bin/to_carton) for display
-      // IMPORTANT: For transaction history display, always use destination carton (to_carton) where items ended up
-      // This matches user expectation: "Where did the items go?" Answer: to_carton (destination)
-      const displayBin = to_bin || from_bin;
-      // Always prefer destination carton for display (items moved TO this carton)
-      // Fallback to from_carton only if to_carton is not provided (shouldn't happen in normal flow)
-      const displayCarton = to_carton || from_carton;
-      
-      if (hasFromBin && hasToBin) {
-        txnFields.push('from_bin', 'to_bin');
-        txnValues.push(from_bin, to_bin);
-      } else if (hasBinLocation) {
-        txnFields.push('bin_location');
-        txnValues.push(displayBin); // Use destination bin for display
-      }
-      
-      if (hasCartonId) {
-        txnFields.push('carton_id');
-        txnValues.push(displayCarton); // Use destination carton for merge, source for partial
-      }
-      
-      if (hasFromCarton) {
-        txnFields.push('from_carton');
-        txnValues.push(from_carton);
-      }
-      
-      if (hasToCarton) {
-        txnFields.push('to_carton');
-        txnValues.push(to_carton || from_carton);
-      }
-      
-      // Add quantity fields
-      if (hasQtyChange) {
-        txnFields.push('qty_change');
-        txnValues.push(qtyToMove);
-      }
-      if (hasQtyBefore) {
-        txnFields.push('qty_before');
-        txnValues.push(sourceQty);
-      }
-      if (hasQtyAfter) {
-        txnFields.push('qty_after');
-        txnValues.push(sourceQty - qtyToMove); // Remaining in source
-      }
-      
-      if (hasPerformedBy) {
-        txnFields.push('performed_by');
-        txnValues.push(user_id || 'SYSTEM');
-      }
-      
-      if (hasCreatedAt) {
-        txnFields.push('created_at');
-        txnValues.push(new Date());
-      }
-      
-      // Insert transaction history
-      if (txnFields.length > 0) {
+      // For CARTON_MERGE, create TWO transactions: OUT from source, IN to destination
+      // This ensures proper stock tracking and matches the commitFullCartonMove behavior
+      if (txnType === 'CARTON_MERGE') {
+        // ============================================================
+        // TRANSACTION 1: Source Carton (OUT) - Negative qty_change
+        // ============================================================
+        const sourceTxnFields = [];
+        const sourceTxnValues = [];
+        
+        if (needsTransactionId) {
+          sourceTxnFields.push('transaction_id');
+          sourceTxnValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          sourceTxnFields.push('transaction_date');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        sourceTxnFields.push('transaction_type');
+        sourceTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          sourceTxnFields.push('reference_doc_type');
+          sourceTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          sourceTxnFields.push('reference_doc');
+          sourceTxnValues.push(sessionId);
+        }
+        
+        sourceTxnFields.push('item_code', 'warehouse');
+        sourceTxnValues.push(item_code, actualWarehouse);
+        
+        // Source carton location
+        if (hasBinLocation) {
+          sourceTxnFields.push('bin_location');
+          sourceTxnValues.push(from_bin);
+        }
+        
+        if (hasFromBin && hasToBin) {
+          sourceTxnFields.push('from_bin', 'to_bin');
+          sourceTxnValues.push(from_bin, to_bin);
+        }
+        
+        // IMPORTANT: source_bin is required for Item Location Breakdown to show correct location for OUT transactions
+        if (hasSourceBin) {
+          sourceTxnFields.push('source_bin');
+          sourceTxnValues.push(from_bin);
+        }
+        
+        if (hasCartonId) {
+          sourceTxnFields.push('carton_id');
+          sourceTxnValues.push(from_carton); // FROM carton
+        }
+        
+        if (hasFromCarton) {
+          sourceTxnFields.push('from_carton');
+          sourceTxnValues.push(from_carton);
+        }
+        
+        if (hasToCarton) {
+          sourceTxnFields.push('to_carton');
+          sourceTxnValues.push(to_carton);
+        }
+        
+        // Source transaction: OUT (negative qty_change)
+        if (hasQtyChange) {
+          sourceTxnFields.push('qty_change');
+          sourceTxnValues.push(-qtyToMove); // Negative for OUT
+        }
+        if (hasQtyBefore) {
+          sourceTxnFields.push('qty_before');
+          sourceTxnValues.push(sourceQty);
+        }
+        if (hasQtyAfter) {
+          sourceTxnFields.push('qty_after');
+          sourceTxnValues.push(0); // Source carton becomes empty
+        }
+        
+        if (hasStockDirection) {
+          sourceTxnFields.push('stock_direction');
+          sourceTxnValues.push('OUT');
+        }
+        
+        if (hasPerformedBy) {
+          sourceTxnFields.push('performed_by');
+          sourceTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          sourceTxnFields.push('created_at');
+          sourceTxnValues.push(transactionDate);
+        }
+        
+        // Insert source transaction (OUT)
+        if (sourceTxnFields.length > 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${sourceTxnFields.join(', ')})
+            VALUES (${sourceTxnFields.map(() => '?').join(', ')})
+          `, sourceTxnValues);
+          console.log(`📝 Inserted CARTON_MERGE OUT transaction for ${item_code} into tabTransactionHistory`);
+        }
+        
+        // ============================================================
+        // TRANSACTION 2: Destination Carton (IN) - Positive qty_change
+        // ============================================================
+        const destTxnFields = [];
+        const destTxnValues = [];
+        
+        if (needsTransactionId) {
+          destTxnFields.push('transaction_id');
+          destTxnValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          destTxnFields.push('transaction_date');
+          destTxnValues.push(transactionDate);
+        }
+        
+        destTxnFields.push('transaction_type');
+        destTxnValues.push('CARTON_MERGE');
+        
+        if (hasRefDocType) {
+          destTxnFields.push('reference_doc_type');
+          destTxnValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          destTxnFields.push('reference_doc');
+          destTxnValues.push(sessionId);
+        }
+        
+        destTxnFields.push('item_code', 'warehouse');
+        destTxnValues.push(item_code, actualWarehouse);
+        
+        // Destination carton location
+        if (hasBinLocation) {
+          destTxnFields.push('bin_location');
+          destTxnValues.push(to_bin);
+        }
+        
+        if (hasFromBin && hasToBin) {
+          destTxnFields.push('from_bin', 'to_bin');
+          destTxnValues.push(from_bin, to_bin);
+        }
+        
+        // IMPORTANT: target_bin is required for Item Location Breakdown to show correct location for IN transactions
+        if (hasTargetBin) {
+          destTxnFields.push('target_bin');
+          destTxnValues.push(to_bin);
+        }
+        
+        if (hasCartonId) {
+          destTxnFields.push('carton_id');
+          destTxnValues.push(to_carton); // TO carton
+        }
+        
+        if (hasFromCarton) {
+          destTxnFields.push('from_carton');
+          destTxnValues.push(from_carton);
+        }
+        
+        if (hasToCarton) {
+          destTxnFields.push('to_carton');
+          destTxnValues.push(to_carton);
+        }
+        
+        // Destination transaction: IN (positive qty_change)
+        if (hasQtyChange) {
+          destTxnFields.push('qty_change');
+          destTxnValues.push(qtyToMove); // Positive for IN
+        }
+        if (hasQtyBefore) {
+          destTxnFields.push('qty_before');
+          destTxnValues.push(0); // Assume 0 before merge (or could query actual value)
+        }
+        if (hasQtyAfter) {
+          destTxnFields.push('qty_after');
+          destTxnValues.push(qtyToMove); // New qty in destination
+        }
+        
+        if (hasStockDirection) {
+          destTxnFields.push('stock_direction');
+          destTxnValues.push('IN');
+        }
+        
+        if (hasPerformedBy) {
+          destTxnFields.push('performed_by');
+          destTxnValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          destTxnFields.push('created_at');
+          destTxnValues.push(transactionDate);
+        }
+        
+        // Insert destination transaction (IN)
+        if (destTxnFields.length > 0) {
+          await connection.execute(`
+            INSERT INTO tabTransactionHistory (${destTxnFields.join(', ')})
+            VALUES (${destTxnFields.map(() => '?').join(', ')})
+          `, destTxnValues);
+          console.log(`📝 Inserted CARTON_MERGE IN transaction for ${item_code} into tabTransactionHistory`);
+        }
+      } else {
+        // For PARTIAL_RELOCATION, create TWO transactions (OUT and IN) like CARTON_RELOCATION
+        // This ensures Item Location Breakdown shows correct balances
+        
+        // ============================================================
+        // TRANSACTION 1: Source Carton (OUT) - Negative qty_change
+        // ============================================================
+        const outFields = [];
+        const outValues = [];
+        
+        if (needsTransactionId) {
+          outFields.push('transaction_id');
+          outValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          outFields.push('transaction_date');
+          outValues.push(transactionDate);
+        }
+        
+        outFields.push('transaction_type');
+        outValues.push(txnType);
+        
+        if (hasRefDocType) {
+          outFields.push('reference_doc_type');
+          outValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          outFields.push('reference_doc');
+          outValues.push(sessionId);
+        }
+        
+        outFields.push('item_code', 'warehouse');
+        outValues.push(item_code, actualWarehouse);
+        
+        if (hasBinLocation) {
+          outFields.push('bin_location');
+          outValues.push(from_bin);
+        }
+        
+        if (hasSourceBin) {
+          outFields.push('source_bin');
+          outValues.push(from_bin);
+        }
+        
+        if (hasCartonId) {
+          outFields.push('carton_id');
+          outValues.push(from_carton);
+        }
+        
+        if (hasFromCarton) {
+          outFields.push('from_carton');
+          outValues.push(from_carton);
+        }
+        
+        // OUT transaction: negative qty_change
+        outFields.push('qty_change');
+        outValues.push(-qtyToMove);
+        outFields.push('qty_before');
+        outValues.push(sourceQty);
+        outFields.push('qty_after');
+        outValues.push(sourceQty - qtyToMove);
+        
+        if (hasPerformedBy) {
+          outFields.push('performed_by');
+          outValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          outFields.push('created_at');
+          outValues.push(transactionDate);
+        }
+        
         await connection.execute(`
-          INSERT INTO tabStockTransaction (${txnFields.join(', ')})
-          VALUES (${txnFields.map(() => '?').join(', ')})
-        `, txnValues);
+          INSERT INTO tabTransactionHistory (${outFields.join(', ')})
+          VALUES (${outFields.map(() => '?').join(', ')})
+        `, outValues);
+        console.log(`📝 Inserted ${txnType} OUT transaction for ${item_code}`);
+        
+        // ============================================================
+        // TRANSACTION 2: Destination Carton (IN) - Positive qty_change
+        // ============================================================
+        const inFields = [];
+        const inValues = [];
+        
+        if (needsTransactionId) {
+          inFields.push('transaction_id');
+          inValues.push(generateTransactionId());
+        }
+        
+        if (hasTransactionDate) {
+          inFields.push('transaction_date');
+          inValues.push(transactionDate);
+        }
+        
+        inFields.push('transaction_type');
+        inValues.push(txnType);
+        
+        if (hasRefDocType) {
+          inFields.push('reference_doc_type');
+          inValues.push('Relocation Session');
+        }
+        
+        if (hasRefDoc) {
+          inFields.push('reference_doc');
+          inValues.push(sessionId);
+        }
+        
+        inFields.push('item_code', 'warehouse');
+        inValues.push(item_code, actualWarehouse);
+        
+        if (hasBinLocation) {
+          inFields.push('bin_location');
+          inValues.push(to_bin);
+        }
+        
+        if (hasTargetBin) {
+          inFields.push('target_bin');
+          inValues.push(to_bin);
+        }
+        
+        if (hasCartonId) {
+          inFields.push('carton_id');
+          inValues.push(to_carton || from_carton);
+        }
+        
+        if (hasToCarton) {
+          inFields.push('to_carton');
+          inValues.push(to_carton || from_carton);
+        }
+        
+        // IN transaction: positive qty_change
+        inFields.push('qty_change');
+        inValues.push(qtyToMove);
+        inFields.push('qty_before');
+        inValues.push(0);
+        inFields.push('qty_after');
+        inValues.push(qtyToMove);
+        
+        if (hasPerformedBy) {
+          inFields.push('performed_by');
+          inValues.push(performedBy);
+        }
+        
+        if (hasCreatedAt) {
+          inFields.push('created_at');
+          inValues.push(transactionDate);
+        }
+        
+        await connection.execute(`
+          INSERT INTO tabTransactionHistory (${inFields.join(', ')})
+          VALUES (${inFields.map(() => '?').join(', ')})
+        `, inValues);
+        console.log(`📝 Inserted ${txnType} IN transaction for ${item_code}`);
       }
       
       movedItems.push({
@@ -4590,6 +6466,14 @@ export const completePartialRelocation = async (req, res) => {
     // Note: Session is already COMPLETED (created as COMPLETED), so no need to update status
     
     await connection.commit();
+    
+    // Sync item stock with stock ledger for all affected items
+    if (movedItems && movedItems.length > 0) {
+      const itemCodes = [...new Set(movedItems.map(i => i.item_code))];
+      for (const itemCode of itemCodes) {
+        await syncItemStock(connection, itemCode);
+      }
+    }
     
     console.log(`✅ Completed partial relocation: ${from_carton} -> ${to_carton} (${lines.length} items)`);
     

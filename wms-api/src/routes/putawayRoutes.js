@@ -3,7 +3,8 @@
 
 import express from 'express';
 import { 
-  getTasks, 
+  getTasks,
+  getTaskById,
   getRemainingItems, 
   assignRack, 
   completePutaway,
@@ -15,6 +16,10 @@ import {
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// IMPORTANT: More specific routes must come before general routes
+// GET /api/putaway/tasks/:taskId - Get single putaway task by ID
+router.get('/tasks/:taskId', authenticateToken, getTaskById);
 
 // GET /api/putaway/tasks - Get list of putaway tasks
 router.get('/tasks', authenticateToken, getTasks);

@@ -61,11 +61,24 @@ export const getInventoryByLocation = async (req, res) => {
       stockLedgerParams.push(item_code);
     }
     
+    // Check if carton_id column exists in tabStockLedger
+    const [cartonIdColumn] = await connection.execute(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'tabStockLedger' 
+      AND COLUMN_NAME = 'carton_id'
+    `);
+    const hasCartonId = cartonIdColumn.length > 0;
+    
+    const selectFields = hasCartonId ? 'item_code, qty, carton_id' : 'item_code, qty';
+    const orderBy = hasCartonId ? 'item_code, carton_id' : 'item_code';
+    
     const [stockLedger] = await connection.execute(
-      `SELECT item_code, qty, carton_id
+      `SELECT ${selectFields}
        FROM tabStockLedger
        WHERE ${stockLedgerConditions.join(" AND ")}
-       ORDER BY item_code, carton_id`,
+       ORDER BY ${orderBy}`,
       stockLedgerParams
     );
     

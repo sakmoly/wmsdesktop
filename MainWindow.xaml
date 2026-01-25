@@ -15,7 +15,13 @@
         </Grid.ColumnDefinitions>
 
         <!-- Left navigation -->
-        <StackPanel Grid.Column="0" Background="#1F2933">
+        <Grid Grid.Column="0" Background="#1F2933">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+        <StackPanel Grid.Row="0">
             <TextBlock Text="Printechs WMS"
                        Margin="16"
                        Foreground="White"
@@ -318,6 +324,45 @@
                 </StackPanel>
             </Expander>
         </StackPanel>
+            
+            <!-- User Info & Logout -->
+            <Border Grid.Row="1" 
+                    Background="#111827" 
+                    BorderBrush="#374151" 
+                    BorderThickness="0,1,0,0"
+                    Padding="12">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <Ellipse Width="32" Height="32" Fill="#3B82F6" Margin="0,0,10,0"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="LoggedInUserName"
+                                       Text="User"
+                                       Foreground="White"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock x:Name="LoggedInUserRole"
+                                       Text="Role"
+                                       Foreground="#9CA3AF"
+                                       FontSize="11"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Content="Logout"
+                            Padding="8,6"
+                            Foreground="White"
+                            Background="#DC2626"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            Cursor="Hand"
+                            Click="LogoutButton_Click">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="4"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
 
         <!-- Main content -->
         <ContentControl x:Name="MainContent"

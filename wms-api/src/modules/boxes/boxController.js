@@ -314,6 +314,11 @@ export const closeBox = async (req, res) => {
             // Continue without inbound session - it's optional for warehouse boxes
           }
         }
+        
+        // Provide default inbound_session if none found (required for desktop app compatibility)
+        if (!inboundSession) {
+          inboundSession = box.asn_no ? `ASN-${box.asn_no}` : 'WAREHOUSE-PUTAWAY';
+        }
 
         // Check if source_type column exists
         const [columns] = await connection.execute(`
@@ -337,28 +342,33 @@ export const closeBox = async (req, res) => {
 
         console.log(`[closeBox] Table columns: hasSourceType=${hasSourceType}, hasBoxId=${hasBoxId}, inboundSession=${inboundSession || 'NULL'}`);
 
+        // Determine source_type: If box has ASN, use 'ASN', otherwise use 'Box'
+        // This ensures ASN boxes appear in putaway task list when filtered by source_type='ASN'
+        const sourceType = box.asn_no ? 'ASN' : 'Box';
+        console.log(`[closeBox] Determined source_type: ${sourceType} (box.asn_no=${box.asn_no || 'NULL'})`);
+
         // Create putaway task
         if (hasSourceType && hasBoxId) {
           await connection.execute(`
             INSERT INTO tabPutawayTask 
             (title, status, source_type, box_id, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES (?, 'Open', 'Box', ?, ?, ?, ?, NOW(), NOW())
-          `, [putawayTaskId, box_id, box.asn_no || null, inboundSession, closed_by || 'SYSTEM']);
-          console.log(`[closeBox] Created putaway task with source_type and box_id columns`);
+            VALUES (?, 'Open', ?, ?, ?, ?, ?, NOW(), NOW())
+          `, [putawayTaskId, sourceType, box_id, box.asn_no || null, inboundSession, closed_by || 'SYSTEM']);
+          console.log(`[closeBox] Created putaway task with source_type='${sourceType}' and box_id columns`);
         } else if (hasSourceType) {
           await connection.execute(`
             INSERT INTO tabPutawayTask 
             (title, status, source_type, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
-            VALUES (?, 'Open', 'Box', ?, ?, ?, NOW(), NOW())
-          `, [putawayTaskId, box.asn_no || null, inboundSession, closed_by || 'SYSTEM']);
-          console.log(`[closeBox] Created putaway task with source_type column only`);
+            VALUES (?, 'Open', ?, ?, ?, ?, NOW(), NOW())
+          `, [putawayTaskId, sourceType, box.asn_no || null, inboundSession, closed_by || 'SYSTEM']);
+          console.log(`[closeBox] Created putaway task with source_type='${sourceType}' column only`);
         } else if (hasBoxId) {
           await connection.execute(`
             INSERT INTO tabPutawayTask 
             (title, status, box_id, advance_shipping_notice, inbound_session, created_by, created_at, updated_at)
             VALUES (?, 'Open', ?, ?, ?, ?, NOW(), NOW())
           `, [putawayTaskId, box_id, box.asn_no || null, inboundSession, closed_by || 'SYSTEM']);
-          console.log(`[closeBox] Created putaway task with box_id column only`);
+          console.log(`[closeBox] Created putaway task with box_id column only (source_type column not available)`);
         } else {
           await connection.execute(`
             INSERT INTO tabPutawayTask 

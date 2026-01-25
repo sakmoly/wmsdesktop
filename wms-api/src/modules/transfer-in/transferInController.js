@@ -2702,12 +2702,7 @@ async function ensurePutawayBoxesForTransferIn(connection, {
           console.log(`   📦 Creating box with box_id = carton_id: ${boxId}`);
 
           // Add optional columns if they exist
-          // Note: Use purpose = 'PUTAWAY' instead of source_type = 'Transfer In'
-          if (hasPurpose) {
-            insertFields.push('purpose');
-            insertValues.push('PUTAWAY');
-            insertPlaceholders.push('?');
-          }
+          // Note: purpose is already in the base fields above, don't add it again
           if (hasSourceRef) {
             insertFields.push('source_ref');
             insertValues.push(transferInNo);

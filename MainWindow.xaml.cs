@@ -1,7 +1,9 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using Wms.Desktop.Services;
 using Wms.Desktop.Views;
+using Wms.Desktop.Windows;
 
 namespace Wms.Desktop;
 
@@ -12,6 +14,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        
+        // Load and display logged-in user info
+        LoadUserInfo();
+        
         // Default view
         MainContent.Content = new SettingsView();
         // Set Settings as default selected
@@ -27,12 +33,63 @@ public partial class MainWindow : Window
             }
         };
     }
+    
+    private void LoadUserInfo()
+    {
+        var settings = SettingsService.LoadSettings();
+        if (settings != null)
+        {
+            LoggedInUserName.Text = settings.LoggedInUserName ?? settings.LoggedInUserCode ?? "User";
+            LoggedInUserRole.Text = settings.LoggedInUserRole ?? "User";
+        }
+    }
+    
+    private void LogoutButton_Click(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            "Are you sure you want to logout?",
+            "Confirm Logout",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            // Clear token and user info from settings
+            var settings = SettingsService.LoadSettings();
+            if (settings != null)
+            {
+                settings.ApiKey = string.Empty;
+                settings.LoggedInUserCode = null;
+                settings.LoggedInUserName = null;
+                settings.LoggedInUserRole = null;
+                // Keep RememberedUsername if set
+                SettingsService.SaveSettings(settings);
+            }
+
+            // Show login window
+            var loginWindow = new LoginWindow();
+            var loginResult = loginWindow.ShowDialog();
+
+            if (loginResult == true && loginWindow.LoginSuccessful)
+            {
+                // Reload user info after successful re-login
+                LoadUserInfo();
+            }
+            else
+            {
+                // User cancelled login - close application
+                Application.Current.Shutdown();
+            }
+        }
+    }
 
     private void UpdateButtonSelection(Button selectedButton)
     {
         // Reset all navigation buttons to default style
-        // Find all buttons in the navigation StackPanel
-        var navigationPanel = (System.Windows.Controls.StackPanel)((System.Windows.Controls.Grid)this.Content).Children[0];
+        // Find all buttons in the navigation Grid -> StackPanel (Row 0)
+        var mainGrid = (System.Windows.Controls.Grid)this.Content;
+        var navigationGrid = (System.Windows.Controls.Grid)mainGrid.Children[0];
+        var navigationPanel = (System.Windows.Controls.StackPanel)navigationGrid.Children[0];
         
         foreach (var expander in navigationPanel.Children.OfType<System.Windows.Controls.Expander>())
         {

@@ -21,6 +21,12 @@ public sealed class WmsSettings : INotifyPropertyChanged
     private bool _databaseExists;
     private bool _tablesExist;
     private string _inventoryTrackingMode = "BinLevel"; // BinLevel or CartonLevel
+    
+    // User authentication fields
+    private string? _loggedInUserCode;
+    private string? _loggedInUserName;
+    private string? _loggedInUserRole;
+    private string? _rememberedUsername;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -130,6 +136,51 @@ public sealed class WmsSettings : INotifyPropertyChanged
             OnPropertyChanged(); 
         }
     }
+
+    // User authentication properties
+    
+    /// <summary>
+    /// Currently logged in user code
+    /// </summary>
+    public string? LoggedInUserCode
+    {
+        get => _loggedInUserCode;
+        set { _loggedInUserCode = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Currently logged in user display name
+    /// </summary>
+    public string? LoggedInUserName
+    {
+        get => _loggedInUserName;
+        set { _loggedInUserName = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Currently logged in user role
+    /// </summary>
+    public string? LoggedInUserRole
+    {
+        get => _loggedInUserRole;
+        set { _loggedInUserRole = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Remembered username for "Remember Me" feature
+    /// </summary>
+    public string? RememberedUsername
+    {
+        get => _rememberedUsername;
+        set { _rememberedUsername = value; OnPropertyChanged(); }
+    }
+
+    /// <summary>
+    /// Check if user is currently logged in (has valid token)
+    /// </summary>
+    public bool IsLoggedIn => !string.IsNullOrWhiteSpace(ApiKey) && 
+                              !ApiKey.Contains("MOCK-KEY") && 
+                              !ApiKey.Contains("******");
 }
 
 

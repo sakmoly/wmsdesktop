@@ -86,8 +86,8 @@ public static class PutawayTaskDataService
                     var sourceType = taskReader.GetString(2);
                     var asn = taskReader.IsDBNull(3) ? null : taskReader.GetString(3);
                     var transferIn = taskReader.IsDBNull(4) ? null : taskReader.GetString(4);
-                    var inboundSession = taskReader.GetString(5);
-                    var createdBy = taskReader.GetString(6);
+                    var inboundSession = taskReader.IsDBNull(5) ? "" : taskReader.GetString(5);
+                    var createdBy = taskReader.IsDBNull(6) ? "SYSTEM" : taskReader.GetString(6);
                     var locationId = taskReader.IsDBNull(7) ? null : taskReader.GetString(7);
                     
                     // For task level, location_id comes directly from the column (no construction from rack+bin needed)

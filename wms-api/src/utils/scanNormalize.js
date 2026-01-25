@@ -9,10 +9,11 @@
  * - Rejects old formats (TI-PUT-*, PUT-*)
  * - Accepts CTN-* format (for carton IDs)
  * - Accepts PAW-ASN-* format (for ASN box IDs)
+ * - Accepts BOX-* format (for ASN box IDs created by box API)
  * - Returns normalized carton_id and box_id
  * 
  * @param {string} raw - Raw carton ID or box ID from scan/input
- * @param {boolean} allowAsnBoxId - If true, allow PAW-ASN-* format (for ASN putaway)
+ * @param {boolean} allowAsnBoxId - If true, allow PAW-ASN-* and BOX-* formats (for ASN putaway)
  * @returns {Object} { ok: boolean, reason?: string, carton_id?: string, box_id?: string }
  */
 export function normalizeCartonId(raw, allowAsnBoxId = false) {
@@ -47,12 +48,23 @@ export function normalizeCartonId(raw, allowAsnBoxId = false) {
     };
   }
 
+  // For ASN putaway: Accept BOX-* format as box_id (created by /api/boxes/create)
+  // Format: BOX-{STORE}-{TIMESTAMP} or BOX-ASN-{NUMBER}-{SEQUENCE}
+  if (allowAsnBoxId && v.startsWith("BOX-")) {
+    // For ASN: box_id = BOX-*, carton_id = null (will be looked up from tabSortBox)
+    return { 
+      ok: true, 
+      carton_id: null, // ASN box_id is not a carton_id
+      box_id: v 
+    };
+  }
+
   // Enforce carton format - must start with CTN-
   if (!v.startsWith("CTN-")) {
     return { 
       ok: false, 
       reason: "INVALID_CARTON_FORMAT",
-      message: `Carton ID must start with "CTN-". Received: ${v}. For ASN putaway, use box_id (PAW-ASN-* format) instead of carton_id.`
+      message: `Carton ID must start with "CTN-". Received: ${v}. For ASN putaway, use box_id (BOX-* or PAW-ASN-* format) instead of carton_id.`
     };
   }
 
