@@ -224,6 +224,326 @@ export const getAsnByNumber = async (req, res) => {
 };
 
 /**
+ * POST /api/master/asns
+ * Create a new ASN (Advanced Shipping Notice)
+ * 
+ * Request Body:
+ * {
+ *   "title": "ASN-0001" (optional - auto-generates if not provided),
+ *   "supplier": "Supplier ABC",
+ *   "shipment_date": "2026-01-24",
+ *   "expected_arrival_date": "2026-01-25",
+ *   "purchase_order": "PO-001" (optional),
+ *   "shipment_type": "Ground" (optional),
+ *   "airway_bill_no": "AWB123" (optional),
+ *   "items": [
+ *     { "item_code": "SKU-001", "shipped_qty": 50 },
+ *     { "item_code": "SKU-002", "shipped_qty": 30 }
+ *   ]
+ * }
+ */
+export const createAsn = async (req, res) => {
+  const connection = await getConnection();
+  
+  try {
+    const { 
+      title, 
+      supplier, 
+      shipment_date, 
+      expected_arrival_date, 
+      purchase_order,
+      shipment_type,
+      airway_bill_no,
+      items 
+    } = req.body;
+    
+    // Validation
+    if (!supplier) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'supplier is required'
+        }
+      });
+    }
+    
+    if (!shipment_date || !expected_arrival_date) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'shipment_date and expected_arrival_date are required'
+        }
+      });
+    }
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'items array is required and must not be empty'
+        }
+      });
+    }
+    
+    // Generate ASN title if not provided
+    let asnTitle = title;
+    if (!asnTitle) {
+      const [maxRows] = await connection.execute(`
+        SELECT title FROM tabAdvanceShippingNotice 
+        WHERE title LIKE 'ASN-%' 
+        ORDER BY title DESC LIMIT 1
+      `);
+      
+      let nextNum = 1;
+      if (maxRows.length > 0) {
+        const lastTitle = maxRows[0].title;
+        const match = lastTitle.match(/ASN-(\d+)/);
+        if (match) {
+          nextNum = parseInt(match[1], 10) + 1;
+        }
+      }
+      asnTitle = `ASN-${nextNum.toString().padStart(4, '0')}`;
+    }
+    
+    // Calculate total shipped qty
+    const total_shipped_qty = items.reduce((sum, item) => sum + (parseFloat(item.shipped_qty) || 0), 0);
+    
+    await connection.beginTransaction();
+    
+    // Insert ASN header
+    await connection.execute(`
+      INSERT INTO tabAdvanceShippingNotice 
+        (title, status, supplier, shipment_date, expected_arrival_date, 
+         purchase_order, shipment_type, airway_bill_no, total_shipped_qty, 
+         created_at, updated_at, updated_on)
+      VALUES (?, 'Submitted', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+    `, [
+      asnTitle, 
+      supplier, 
+      shipment_date, 
+      expected_arrival_date,
+      purchase_order || null,
+      shipment_type || 'Ground',
+      airway_bill_no || null,
+      total_shipped_qty
+    ]);
+    
+    // Insert ASN items
+    for (const item of items) {
+      if (!item.item_code || !item.shipped_qty) {
+        continue; // Skip invalid items
+      }
+      
+      await connection.execute(`
+        INSERT INTO tabAsnItemDetails 
+          (parent_title, item_code, shipped_qty, carton_assigned_status, created_at, updated_at)
+        VALUES (?, ?, ?, 'Pending', NOW(), NOW())
+      `, [asnTitle, item.item_code, item.shipped_qty]);
+    }
+    
+    await connection.commit();
+    
+    console.log(`✅ Created ASN: ${asnTitle} with ${items.length} item(s)`);
+    
+    res.status(201).json({
+      ok: true,
+      message: 'ASN created successfully',
+      data: {
+        title: asnTitle,
+        status: 'Submitted',
+        supplier: supplier,
+        total_shipped_qty: total_shipped_qty,
+        items_count: items.length
+      }
+    });
+    
+  } catch (error) {
+    await connection.rollback();
+    console.error('Failed to create ASN:', error);
+    
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({
+        ok: false,
+        error: {
+          code: 'DUPLICATE_ENTRY',
+          message: `ASN with this title already exists`
+        }
+      });
+    }
+    
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to create ASN',
+        details: process.env.NODE_ENV === 'development' ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * DELETE /api/master/asns/:title
+ * Delete an ASN and all related data (items, boxes, putaway tasks, etc.)
+ * Used for clean test data setup
+ */
+export const deleteAsn = async (req, res) => {
+  const { title } = req.params;
+  
+  if (!title) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'ASN title is required'
+      }
+    });
+  }
+  
+  const connection = await getConnection();
+  
+  try {
+    await connection.beginTransaction();
+    
+    // Check if ASN exists
+    const [asnRows] = await connection.execute(
+      `SELECT title FROM tabAdvanceShippingNotice WHERE title = ?`,
+      [title]
+    );
+    
+    if (asnRows.length === 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `ASN ${title} not found`
+        }
+      });
+    }
+    
+    // First, get all inbound sessions for this ASN (to delete related putaway tasks)
+    let sessionIds = [];
+    try {
+      const [sessions] = await connection.execute(
+        `SELECT inbound_session FROM tabInboundSession WHERE asn_no = ? OR advance_shipping_notice = ?`,
+        [title, title]
+      );
+      sessionIds = sessions.map(s => s.inbound_session).filter(Boolean);
+    } catch (err) {
+      console.warn(`Could not query inbound sessions: ${err.message}`);
+    }
+    
+    // Delete related data in order (handle missing tables gracefully)
+    const deleteQueries = [
+      // 1. Delete putaway task lines by ASN
+      { sql: `DELETE FROM tabPutawayTaskLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE advance_shipping_notice = ?)`, params: [title] },
+      // 2. Delete putaway lines by ASN
+      { sql: `DELETE FROM tabPutawayLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE advance_shipping_notice = ?)`, params: [title] },
+      // 3. Delete putaway tasks by ASN
+      { sql: `DELETE FROM tabPutawayTask WHERE advance_shipping_notice = ?`, params: [title] },
+      // 4. Delete inbound sessions
+      { sql: `DELETE FROM tabInboundSession WHERE asn_no = ? OR advance_shipping_notice = ?`, params: [title, title] },
+      // 5. Delete sort boxes
+      { sql: `DELETE FROM tabSortBox WHERE advance_shipping_notice = ?`, params: [title] },
+      // 6. Delete ASN item details
+      { sql: `DELETE FROM tabAsnItemDetails WHERE parent_title = ?`, params: [title] },
+      // 7. Delete the ASN header
+      { sql: `DELETE FROM tabAdvanceShippingNotice WHERE title = ?`, params: [title] },
+    ];
+    
+    // Also delete putaway tasks linked via inbound_session
+    if (sessionIds.length > 0) {
+      for (const sessionId of sessionIds) {
+        deleteQueries.unshift(
+          { sql: `DELETE FROM tabPutawayLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE inbound_session = ?)`, params: [sessionId] },
+          { sql: `DELETE FROM tabPutawayTask WHERE inbound_session = ?`, params: [sessionId] }
+        );
+      }
+    }
+    
+    // Also delete putaway tasks linked via box_id from sort boxes
+    const [boxes] = await connection.execute(
+      `SELECT box_id FROM tabSortBox WHERE advance_shipping_notice = ?`,
+      [title]
+    );
+    for (const box of boxes) {
+      if (box.box_id) {
+        deleteQueries.unshift(
+          { sql: `DELETE FROM tabPutawayLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE box_id = ?)`, params: [box.box_id] },
+          { sql: `DELETE FROM tabPutawayTask WHERE box_id = ?`, params: [box.box_id] }
+        );
+      }
+    }
+    
+    // Also delete putaway tasks that have carton_id matching the ASN pattern (CTN-ASN-XXXX-*)
+    // This catches orphaned tasks where the box_id/inbound_session links were broken
+    const cartonPattern = `CTN-${title}-%`;
+    deleteQueries.unshift(
+      { sql: `DELETE FROM tabPutawayLine WHERE carton_id LIKE ?`, params: [cartonPattern] },
+      { sql: `DELETE FROM tabPutawayLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE box_id LIKE ?)`, params: [cartonPattern] },
+      { sql: `DELETE FROM tabPutawayTask WHERE box_id LIKE ?`, params: [cartonPattern] }
+    );
+    
+    // Delete scan events for this ASN (by ASN and by box_id pattern)
+    deleteQueries.push(
+      { sql: `DELETE FROM tabWmsScanEvent WHERE advance_shipping_notice = ?`, params: [title] },
+      { sql: `DELETE FROM tabWmsScanEvent WHERE box_id LIKE ?`, params: [cartonPattern] },
+      { sql: `DELETE FROM tabWmsScanEvent WHERE carton_id LIKE ?`, params: [cartonPattern] }
+    );
+    
+    // AGGRESSIVE CLEANUP: Delete ALL putaway tasks that have inbound_session containing the ASN pattern
+    // This catches orphaned tasks where advance_shipping_notice is NULL but inbound_session references the ASN
+    const sessionPattern = `%${title}%`;
+    deleteQueries.unshift(
+      { sql: `DELETE FROM tabPutawayLine WHERE parent_title IN (SELECT title FROM tabPutawayTask WHERE inbound_session LIKE ?)`, params: [sessionPattern] },
+      { sql: `DELETE FROM tabPutawayTask WHERE inbound_session LIKE ?`, params: [sessionPattern] }
+    );
+    
+    for (const query of deleteQueries) {
+      try {
+        await connection.execute(query.sql, query.params);
+      } catch (err) {
+        // Ignore "table doesn't exist" errors, continue with other deletions
+        if (!err.message.includes("doesn't exist") && !err.code?.includes('ER_NO_SUCH_TABLE')) {
+          console.warn(`Delete query warning: ${err.message}`);
+        }
+      }
+    }
+    
+    await connection.commit();
+    
+    console.log(`🗑️  Deleted ASN: ${title} and all related data`);
+    
+    res.status(200).json({
+      ok: true,
+      message: `ASN ${title} and all related data deleted successfully`
+    });
+    
+  } catch (error) {
+    await connection.rollback();
+    console.error('Failed to delete ASN:', error);
+    
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to delete ASN',
+        details: process.env.NODE_ENV === 'development' ? error.message : null
+      }
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
  * GET /api/master/transfer-orders
  * Get all transfer orders
  */

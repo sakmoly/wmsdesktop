@@ -1,0 +1,840 @@
+[2026-01-24T11:49:44.904Z] [ERROR] Failed to get database connection
+{
+  "code": "ETIMEDOUT",
+  "message": "connect ETIMEDOUT 192.168.1.2:3306",
+  "stack": "Error: connect ETIMEDOUT 192.168.1.2:3306\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16)"
+}
+[2026-01-24T11:50:16.527Z] [ERROR] Failed to get database connection
+{
+  "code": "ETIMEDOUT",
+  "message": "connect ETIMEDOUT 192.168.1.2:3306",
+  "stack": "Error: connect ETIMEDOUT 192.168.1.2:3306\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1637:16)"
+}
+[2026-01-24T15:55:01.416Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T15:55:01.422Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T15:56:14.677Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T15:56:14.679Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T15:57:16.186Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T15:57:16.187Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T15:58:12.006Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T15:58:12.007Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:08:09.586Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:08:09.587Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:09:42.227Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:09:42.228Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:10:08.868Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:10:08.869Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:13:08.891Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:13:08.892Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:18:19.915Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:18:19.916Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:18:51.567Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:18:51.567Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:23:42.293Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:23:42.293Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:27:24.419Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:27:24.420Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:28:58.613Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:28:58.613Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:33:34.110Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:33:34.110Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:34:22.631Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:34:22.631Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:34:59.651Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:34:59.652Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:37:58.215Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:37:58.216Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:41:17.595Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:41:17.597Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:46:11.735Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:46:11.736Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3621:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:48:44.972Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:48:44.973Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:52:34.451Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:52:34.452Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:53:21.561Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:53:21.562Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:54:46.348Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:54:46.349Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:55:22.420Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:55:22.421Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:57:18.533Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:57:18.534Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:58:47.729Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:58:47.730Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T16:59:40.582Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T16:59:40.582Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T17:00:10.893Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T17:00:10.894Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:27:09.388Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:27:09.392Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:27:09.399Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:27:09.401Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:27:09.406Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:27:09.408Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:28:36.678Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:28:36.679Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:28:36.681Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:28:36.681Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:28:36.683Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:28:36.683Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": null,
+    "tc_id": null,
+    "box_id": null,
+    "location_id": null,
+    "performed_by": null
+  }
+}
+[2026-01-24T19:40:14.316Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:14.317Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-1",
+    "location_id": "A1-R01-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:40:14.328Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:14.329Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-2",
+    "location_id": "A1-R02-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:40:14.340Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:14.341Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-3",
+    "location_id": "A1-R02-L2-B2",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:40:56.888Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:56.889Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-1",
+    "location_id": "A1-R01-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:40:56.901Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:56.902Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-2",
+    "location_id": "A1-R02-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:40:56.914Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:40:56.916Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-3",
+    "location_id": "A1-R02-L2-B2",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:10.451Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:10.452Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-1",
+    "location_id": "A1-R01-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:10.465Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:10.466Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-2",
+    "location_id": "A1-R02-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:10.475Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:10.476Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-3",
+    "location_id": "A1-R02-L2-B2",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:56.189Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:56.190Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-1",
+    "location_id": "A1-R01-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:56.195Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:56.195Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-2",
+    "location_id": "A1-R02-L1-B1",
+    "performed_by": "sysadmin"
+  }
+}
+[2026-01-24T19:42:56.200Z] [ERROR] [Putaway] ❌ CRITICAL: Failed to rollback transaction: actualBoxId is not defined
+{
+  "originalError": "stockUpdates is not defined",
+  "rollbackError": "actualBoxId is not defined"
+}
+[2026-01-24T19:42:56.201Z] [ERROR] Failed to complete putaway
+{
+  "errorType": "ReferenceError",
+  "message": "stockUpdates is not defined",
+  "stack": "ReferenceError: stockUpdates is not defined\n    at completePutaway (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:3646:5)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "requestBody": {
+    "putaway_task": "PUT-20260124-0001",
+    "tc_id": null,
+    "box_id": "BOX-ASN-0003-3",
+    "location_id": "A1-R02-L2-B2",
+    "performed_by": "sysadmin"
+  }
+}

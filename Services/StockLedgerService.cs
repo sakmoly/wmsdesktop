@@ -909,11 +909,15 @@ public static class StockLedgerService
                 return stockList;
             }
 
-            var sql = @"
+            // Check if carton_id column exists
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
+            var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
+            
+            var sql = $@"
                 SELECT item_code, warehouse, bin_location, qty, reserved_qty,
                        qty_before, qty_reduced,
                        last_transaction_date, last_transaction_type, last_transaction_ref,
-                       updated_at, created_at
+                       updated_at, created_at{cartonIdSelect}
                 FROM tabStockLedger
                 WHERE 1=1";
 
@@ -983,11 +987,17 @@ public static class StockLedgerService
                     transactionQty = 0;
                 }
                 
+                var cartonIdIndex = 12; // Index after created_at (11)
+                var cartonId = hasCartonIdColumn && !reader.IsDBNull(cartonIdIndex) 
+                    ? reader.GetString(cartonIdIndex) 
+                    : null;
+                
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
                     Warehouse = reader.GetString(1),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    CartonId = cartonId,
                     Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
                     ReservedQty = reservedQty,
                     RemainingStock = remainingStock, // Remaining stock after transaction
@@ -1093,13 +1103,17 @@ public static class StockLedgerService
             result.TotalCount = totalCount;
             result.TotalPages = (int)Math.Ceiling(totalCount / (double)result.PageSize);
 
+            // Check if carton_id column exists
+            var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
+            var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
+            
             // Get paginated data
             var offset = (result.Page - 1) * result.PageSize;
             var sql = $@"
                 SELECT item_code, warehouse, bin_location, qty, reserved_qty,
                        qty_before, qty_reduced,
                        last_transaction_date, last_transaction_type, last_transaction_ref,
-                       updated_at, created_at
+                       updated_at, created_at{cartonIdSelect}
                 FROM tabStockLedger
                 WHERE {whereClause}
                 ORDER BY last_transaction_date DESC, warehouse, item_code, bin_location IS NULL, bin_location
@@ -1158,11 +1172,17 @@ public static class StockLedgerService
                     transactionQty = 0;
                 }
                 
+                var cartonIdIndex = 12; // Index after created_at (11)
+                var cartonId = hasCartonIdColumn && !reader.IsDBNull(cartonIdIndex) 
+                    ? reader.GetString(cartonIdIndex) 
+                    : null;
+                
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
                     Warehouse = reader.GetString(1),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    CartonId = cartonId,
                     Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
                     ReservedQty = reservedQty,
                     RemainingStock = remainingStock, // Remaining stock after transaction

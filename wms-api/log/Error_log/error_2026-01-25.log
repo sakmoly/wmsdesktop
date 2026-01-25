@@ -1,0 +1,40 @@
+[2026-01-25T08:41:09.622Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:41:09.624Z] [ERROR] [Putaway Completion] ❌ CRITICAL: Cannot process - putaway task not found!
+[2026-01-25T08:41:09.624Z] [ERROR] [Putaway Completion] Event parameters:
+{
+  "putaway_task": "NULL",
+  "tc_id": "CTN-TI-0001-004",
+  "box_id": "CTN-TI-0001-004",
+  "carton_id": "CTN-TI-0001-004"
+}
+[2026-01-25T08:41:09.624Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:41:09.635Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:41:09.635Z] [ERROR] [Putaway Completion] ❌ CRITICAL: Cannot process - putaway task not found!
+[2026-01-25T08:41:09.636Z] [ERROR] [Putaway Completion] Event parameters:
+{
+  "putaway_task": "NULL",
+  "tc_id": "CTN-TI-0001-005",
+  "box_id": "CTN-TI-0001-005",
+  "carton_id": "CTN-TI-0001-005"
+}
+[2026-01-25T08:41:09.637Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:43:20.675Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:43:20.676Z] [ERROR] [Putaway Completion] ❌ CRITICAL: Cannot process - putaway task not found!
+[2026-01-25T08:43:20.680Z] [ERROR] [Putaway Completion] Event parameters:
+{
+  "putaway_task": "NULL",
+  "tc_id": "CTN-TI-0001-004",
+  "box_id": "CTN-TI-0001-004",
+  "carton_id": "CTN-TI-0001-004"
+}
+[2026-01-25T08:43:20.681Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:43:20.697Z] [ERROR] [Putaway Completion] ========================================
+[2026-01-25T08:43:20.699Z] [ERROR] [Putaway Completion] ❌ CRITICAL: Cannot process - putaway task not found!
+[2026-01-25T08:43:20.700Z] [ERROR] [Putaway Completion] Event parameters:
+{
+  "putaway_task": "NULL",
+  "tc_id": "CTN-TI-0001-005",
+  "box_id": "CTN-TI-0001-005",
+  "carton_id": "CTN-TI-0001-005"
+}
+[2026-01-25T08:43:20.701Z] [ERROR] [Putaway Completion] ========================================

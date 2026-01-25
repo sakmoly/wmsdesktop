@@ -53,7 +53,7 @@ public static class ItemLocationStockService
                 endpointPath = $"/api/stock/item/{Uri.EscapeDataString(itemCode)}/warehouse/{Uri.EscapeDataString(warehouse)}";
             }
             
-            var url = $"{baseUrl}{endpointPath}?format=grouped";
+            var url = $"{baseUrl}{endpointPath}?format=flat";
 
             ErrorLogService.LogInfo($"ItemLocationStockService: Calling API: {url}");
 
@@ -147,6 +147,9 @@ public sealed class ItemLocationStockApiResponse
     
     [JsonPropertyName("cartons")]
     public List<CartonInfo>? Cartons { get; init; }
+    
+    [JsonPropertyName("qty")]
+    public double Qty { get; init; }
     
     [JsonPropertyName("total_qty")]
     public double TotalQty { get; init; }

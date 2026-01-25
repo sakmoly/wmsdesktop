@@ -1,0 +1,185 @@
+[2026-01-21T15:00:36.655Z] [INFO] 📊 Database Configuration
+{
+  "Host": "localhost",
+  "Port": "3306",
+  "User": "erppadmin",
+  "Password": "***",
+  "Database": "wms_desktop"
+}
+[2026-01-21T15:01:54.324Z] [INFO] 📊 Database Configuration
+{
+  "Host": "localhost",
+  "Port": "3306",
+  "User": "erppadmin",
+  "Password": "***",
+  "Database": "wms_desktop"
+}
+[2026-01-21T15:01:54.363Z] [INFO] ======================================================================
+[2026-01-21T15:01:54.364Z] [INFO] 🚀 WMS API Server Started
+[2026-01-21T15:01:54.365Z] [INFO] ======================================================================
+[2026-01-21T15:01:54.366Z] [INFO] 🔍 Server Configuration
+{
+  "HOST": "0.0.0.0",
+  "PORT": "3000",
+  "API_BASE_URL": "http://localhost:3000",
+  "NetworkIPs": [
+    "192.168.1.2"
+  ]
+}
+[2026-01-21T15:01:54.378Z] [SUCCESS] Server running on all interfaces (0.0.0.0:3000)
+[2026-01-21T15:01:54.379Z] [INFO] 📍 Access URLs
+{
+  "Health": "http://192.168.1.2:3000/health",
+  "API": "http://localhost:3000/api",
+  "LocalHealth": "http://localhost:3000/health",
+  "LocalAPI": "http://localhost:3000/api"
+}
+[2026-01-21T15:01:54.381Z] [INFO] ======================================================================
+[2026-01-21T15:20:04.873Z] [INFO] 📥 GET /
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:09.557Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:09.568Z] [DEBUG] Requesting database connection from pool
+[2026-01-21T15:20:09.611Z] [SUCCESS] New database connection established
+[2026-01-21T15:20:09.611Z] [DEBUG] Database connection obtained from pool
+[2026-01-21T15:20:10.121Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:34.361Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:34.397Z] [INFO] 📥 GET /api/stock/ledger
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:34.401Z] [INFO] 📥 GET /api/stock/ledger
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:20:40.186Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:21:04.210Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:21:10.210Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.1.4",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-21T15:21:53.552Z] [INFO] 📥 GET /api/transaction-history?from_date=2025-10-23&to_date=2026-01-22&limit=1000
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:22:03.953Z] [INFO] 📥 GET /api/transaction-history?limit=1000
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:22:15.727Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-MAIN?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:22:17.784Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/Main%20Warehouse?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:22:19.821Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-Main?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:38.880Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-MAIN?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:39.358Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-MAIN?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:40.934Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/Main%20Warehouse?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:41.399Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/Main%20Warehouse?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:42.975Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-Main?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:43.268Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-GRN-OS/warehouse/WH-MAIN?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:43.457Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-Main?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:45.315Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-GRN-OS/warehouse/Main%20Warehouse?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:23:47.415Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-GRN-OS/warehouse/WH-Main?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:25:08.694Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-MAIN?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:25:10.725Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/Main%20Warehouse?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:25:12.775Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-Main?format=grouped
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:25:17.687Z] [INFO] 📥 GET /api/transaction-history?from_date=2025-10-23&to_date=2026-01-22&limit=1000
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-21T15:26:27.873Z] [INFO] 📥 GET /api/transaction-history?limit=5
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.7462"
+}
+[2026-01-21T15:26:49.358Z] [INFO] 📥 GET /api/transaction-history?limit=5
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.26100.7462"
+}

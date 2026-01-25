@@ -1,7 +1,7 @@
 {
   "Company": "Printechs Advanced Printing Trading Co.",
   "ApiEndpointUrl": "http://localhost:3000/api",
-  "ApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2NvZGUiOiJzeXNhZG1pbiIsInVzZXJfaWQiOiJzeXNhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2ODk4NTYxOCwiZXhwIjoxNzY5NTkwNDE4fQ.y27GJcMaPgvRc_eAd97y2T6TTaRbUQ0-DHfM0tarFYA",
+  "ApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2NvZGUiOiJzeXNhZG1pbiIsInVzZXJfaWQiOiJzeXNhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2OTM2Mjc3MiwiZXhwIjoxNzY5OTY3NTcyfQ.t8VUi6NnVZetG9tsX3hLdKZnuJv4miecrnXcnJ4jcRM",
   "SyncFrequencyMinutes": 15,
   "DefaultPickingWarehouse": "WH-MAIN",
   "LastSyncTimestamp": "2025-12-25T11:24:29.4058388+03:00",

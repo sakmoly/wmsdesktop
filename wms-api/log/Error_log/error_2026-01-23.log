@@ -1,0 +1,171 @@
+[2026-01-23T01:03:05.776Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:04:24.987Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:04:49.484Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:04:50.978Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:06:24.178Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:07:29.616Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:08:01.349Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:11:16.058Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:12:14.461Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:13:21.842Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:16:06.929Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T01:16:35.868Z] [ERROR] [Unified Inbound] Failed to start session:
+{
+  "message": "Column 'started_by' cannot be null",
+  "code": "ER_BAD_NULL_ERROR",
+  "errno": 1048,
+  "sql": "INSERT INTO tabInboundSession (inbound_session, status, asn_no, dock, started_by, created_at, updated_at)\n       VALUES (?, ?, ?, ?, ?, NOW(), NOW())",
+  "sqlState": "23000",
+  "sqlMessage": "Column 'started_by' cannot be null"
+}
+[2026-01-23T17:28:51.321Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:28:51.776Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:30:18.017Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:30:18.542Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:31:47.459Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:31:49.055Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}
+[2026-01-23T17:33:25.672Z] [ERROR] Failed to get putaway task
+{
+  "taskId": "PUT-20260123-0001",
+  "errorType": "Error",
+  "message": "Unknown column 'pt.created_on' in 'field list'",
+  "stack": "Error: Unknown column 'pt.created_on' in 'field list'\n    at PromisePoolConnection.execute (D:\\Development Project\\Printechs WMS\\Wms.Desktop\\wms-api\\node_modules\\mysql2\\lib\\promise\\connection.js:47:22)\n    at getTaskById (file:///D:/Development%20Project/Printechs%20WMS/Wms.Desktop/wms-api/src/modules/putaway/putawayController.js:491:38)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)",
+  "code": "ER_BAD_FIELD_ERROR",
+  "sqlMessage": "Unknown column 'pt.created_on' in 'field list'"
+}

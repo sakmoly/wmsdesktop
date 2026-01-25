@@ -24,7 +24,8 @@
     "add-putaway-columns": "node add-source-type-transfer-in-to-putaway-task.js",
     "test-transfer-in-putaway": "node test-transfer-in-putaway.js",
     "fix-carton-stock": "node fix-carton-stock-from-stock-ledger.js",
-    "update-packing-carton-id": "node update-packing-events-carton-id.js"
+    "update-packing-carton-id": "node update-packing-events-carton-id.js",
+    "fix-asn-box-source-type": "node fix-asn-box-source-type.js"
   },
   "keywords": [
     "wms",

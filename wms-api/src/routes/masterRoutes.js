@@ -5,6 +5,8 @@ import express from 'express';
 import { 
   getAllAsns, 
   getAsnByNumber,
+  createAsn,
+  deleteAsn,
   getAllTransferOrders,
   getAllBoxes,
   getAllTransferCartons,
@@ -26,6 +28,12 @@ const router = express.Router();
 
 // GET /api/master/asns - Get all ASNs (preserves original format)
 router.get('/asns', authenticateToken, getAllAsns);
+
+// POST /api/master/asns - Create new ASN
+router.post('/asns', authenticateToken, createAsn);
+
+// DELETE /api/master/asns/:title - Delete ASN and related data
+router.delete('/asns/:title', authenticateToken, deleteAsn);
 
 // GET /api/master/transfer-orders - Get all transfer orders
 router.get('/transfer-orders', authenticateToken, getAllTransferOrders);

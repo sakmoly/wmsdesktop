@@ -1,0 +1,2844 @@
+[2026-01-24T11:48:38.751Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:48:42.568Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:48:42.637Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:48:47.623Z] [INFO] 📥 POST /api/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:48:47.624Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:48:47.661Z] [INFO] 📥 POST /api/auth/device-login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:48:47.662Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:48:53.793Z] [INFO] 📊 Database Configuration
+{
+  "Host": "192.168.1.2",
+  "Port": "3306",
+  "User": "erppadmin",
+  "Password": "***",
+  "Database": "wms_desktop"
+}
+[2026-01-24T11:48:53.848Z] [INFO] ======================================================================
+[2026-01-24T11:48:53.849Z] [INFO] 🚀 WMS API Server Started
+[2026-01-24T11:48:53.849Z] [INFO] ======================================================================
+[2026-01-24T11:48:53.850Z] [INFO] 🔍 Server Configuration
+{
+  "HOST": "0.0.0.0",
+  "PORT": "3000",
+  "API_BASE_URL": "http://192.168.1.2:3000",
+  "NetworkIPs": [
+    "192.168.103.219",
+    "192.168.103.227"
+  ]
+}
+[2026-01-24T11:48:53.850Z] [SUCCESS] Server running on all interfaces (0.0.0.0:3000)
+[2026-01-24T11:48:53.850Z] [INFO] 📍 Access URLs
+{
+  "Health": "http://192.168.103.219:3000/health",
+  "API": "http://192.168.1.2:3000/api",
+  "LocalHealth": "http://localhost:3000/health",
+  "LocalAPI": "http://localhost:3000/api"
+}
+[2026-01-24T11:48:53.851Z] [INFO] 📡 Additional Network IPs
+[
+  "192.168.103.227"
+]
+[2026-01-24T11:48:53.851Z] [INFO] ======================================================================
+[2026-01-24T11:48:57.387Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:48:57.399Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:49:02.435Z] [INFO] 📥 POST /api/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:02.436Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:49:02.505Z] [INFO] 📥 POST /api/auth/device-login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:02.506Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:49:06.289Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:19.014Z] [INFO] 📊 Database Configuration
+{
+  "Host": "192.168.1.2",
+  "Port": "3306",
+  "User": "erppadmin",
+  "Password": "***",
+  "Database": "wms_desktop"
+}
+[2026-01-24T11:49:19.057Z] [INFO] ======================================================================
+[2026-01-24T11:49:19.057Z] [INFO] 🚀 WMS API Server Started
+[2026-01-24T11:49:19.057Z] [INFO] ======================================================================
+[2026-01-24T11:49:19.058Z] [INFO] 🔍 Server Configuration
+{
+  "HOST": "0.0.0.0",
+  "PORT": "3000",
+  "API_BASE_URL": "http://192.168.1.2:3000",
+  "NetworkIPs": [
+    "192.168.103.219",
+    "192.168.103.227"
+  ]
+}
+[2026-01-24T11:49:19.058Z] [SUCCESS] Server running on all interfaces (0.0.0.0:3000)
+[2026-01-24T11:49:19.059Z] [INFO] 📍 Access URLs
+{
+  "Health": "http://192.168.103.219:3000/health",
+  "API": "http://192.168.1.2:3000/api",
+  "LocalHealth": "http://localhost:3000/health",
+  "LocalAPI": "http://localhost:3000/api"
+}
+[2026-01-24T11:49:19.059Z] [INFO] 📡 Additional Network IPs
+[
+  "192.168.103.227"
+]
+[2026-01-24T11:49:19.059Z] [INFO] ======================================================================
+[2026-01-24T11:49:20.815Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:23.850Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:23.858Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:49:28.867Z] [INFO] 📥 POST /api/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:28.868Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:49:28.893Z] [INFO] 📥 POST /api/auth/device-login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:28.894Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:49:55.492Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:49:55.494Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:50:00.499Z] [INFO] 📥 POST /api/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:50:00.500Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:50:00.524Z] [INFO] 📥 POST /api/auth/device-login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:50:00.525Z] [DEBUG] Request body
+{
+  "user_code": "sysadmin",
+  "password": "123456"
+}
+[2026-01-24T11:51:58.894Z] [INFO] 📊 Database Configuration
+{
+  "Host": "localhost",
+  "Port": "3306",
+  "User": "erppadmin",
+  "Password": "***",
+  "Database": "wms_desktop"
+}
+[2026-01-24T11:51:58.946Z] [INFO] ======================================================================
+[2026-01-24T11:51:58.947Z] [INFO] 🚀 WMS API Server Started
+[2026-01-24T11:51:58.947Z] [INFO] ======================================================================
+[2026-01-24T11:51:58.948Z] [INFO] 🔍 Server Configuration
+{
+  "HOST": "0.0.0.0",
+  "PORT": "3000",
+  "API_BASE_URL": "http://localhost:3000",
+  "NetworkIPs": [
+    "192.168.103.219",
+    "192.168.103.227"
+  ]
+}
+[2026-01-24T11:51:58.948Z] [SUCCESS] Server running on all interfaces (0.0.0.0:3000)
+[2026-01-24T11:51:58.949Z] [INFO] 📍 Access URLs
+{
+  "Health": "http://192.168.103.219:3000/health",
+  "API": "http://localhost:3000/api",
+  "LocalHealth": "http://localhost:3000/health",
+  "LocalAPI": "http://localhost:3000/api"
+}
+[2026-01-24T11:51:58.949Z] [INFO] 📡 Additional Network IPs
+[
+  "192.168.103.227"
+]
+[2026-01-24T11:51:58.949Z] [INFO] ======================================================================
+[2026-01-24T11:52:01.716Z] [INFO] 📥 POST /api/auth/login
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:52:01.737Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:52:01.807Z] [SUCCESS] New database connection established
+[2026-01-24T11:52:01.808Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:52:02.325Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:52:32.335Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:02.418Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:17.565Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:20.381Z] [INFO] 📥 GET /api/asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:20.384Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:20.385Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:20.600Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:20.603Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:20.605Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:20.662Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:20.664Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:20.666Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:21.878Z] [INFO] 📥 GET /api/asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:21.880Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:21.881Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:22.123Z] [INFO] 📥 GET /api/asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:22.124Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:22.125Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:22.298Z] [INFO] 📥 POST /api/inbound/update
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:22.300Z] [DEBUG] Request body
+{
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "status": "Receiving",
+  "dock": "DOCK-01",
+  "total_cartons": 1,
+  "completed_cartons": 0,
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229",
+  "asn_no": "ASN-365425486"
+}
+[2026-01-24T11:53:22.301Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:22.302Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:22.810Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:22.868Z] [INFO] 📥 GET /api/inbound/unload-lines?parent_title=SESSION-ASN365425486-DEVWNAN963229-USER963229
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:22.885Z] [INFO] 📥 GET /api/inbound/unload-lines?parent_title=SESSION-ASN365425486-DEVWNAN963229-USER963229
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:26.019Z] [INFO] 📥 POST /api/inbound/unload-line
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:26.020Z] [DEBUG] Request body
+{
+  "parent_title": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "unit_type": "Carton",
+  "unit_id": "ASN-365425486",
+  "scanned_by": "USER-963229",
+  "scanned_on": "2026-01-24T11:53:26.532Z"
+}
+[2026-01-24T11:53:26.021Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:26.022Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:26.192Z] [INFO] 📥 POST /api/cartons/update-status
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:26.194Z] [DEBUG] Request body
+{
+  "asn_no": "ASN-365425486",
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "carton_id": "ASN-365425486",
+  "status": "Unloaded",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:26.195Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:26.196Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:26.363Z] [INFO] 📥 GET /api/inbound/unload-lines?parent_title=SESSION-ASN365425486-DEVWNAN963229-USER963229
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:27.927Z] [INFO] 📥 POST /api/cartons/update-status
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:27.929Z] [DEBUG] Request body
+{
+  "asn_no": "ASN-365425486",
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "cartons": [
+    {
+      "carton_id": "ASN-365425486",
+      "status": "Unloaded"
+    }
+  ],
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:27.932Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:27.933Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:28.197Z] [INFO] 📥 POST /api/events/batch
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:28.198Z] [DEBUG] Request body
+{
+  "events": [
+    {
+      "offline_uuid": "6d84094a-a5ae-480d-ae84-8302d996a13f",
+      "event_type": "UNLOAD_SCAN",
+      "asn_no": "ASN-365425486",
+      "to_no": null,
+      "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": null,
+      "store": null,
+      "box_id": null,
+      "tc_id": null,
+      "rack": null,
+      "bin": null,
+      "device_id": "DEV-WNAN-963229",
+      "user_id": "USER-963229",
+      "event_time": "2026-01-24T11:53:26.522Z",
+      "synced": 0,
+      "error_msg": null,
+      "material_request": null,
+      "transfer_in": null,
+      "cycle_count_title": null,
+      "source_bin": null,
+      "location_id": null
+    }
+  ]
+}
+[2026-01-24T11:53:28.202Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:28.203Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:28.205Z] [INFO] [Event] Final check: Set box_id = carton_id before INSERT: ASN-365425486
+[2026-01-24T11:53:28.205Z] [WARN] [Event] Final check: Store still NULL after all attempts, using default: WH-MAIN
+[2026-01-24T11:53:28.236Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:28.298Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:28.300Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:28.301Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:28.312Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:28.314Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:28.315Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.389Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.392Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.395Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.397Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.437Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.440Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.441Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.528Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.529Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.530Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.531Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.532Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.537Z] [SUCCESS] New database connection established
+[2026-01-24T11:53:29.538Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.543Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.544Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.545Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.546Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.547Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.548Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.627Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.716Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.717Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.719Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.720Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.871Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.965Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:29.967Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:29.967Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:29.977Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.129Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.130Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.166Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.168Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.168Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.275Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.289Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.291Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.293Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.294Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.295Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.298Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.300Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.302Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.427Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.428Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.429Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.430Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.432Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.434Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.445Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.448Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.450Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.532Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.624Z] [INFO] 📥 POST /api/boxes/create
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.626Z] [DEBUG] Request body
+{
+  "store": "WH-MAIN",
+  "purpose": "PUTAWAY",
+  "user_id": "USER-963229",
+  "to_no": "Putaway",
+  "transfer_order": "Putaway",
+  "box_id": "PAW-ASN365425486-1769255611164",
+  "asn_no": "ASN-365425486"
+}
+[2026-01-24T11:53:30.628Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.629Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.672Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.673Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.674Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:30.731Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.812Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.970Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:30.972Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:30.973Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:31.104Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.106Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.116Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.257Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.258Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:31.259Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:31.262Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.263Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:31.264Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:31.265Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:31.267Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:31.274Z] [SUCCESS] New database connection established
+[2026-01-24T11:53:31.275Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:32.353Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:34.633Z] [INFO] 📥 POST /api/carton/lock
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:34.635Z] [DEBUG] Request body
+{
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "asn_no": "ASN-365425486",
+  "carton_id": "ASN-365425486",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:34.639Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:34.641Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:34.845Z] [INFO] 📥 POST /api/cartons/update-status
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:34.848Z] [DEBUG] Request body
+{
+  "asn_no": "ASN-365425486",
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "carton_id": "ASN-365425486",
+  "status": "Receiving",
+  "locked_by": "USER-963229",
+  "locked_on": "2026-01-24T11:53:35.362Z",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:34.850Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:34.851Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:44.770Z] [INFO] 📥 POST /api/events/batch
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:44.773Z] [DEBUG] Request body
+{
+  "events": [
+    {
+      "offline_uuid": "436eb2b9-c6ce-4295-bb3f-2ceff4b90b24",
+      "event_type": "RECEIVE_ITEM_SCAN",
+      "asn_no": "ASN-365425486",
+      "to_no": null,
+      "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-BLU-OS",
+      "qty": 25,
+      "store": null,
+      "box_id": null,
+      "tc_id": null,
+      "rack": null,
+      "bin": null,
+      "device_id": "DEV-WNAN-963229",
+      "user_id": "USER-963229",
+      "event_time": "2026-01-24T11:53:43.190Z",
+      "synced": 0,
+      "error_msg": null,
+      "material_request": null,
+      "transfer_in": null,
+      "cycle_count_title": null,
+      "source_bin": null,
+      "location_id": null
+    },
+    {
+      "offline_uuid": "960b22fd-aef8-4240-b96c-d38c4709fef5",
+      "event_type": "SORT_TO_BOX",
+      "asn_no": "ASN-365425486",
+      "to_no": null,
+      "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-BLU-OS",
+      "qty": 25,
+      "store": "WH-MAIN",
+      "box_id": "PAW-ASN365425486-1769255611164",
+      "tc_id": null,
+      "rack": null,
+      "bin": null,
+      "device_id": "DEV-WNAN-963229",
+      "user_id": "USER-963229",
+      "event_time": "2026-01-24T11:53:43.251Z",
+      "synced": 0,
+      "error_msg": null,
+      "material_request": null,
+      "transfer_in": null,
+      "cycle_count_title": null,
+      "source_bin": null,
+      "location_id": null
+    }
+  ]
+}
+[2026-01-24T11:53:44.776Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:44.777Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:44.780Z] [INFO] [Event] Final check: Set box_id = carton_id before INSERT: ASN-365425486
+[2026-01-24T11:53:44.781Z] [WARN] [Event] Final check: Store still NULL after all attempts, using default: WH-MAIN
+[2026-01-24T11:53:50.318Z] [INFO] 📥 POST /api/events/batch
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:50.321Z] [DEBUG] Request body
+{
+  "events": [
+    {
+      "offline_uuid": "68b6503b-95cd-4f04-bdec-804d226c0b62",
+      "event_type": "RECEIVE_ITEM_SCAN",
+      "asn_no": "ASN-365425486",
+      "to_no": null,
+      "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-GRN-OS",
+      "qty": 25,
+      "store": null,
+      "box_id": null,
+      "tc_id": null,
+      "rack": null,
+      "bin": null,
+      "device_id": "DEV-WNAN-963229",
+      "user_id": "USER-963229",
+      "event_time": "2026-01-24T11:53:48.757Z",
+      "synced": 0,
+      "error_msg": null,
+      "material_request": null,
+      "transfer_in": null,
+      "cycle_count_title": null,
+      "source_bin": null,
+      "location_id": null
+    },
+    {
+      "offline_uuid": "2b044605-4669-4bab-b6c5-f04e7e13897d",
+      "event_type": "SORT_TO_BOX",
+      "asn_no": "ASN-365425486",
+      "to_no": null,
+      "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-GRN-OS",
+      "qty": 25,
+      "store": "WH-MAIN",
+      "box_id": "PAW-ASN365425486-1769255611164",
+      "tc_id": null,
+      "rack": null,
+      "bin": null,
+      "device_id": "DEV-WNAN-963229",
+      "user_id": "USER-963229",
+      "event_time": "2026-01-24T11:53:48.820Z",
+      "synced": 0,
+      "error_msg": null,
+      "material_request": null,
+      "transfer_in": null,
+      "cycle_count_title": null,
+      "source_bin": null,
+      "location_id": null
+    }
+  ]
+}
+[2026-01-24T11:53:50.322Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:50.323Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:50.324Z] [INFO] [Event] Final check: Set box_id = carton_id before INSERT: ASN-365425486
+[2026-01-24T11:53:50.325Z] [WARN] [Event] Final check: Store still NULL after all attempts, using default: WH-MAIN
+[2026-01-24T11:53:51.056Z] [INFO] 📥 POST /api/inbound/receive-lines
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:51.057Z] [DEBUG] Request body
+{
+  "receive_lines": [
+    {
+      "parent_title": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-GRN-OS",
+      "expected_qty": 25,
+      "received_qty": 25,
+      "condition": "Good",
+      "remarks": null
+    },
+    {
+      "parent_title": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+      "carton_id": "ASN-365425486",
+      "item_code": "SKU-HAT-301-BLU-OS",
+      "expected_qty": 25,
+      "received_qty": 25,
+      "condition": "Good",
+      "remarks": null
+    }
+  ]
+}
+[2026-01-24T11:53:51.059Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:51.060Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:51.244Z] [INFO] 📥 POST /api/carton/complete
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:51.247Z] [DEBUG] Request body
+{
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "asn_no": "ASN-365425486",
+  "carton_id": "ASN-365425486",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:51.249Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:51.251Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:51.434Z] [INFO] 📥 POST /api/cartons/update-status
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:51.437Z] [DEBUG] Request body
+{
+  "asn_no": "ASN-365425486",
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "carton_id": "ASN-365425486",
+  "status": "Received",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:51.439Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:51.441Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:52.942Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:53.127Z] [INFO] 📥 POST /api/inbound/update
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:53.128Z] [DEBUG] Request body
+{
+  "inbound_session": "SESSION-ASN365425486-DEVWNAN963229-USER963229",
+  "asn_no": "ASN-365425486",
+  "status": "Completed",
+  "completed_cartons": 1,
+  "total_cartons": 1,
+  "dock": "DOCK-01",
+  "user_id": "USER-963229",
+  "device_id": "DEV-WNAN-963229"
+}
+[2026-01-24T11:53:53.129Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:53.130Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.529Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.534Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.537Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.540Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.559Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.561Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.562Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.668Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.671Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.672Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.685Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.687Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.688Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.689Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.690Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.692Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.693Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.694Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.696Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.759Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.852Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.855Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.859Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.860Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:55.947Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.995Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:55.997Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:55.999Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.057Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.166Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.168Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.227Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.229Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.231Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.337Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.339Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.340Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.343Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.344Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.346Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.350Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.351Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.355Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.494Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.496Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.497Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.498Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.501Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.502Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.520Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.521Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.522Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:56.601Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.751Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:56.752Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:56.753Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:58.103Z] [INFO] 📥 POST /api/boxes/close
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.104Z] [DEBUG] Request body
+{
+  "box_id": "PAW-ASN365425486-1769255611164",
+  "closed_by": "USER-963229"
+}
+[2026-01-24T11:53:58.106Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:58.106Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:58.228Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.230Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.314Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.468Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.470Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:58.472Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:58.663Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.665Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.818Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.819Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:58.823Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:53:58.825Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:53:58.826Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:53:58.828Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:01.448Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:01.498Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:01.501Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:01.502Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:02.409Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.456Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.520Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.521Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:02.521Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:02.623Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.625Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:02.627Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:02.715Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.815Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.967Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:02.969Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:02.970Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:03.102Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.103Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.246Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.249Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:03.250Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:03.251Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.252Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:03.252Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:03.457Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.578Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:03.580Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:03.581Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:11.349Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.387Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.389Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:11.391Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:11.506Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.507Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:11.508Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:11.600Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.691Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.847Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.849Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:11.850Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:11.973Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:11.980Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:12.128Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:12.131Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:12.134Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:12.136Z] [INFO] 📥 GET /api/transfer-order/by-asn/ASN-365425486
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:12.138Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:12.140Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:13.990Z] [INFO] 📥 GET /api/inbound/unload-lines?parent_title=SESSION-ASN365425486-DEVWNAN963229-USER963229
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.155Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.306Z] [INFO] 📥 GET /api/putaway/tasks?asn_no=ASN-365425486&source_type=ASN&status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.309Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.310Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.312Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.314Z] [INFO] 📥 GET /api/putaway/tasks?asn_no=ASN-365425486&source_type=ASN&status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.316Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.321Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.322Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.327Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:17.329Z] [INFO] [Putaway Tasks API] Source type filter applied: ASN
+[2026-01-24T11:54:17.330Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:17.331Z] [INFO] [Putaway Tasks API] Source type filter applied: ASN
+[2026-01-24T11:54:17.337Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?) AND COALESCE(pt.source_type, \"ASN\") = ?",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress",
+    "ASN"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:17.338Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:17.340Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?) AND COALESCE(pt.source_type, \"ASN\") = ?",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress",
+    "ASN"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:17.341Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:17.347Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:17.349Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:17.654Z] [INFO] 📥 GET /api/putaway/tasks?status=Completed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.656Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Completed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.657Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.658Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.661Z] [INFO] 📥 GET /api/putaway/tasks?status=Completed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.663Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Completed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.664Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.667Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.669Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Completed"
+]
+[2026-01-24T11:54:17.671Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:17.676Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Completed"
+]
+[2026-01-24T11:54:17.680Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:17.685Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Completed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:17.687Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Completed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:17.692Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Completed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:17.694Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Completed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:17.886Z] [INFO] 📥 GET /api/putaway/tasks?status=Closed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.888Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Closed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.889Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.890Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.893Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Closed"
+]
+[2026-01-24T11:54:17.895Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:17.898Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Closed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:17.900Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Closed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:17.917Z] [INFO] 📥 GET /api/putaway/tasks?status=Closed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:17.919Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Closed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:17.920Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:17.921Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:17.925Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Closed"
+]
+[2026-01-24T11:54:17.926Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:17.931Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Closed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:17.933Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Closed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:18.088Z] [INFO] 📥 GET /api/putaway/tasks
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:18.090Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "NOT_PROVIDED",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:18.091Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:18.092Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:18.093Z] [INFO] [Putaway Tasks API] Default status filter: excluding Completed and Cancelled (includes Draft, Open, In Progress)
+[2026-01-24T11:54:18.095Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:18.098Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status NOT IN ('Completed', 'Cancelled')",
+  "params": [],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:18.098Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:18.101Z] [INFO] 📥 GET /api/putaway/tasks
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:18.103Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "NOT_PROVIDED",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:18.104Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:18.108Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:18.111Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:18.113Z] [INFO] [Putaway Tasks API] Default status filter: excluding Completed and Cancelled (includes Draft, Open, In Progress)
+[2026-01-24T11:54:18.116Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:18.120Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status NOT IN ('Completed', 'Cancelled')",
+  "params": [],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:18.122Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:18.126Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:18.360Z] [INFO] 📥 GET /api/putaway/tasks?status=Open
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:18.361Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Open",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:18.362Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:18.363Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:18.365Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Open"
+]
+[2026-01-24T11:54:18.365Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:18.370Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Open"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:18.371Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:18.373Z] [INFO] 📥 GET /api/putaway/tasks?status=Open
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:18.375Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Open",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:18.376Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:18.377Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:18.380Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:18.383Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Open"
+]
+[2026-01-24T11:54:18.383Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:18.389Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Open"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:18.390Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Open",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:18.396Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:32.489Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:32.611Z] [INFO] 📥 GET /api/master/items
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:32.613Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:32.614Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:32.967Z] [INFO] 📥 GET /api/master/asns
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:32.970Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:32.971Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:33.274Z] [INFO] 📥 GET /api/master/transfer-orders
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:33.277Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:33.277Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:33.569Z] [INFO] 📥 GET /api/master/boxes
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:33.571Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:33.573Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:33.875Z] [INFO] 📥 GET /api/master/transfer-cartons
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:33.877Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:33.879Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:34.156Z] [INFO] 📥 GET /api/master/warehouse-racks
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:34.159Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:34.160Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:34.478Z] [INFO] 📥 GET /api/master/warehouses
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:34.481Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:34.484Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:34.782Z] [INFO] 📥 GET /api/warehouses/stores
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:34.783Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:34.784Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:35.064Z] [INFO] 📥 GET /api/master/locations
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:35.066Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:35.067Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:35.438Z] [INFO] 📥 GET /api/master/bin-master
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:35.441Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:35.442Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:35.875Z] [INFO] 📥 GET /api/master/stock-ledger
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:35.877Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:35.878Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.170Z] [INFO] 📥 GET /api/master/item-barcode-map
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:36.173Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:36.175Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.368Z] [INFO] 📥 GET /api/putaway/tasks/PUT-20260124-0001
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:36.371Z] [INFO] [Putaway Task API] Request received for task: PUT-20260124-0001
+[2026-01-24T11:54:36.372Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:36.374Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.386Z] [INFO] [Putaway Task API] Returning task PUT-20260124-0001 with 2 line(s)
+[2026-01-24T11:54:36.539Z] [INFO] 📥 POST /api/putaway/scan-transfer-carton
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:36.541Z] [DEBUG] Request body
+{
+  "location_id": "A1-R02-L1-B2",
+  "user_id": "USER-963229",
+  "warehouse_id": "WH-MAIN",
+  "putaway_task": "PUT-20260124-0001",
+  "box_id": "PAW-ASN365425486-1769255611164"
+}
+[2026-01-24T11:54:36.547Z] [INFO] [Putaway Scan] Entry: location_id=A1-R02-L1-B2, box_id=PAW-ASN365425486-1769255611164, tc_id=NULL, putaway_task=PUT-20260124-0001, carton_id=NULL
+[2026-01-24T11:54:36.550Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:36.552Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.570Z] [WARN] [Putaway] Box PAW-ASN365425486-1769255611164 is Closed but task PUT-20260124-0001 is Open - allowing retry by reopening box
+[2026-01-24T11:54:36.577Z] [INFO] [Putaway] ✅ Reopened box PAW-ASN365425486-1769255611164 for putaway retry (task PUT-20260124-0001 is Open)
+[2026-01-24T11:54:36.586Z] [INFO] [Putaway Validation] Validated ASN putaway box PAW-ASN365425486-1769255611164
+[2026-01-24T11:54:36.587Z] [INFO] [Putaway Scan] Checking location update path: taskTitleToCheck=PUT-20260124-0001, location_id=A1-R02-L1-B2, actualPutawayTask=PUT-20260124-0001
+[2026-01-24T11:54:36.588Z] [INFO] [Putaway Scan] ✅ Location update path triggered: task=PUT-20260124-0001, location=A1-R02-L1-B2
+[2026-01-24T11:54:36.593Z] [INFO] [Putaway] Updating 2 line(s) with location: location_id=A1-R02-L1-B2, rack=Rack 02, bin=B2
+{
+  "hasLineLocationIdColumn": true,
+  "hasLineRack": true,
+  "hasLineBin": true
+}
+[2026-01-24T11:54:36.595Z] [INFO] [Putaway] Including location_id=A1-R02-L1-B2 in UPDATE for line ID 473
+[2026-01-24T11:54:36.595Z] [INFO] [Putaway] Executing UPDATE query: UPDATE tabPutawayLine SET rack = ?, bin = ?, location_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? with params: [Rack 02, B2, A1-R02-L1-B2, 473]
+[2026-01-24T11:54:36.598Z] [INFO] [Putaway] Updated line ID 473: 1 row(s) affected
+[2026-01-24T11:54:36.599Z] [INFO] [Putaway] Including location_id=A1-R02-L1-B2 in UPDATE for line ID 474
+[2026-01-24T11:54:36.601Z] [INFO] [Putaway] Executing UPDATE query: UPDATE tabPutawayLine SET rack = ?, bin = ?, location_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? with params: [Rack 02, B2, A1-R02-L1-B2, 474]
+[2026-01-24T11:54:36.603Z] [INFO] [Putaway] Updated line ID 474: 1 row(s) affected
+[2026-01-24T11:54:36.615Z] [INFO] [Putaway] Triggering stock updates for putaway task PUT-20260124-0001 after location assignment
+[2026-01-24T11:54:36.617Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:36.618Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.624Z] [INFO] [Putaway] 🔵 About to call processPutawayCompletionEvent with params:
+{
+  "event_type": "PUTAWAY_TO_RACK",
+  "putaway_task": "PUT-20260124-0001",
+  "box_id": "PAW-ASN365425486-1769255611164",
+  "carton_id": "PAW-ASN365425486-1769255611164",
+  "location_id": "A1-R02-L1-B2",
+  "rack": "Rack 02",
+  "bin": "B2",
+  "warehouse": "NULL",
+  "user_id": "USER-963229"
+}
+[2026-01-24T11:54:36.634Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.635Z] [INFO] [Putaway Completion] 🔵 ENTRY: processPutawayCompletionEvent called
+[2026-01-24T11:54:36.637Z] [INFO] [Putaway Completion] Connection validation:
+{
+  "hasConnection": true,
+  "connectionType": "object",
+  "hasExecute": true
+}
+[2026-01-24T11:54:36.639Z] [INFO] [Putaway Completion] Event object: {
+  "putaway_task": "PUT-20260124-0001",
+  "tc_id": "NULL",
+  "box_id": "PAW-ASN365425486-1769255611164",
+  "carton_id": "PAW-ASN365425486-1769255611164",
+  "location_id": "A1-R02-L1-B2",
+  "rack": "Rack 02",
+  "bin": "B2",
+  "item_code": "NULL",
+  "qty": "NULL",
+  "user_id": "USER-963229",
+  "store": "NULL",
+  "event_type": "PUTAWAY_TO_RACK"
+}
+[2026-01-24T11:54:36.641Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.642Z] [INFO] [Putaway Completion] 🔍 DEBUG: About to extract event parameters...
+[2026-01-24T11:54:36.643Z] [INFO] [Putaway Completion] 🔍 DEBUG: Event parameters extracted successfully
+[2026-01-24T11:54:36.644Z] [INFO] [Putaway Completion] Step 0: Extracted event parameters:
+{
+  "putaway_task": "PUT-20260124-0001",
+  "tc_id": "NULL",
+  "box_id": "PAW-ASN365425486-1769255611164",
+  "carton_id": "PAW-ASN365425486-1769255611164",
+  "location_id": "A1-R02-L1-B2",
+  "item_code": "NULL",
+  "qty": "NULL"
+}
+[2026-01-24T11:54:36.645Z] [INFO] [Putaway Completion] Step 0a: Initial putawayTaskTitle: PUT-20260124-0001
+[2026-01-24T11:54:36.650Z] [INFO] [Putaway Completion] Step 0b: ✅ putawayTaskTitle resolved: PUT-20260124-0001
+[2026-01-24T11:54:36.650Z] [INFO] [Putaway Completion] Processing putaway task: PUT-20260124-0001, carton_id from event: PAW-ASN365425486-1769255611164, item_code: NULL, qty: NULL, location_id: A1-R02-L1-B2, rack: Rack 02, bin: B2
+[2026-01-24T11:54:36.651Z] [INFO] [Putaway Completion] Step 1: Starting transaction...
+[2026-01-24T11:54:36.653Z] [INFO] [Putaway Completion] ✅ Transaction started
+[2026-01-24T11:54:36.653Z] [INFO] [Putaway Completion] Step 2: Locking putaway task row: PUT-20260124-0001
+[2026-01-24T11:54:36.656Z] [INFO] [Putaway Completion] Task status query result:
+{
+  "found": true,
+  "status": "In Progress"
+}
+[2026-01-24T11:54:36.658Z] [INFO] [Putaway Completion] ✅ Task status check passed: In Progress
+[2026-01-24T11:54:36.664Z] [INFO] [Putaway Completion] Manual trigger detected (item_code=null) - processing all lines for task, not filtering by carton_id
+[2026-01-24T11:54:36.665Z] [INFO] [Putaway Completion] Step 4: Querying putaway lines...
+[2026-01-24T11:54:36.666Z] [INFO] [Putaway Completion] Query: SELECT item_code, qty, rack, bin, carton_id, location_id FROM tabPutawayLine WHERE parent_title = ? AND item_code IS NOT NULL AND qty > 0
+[2026-01-24T11:54:36.668Z] [INFO] [Putaway Completion] Params: [
+  "PUT-20260124-0001"
+]
+[2026-01-24T11:54:36.673Z] [INFO] [Putaway Completion] Putaway lines query result:
+{
+  "lines_count": 2,
+  "lines": [
+    {
+      "item_code": "SKU-HAT-301-BLU-OS",
+      "qty": "25.00",
+      "carton_id": "PAW-ASN365425486-1769255611164",
+      "location_id": "A1-R02-L1-B2",
+      "rack": "Rack 02",
+      "bin": "B2"
+    },
+    {
+      "item_code": "SKU-HAT-301-GRN-OS",
+      "qty": "25.00",
+      "carton_id": "PAW-ASN365425486-1769255611164",
+      "location_id": "A1-R02-L1-B2",
+      "rack": "Rack 02",
+      "bin": "B2"
+    }
+  ]
+}
+[2026-01-24T11:54:36.674Z] [INFO] [Putaway Completion] ✅ Found 2 putaway line(s) for task PUT-20260124-0001
+[2026-01-24T11:54:36.679Z] [WARN] [Putaway Completion] Failed to get warehouse from ASN:
+{
+  "message": "Unknown column 'warehouse' in 'field list'",
+  "code": "ER_BAD_FIELD_ERROR",
+  "errno": 1054,
+  "sql": "SELECT warehouse FROM tabAdvanceShippingNotice WHERE title = ? LIMIT 1",
+  "sqlState": "42S22",
+  "sqlMessage": "Unknown column 'warehouse' in 'field list'"
+}
+[2026-01-24T11:54:36.681Z] [INFO] [Putaway Completion] Step 5: Warehouse resolved: WH-MAIN
+[2026-01-24T11:54:36.682Z] [INFO] [Putaway Completion] Step 5: Starting stock update loop...
+[2026-01-24T11:54:36.683Z] [INFO] [Putaway Completion] Stock update loop parameters:
+{
+  "warehouse": "WH-MAIN",
+  "total_lines": 2,
+  "event_location_id": "A1-R02-L1-B2",
+  "event_rack": "Rack 02",
+  "event_bin": "B2",
+  "event_carton_id": "PAW-ASN365425486-1769255611164",
+  "event_box_id": "PAW-ASN365425486-1769255611164"
+}
+[2026-01-24T11:54:36.684Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.685Z] [INFO] [Putaway Completion] Processing line 1/2
+[2026-01-24T11:54:36.687Z] [INFO] [Putaway Completion] Line data: {
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "qty": "25.00",
+  "carton_id": "PAW-ASN365425486-1769255611164",
+  "location_id": "A1-R02-L1-B2",
+  "rack": "Rack 02",
+  "bin": "B2"
+}
+[2026-01-24T11:54:36.689Z] [INFO] [Putaway Completion] Location determination for line 1:
+{
+  "event_location_id": "A1-R02-L1-B2",
+  "line_location_id": "A1-R02-L1-B2",
+  "line_rack": "Rack 02",
+  "line_bin": "B2",
+  "event_rack": "Rack 02",
+  "event_bin": "B2",
+  "resolved_binLocation": "A1-R02-L1-B2"
+}
+[2026-01-24T11:54:36.689Z] [INFO] [Putaway Completion] Line 1 validation:
+{
+  "itemCode": "SKU-HAT-301-BLU-OS",
+  "lineQty": 25,
+  "binLocation": "A1-R02-L1-B2",
+  "hasItemCode": true,
+  "hasValidQty": true,
+  "hasValidLocation": true
+}
+[2026-01-24T11:54:36.690Z] [INFO] [Putaway Completion] ✅ Line 1 passed validation - processing stock update
+[2026-01-24T11:54:36.691Z] [INFO] [Putaway Completion] Stock update details:
+{
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "qty": 25,
+  "fromLocation": "NULL",
+  "toLocation": "A1-R02-L1-B2",
+  "cartonId": "PAW-ASN365425486-1769255611164",
+  "warehouse": "WH-MAIN"
+}
+[2026-01-24T11:54:36.706Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.707Z] [INFO] [Putaway Completion] 🔵 EXECUTING STOCK LEDGER INSERT/UPDATE
+[2026-01-24T11:54:36.708Z] [INFO] [Putaway Completion] Item: SKU-HAT-301-BLU-OS
+[2026-01-24T11:54:36.708Z] [INFO] [Putaway Completion] Location: A1-R02-L1-B2
+[2026-01-24T11:54:36.709Z] [INFO] [Putaway Completion] Warehouse: WH-MAIN
+[2026-01-24T11:54:36.710Z] [INFO] [Putaway Completion] New Qty: 25
+[2026-01-24T11:54:36.711Z] [INFO] [Putaway Completion] Current Qty: 0
+[2026-01-24T11:54:36.711Z] [INFO] [Putaway Completion] SQL: INSERT INTO tabStockLedger (item_code, warehouse, bin_location, qty, reserved_qty, qty_before, qty_reduced, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'Putaway', ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE qty = ?, qty_before = ?, qty_reduced = ?, last_transaction_date = NOW(), last_transaction_type = 'Putaway', last_transaction_ref = ?, updated_at = NOW()
+[2026-01-24T11:54:36.713Z] [INFO] [Putaway Completion] Insert Params: [
+  "SKU-HAT-301-BLU-OS",
+  "WH-MAIN",
+  "A1-R02-L1-B2",
+  25,
+  0,
+  0,
+  25,
+  "PUT-20260124-0001"
+]
+[2026-01-24T11:54:36.714Z] [INFO] [Putaway Completion] Update Params: [
+  25,
+  0,
+  25,
+  "PUT-20260124-0001"
+]
+[2026-01-24T11:54:36.714Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.718Z] [INFO] [Putaway Completion] ✅ STOCK LEDGER UPDATE RESULT:
+{
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "bin_location": "A1-R02-L1-B2",
+  "warehouse": "WH-MAIN",
+  "new_qty": 25,
+  "affectedRows": 1,
+  "insertId": 188,
+  "changedRows": 0
+}
+[2026-01-24T11:54:36.741Z] [INFO] [Putaway Completion] 🔍 Adding qty_before: 0 (needsQtyBefore: true, currentQty: 0)
+[2026-01-24T11:54:36.741Z] [INFO] [Putaway Completion] 🔍 Adding qty_after: 25 (needsQtyAfter: true, newQty: 25)
+[2026-01-24T11:54:36.744Z] [INFO] [Putaway Completion] ⚠️ SKIPPING duplicate transaction history insert (idempotency check)
+{
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "location": "A1-R02-L1-B2",
+  "reference_doc": "PUT-20260124-0001",
+  "existing_id": 98
+}
+[2026-01-24T11:54:36.745Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.746Z] [INFO] [Putaway Completion] Processing line 2/2
+[2026-01-24T11:54:36.748Z] [INFO] [Putaway Completion] Line data: {
+  "item_code": "SKU-HAT-301-GRN-OS",
+  "qty": "25.00",
+  "carton_id": "PAW-ASN365425486-1769255611164",
+  "location_id": "A1-R02-L1-B2",
+  "rack": "Rack 02",
+  "bin": "B2"
+}
+[2026-01-24T11:54:36.749Z] [INFO] [Putaway Completion] Location determination for line 2:
+{
+  "event_location_id": "A1-R02-L1-B2",
+  "line_location_id": "A1-R02-L1-B2",
+  "line_rack": "Rack 02",
+  "line_bin": "B2",
+  "event_rack": "Rack 02",
+  "event_bin": "B2",
+  "resolved_binLocation": "A1-R02-L1-B2"
+}
+[2026-01-24T11:54:36.750Z] [INFO] [Putaway Completion] Line 2 validation:
+{
+  "itemCode": "SKU-HAT-301-GRN-OS",
+  "lineQty": 25,
+  "binLocation": "A1-R02-L1-B2",
+  "hasItemCode": true,
+  "hasValidQty": true,
+  "hasValidLocation": true
+}
+[2026-01-24T11:54:36.750Z] [INFO] [Putaway Completion] ✅ Line 2 passed validation - processing stock update
+[2026-01-24T11:54:36.751Z] [INFO] [Putaway Completion] Stock update details:
+{
+  "item_code": "SKU-HAT-301-GRN-OS",
+  "qty": 25,
+  "fromLocation": "NULL",
+  "toLocation": "A1-R02-L1-B2",
+  "cartonId": "PAW-ASN365425486-1769255611164",
+  "warehouse": "WH-MAIN"
+}
+[2026-01-24T11:54:36.756Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.757Z] [INFO] [Putaway Completion] 🔵 EXECUTING STOCK LEDGER INSERT/UPDATE
+[2026-01-24T11:54:36.758Z] [INFO] [Putaway Completion] Item: SKU-HAT-301-GRN-OS
+[2026-01-24T11:54:36.758Z] [INFO] [Putaway Completion] Location: A1-R02-L1-B2
+[2026-01-24T11:54:36.760Z] [INFO] [Putaway Completion] Warehouse: WH-MAIN
+[2026-01-24T11:54:36.761Z] [INFO] [Putaway Completion] New Qty: 25
+[2026-01-24T11:54:36.763Z] [INFO] [Putaway Completion] Current Qty: 0
+[2026-01-24T11:54:36.764Z] [INFO] [Putaway Completion] SQL: INSERT INTO tabStockLedger (item_code, warehouse, bin_location, qty, reserved_qty, qty_before, qty_reduced, last_transaction_date, last_transaction_type, last_transaction_ref, updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'Putaway', ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE qty = ?, qty_before = ?, qty_reduced = ?, last_transaction_date = NOW(), last_transaction_type = 'Putaway', last_transaction_ref = ?, updated_at = NOW()
+[2026-01-24T11:54:36.765Z] [INFO] [Putaway Completion] Insert Params: [
+  "SKU-HAT-301-GRN-OS",
+  "WH-MAIN",
+  "A1-R02-L1-B2",
+  25,
+  0,
+  0,
+  25,
+  "PUT-20260124-0001"
+]
+[2026-01-24T11:54:36.766Z] [INFO] [Putaway Completion] Update Params: [
+  25,
+  0,
+  25,
+  "PUT-20260124-0001"
+]
+[2026-01-24T11:54:36.768Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.772Z] [INFO] [Putaway Completion] ✅ STOCK LEDGER UPDATE RESULT:
+{
+  "item_code": "SKU-HAT-301-GRN-OS",
+  "bin_location": "A1-R02-L1-B2",
+  "warehouse": "WH-MAIN",
+  "new_qty": 25,
+  "affectedRows": 1,
+  "insertId": 189,
+  "changedRows": 0
+}
+[2026-01-24T11:54:36.789Z] [INFO] [Putaway Completion] 🔍 Adding qty_before: 0 (needsQtyBefore: true, currentQty: 0)
+[2026-01-24T11:54:36.790Z] [INFO] [Putaway Completion] 🔍 Adding qty_after: 25 (needsQtyAfter: true, newQty: 25)
+[2026-01-24T11:54:36.792Z] [INFO] [Putaway Completion] ⚠️ SKIPPING duplicate transaction history insert (idempotency check)
+{
+  "item_code": "SKU-HAT-301-GRN-OS",
+  "location": "A1-R02-L1-B2",
+  "reference_doc": "PUT-20260124-0001",
+  "existing_id": 99
+}
+[2026-01-24T11:54:36.834Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.834Z] [INFO] [Putaway Completion] Step 6: Stock update loop completed
+[2026-01-24T11:54:36.836Z] [INFO] [Putaway Completion] Summary:
+{
+  "processed": 2,
+  "skipped": 0,
+  "total_lines": 2,
+  "success_rate": "100.0%"
+}
+[2026-01-24T11:54:36.836Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.837Z] [INFO] [Putaway Completion] Step 7: Marking putaway task as Completed...
+[2026-01-24T11:54:36.844Z] [INFO] [Putaway Completion] Status update result:
+{
+  "affectedRows": 1
+}
+[2026-01-24T11:54:36.844Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.845Z] [INFO] [Putaway Completion] Step 8: COMMITTING TRANSACTION
+[2026-01-24T11:54:36.846Z] [INFO] [Putaway Completion] Task: PUT-20260124-0001
+[2026-01-24T11:54:36.847Z] [INFO] [Putaway Completion] Processed: 2, Skipped: 0
+[2026-01-24T11:54:36.848Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.855Z] [INFO] [Putaway Completion] ✅✅✅ TRANSACTION COMMITTED SUCCESSFULLY ✅✅✅
+[2026-01-24T11:54:36.856Z] [INFO] [Putaway Completion] Task: PUT-20260124-0001
+[2026-01-24T11:54:36.856Z] [INFO] [Putaway Completion] ========================================
+[2026-01-24T11:54:36.859Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:36.859Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:36.867Z] [INFO] [Putaway Completion] ✅ Successfully completed putaway task PUT-20260124-0001 - stock updated, task marked as Completed
+{
+  "stock_ledger_entries": 2,
+  "transaction_history_entries": 2,
+  "processed_lines": 2,
+  "skipped_lines": 0,
+  "putaway_task": "PUT-20260124-0001"
+}
+[2026-01-24T11:54:36.869Z] [INFO] [Putaway] ✅ Stock updates completed for putaway task PUT-20260124-0001
+{
+  "result": "undefined (function may not return value)"
+}
+[2026-01-24T11:54:36.870Z] [INFO] [Putaway] Updated location for putaway task PUT-20260124-0001: A1-R02-L1-B2 (2 lines updated)
+{
+  "putaway_task": "PUT-20260124-0001",
+  "location_id": "A1-R02-L1-B2",
+  "rack": "Rack 02",
+  "bin": "B2",
+  "lines_updated": 2,
+  "hasLineLocationIdColumn": true,
+  "hasLineRack": true,
+  "hasLineBin": true
+}
+[2026-01-24T11:54:37.248Z] [INFO] 📥 GET /api/putaway/tasks?asn_no=ASN-365425486&source_type=ASN&status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:37.250Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:37.251Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:37.254Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:37.257Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:37.258Z] [INFO] [Putaway Tasks API] Source type filter applied: ASN
+[2026-01-24T11:54:37.264Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?) AND COALESCE(pt.source_type, \"ASN\") = ?",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress",
+    "ASN"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:37.266Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:37.466Z] [INFO] 📥 GET /api/putaway/tasks?status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:37.468Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:37.470Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:37.471Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:37.476Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:37.478Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:37.481Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?)",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:37.483Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:37.700Z] [INFO] 📥 GET /api/putaway/tasks?status=Completed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:37.702Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Completed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:37.702Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:37.703Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:37.705Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Completed"
+]
+[2026-01-24T11:54:37.706Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:37.710Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Completed"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:37.711Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Completed",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:37.718Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:37.870Z] [INFO] 📥 GET /api/putaway/tasks?status=Closed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:37.873Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Closed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:37.874Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:37.876Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:37.879Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Closed"
+]
+[2026-01-24T11:54:37.881Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:37.886Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Closed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:37.889Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Closed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:38.113Z] [INFO] 📥 GET /api/putaway/tasks?status=Open
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:38.114Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Open",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:38.115Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:38.116Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:38.117Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Open"
+]
+[2026-01-24T11:54:38.118Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:38.120Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Open"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:38.120Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Open",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.224Z] [INFO] 📥 GET /api/putaway/tasks?asn_no=ASN-365425486&source_type=ASN&status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.225Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.226Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.227Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.230Z] [INFO] 📥 GET /api/putaway/tasks?asn_no=ASN-365425486&source_type=ASN&status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.232Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.232Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.235Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.237Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:39.238Z] [INFO] [Putaway Tasks API] Source type filter applied: ASN
+[2026-01-24T11:54:39.242Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:39.243Z] [INFO] [Putaway Tasks API] Source type filter applied: ASN
+[2026-01-24T11:54:39.246Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?) AND COALESCE(pt.source_type, \"ASN\") = ?",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress",
+    "ASN"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.248Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.251Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?) AND COALESCE(pt.source_type, \"ASN\") = ?",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress",
+    "ASN"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.253Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ASN",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.407Z] [INFO] 📥 GET /api/putaway/tasks?status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.408Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.410Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.411Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.412Z] [INFO] 📥 GET /api/putaway/tasks?status=Draft%2COpen%2CIn+Progress
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.414Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.416Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.421Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.423Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:39.425Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.429Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Draft",
+  "Open",
+  "In Progress"
+]
+[2026-01-24T11:54:39.431Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.437Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?)",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.440Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.443Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?,?,?)",
+  "params": [
+    "Draft",
+    "Open",
+    "In Progress"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.445Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Draft,Open,In Progress",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.681Z] [INFO] 📥 GET /api/putaway/tasks?status=Completed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.683Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Completed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.685Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.687Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.688Z] [INFO] 📥 GET /api/putaway/tasks?status=Completed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.690Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Completed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.691Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.693Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.695Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Completed"
+]
+[2026-01-24T11:54:39.698Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.700Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Completed"
+]
+[2026-01-24T11:54:39.701Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.703Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Completed"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:39.704Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Completed",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:39.705Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Completed"
+  ],
+  "tasks_found": 1
+}
+[2026-01-24T11:54:39.705Z] [INFO] [Putaway Tasks API] Tasks found:
+[
+  {
+    "title": "PUT-20260124-0001",
+    "status": "Completed",
+    "source_type": "ASN",
+    "transfer_in": "NULL"
+  }
+]
+[2026-01-24T11:54:39.710Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:39.712Z] [INFO] [Putaway Tasks API] Returning 1 task(s) to client
+[2026-01-24T11:54:39.851Z] [INFO] 📥 GET /api/putaway/tasks?status=Closed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.853Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Closed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.854Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.856Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.858Z] [INFO] 📥 GET /api/putaway/tasks?status=Closed
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:39.859Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Closed",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:39.861Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:39.862Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:39.864Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Closed"
+]
+[2026-01-24T11:54:39.866Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.870Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Closed"
+]
+[2026-01-24T11:54:39.872Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:39.876Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Closed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.877Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Closed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:39.879Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Closed"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:39.880Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Closed",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:40.087Z] [INFO] 📥 GET /api/putaway/tasks?status=Open
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:40.088Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Open",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:40.089Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:40.090Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:40.093Z] [INFO] 📥 GET /api/putaway/tasks?status=Open
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:40.094Z] [INFO] [Putaway Tasks API] Request received:
+{
+  "status": "Open",
+  "source_type": "NOT_PROVIDED",
+  "advance_shipping_notice": "NOT_PROVIDED",
+  "transfer_in": "NOT_PROVIDED"
+}
+[2026-01-24T11:54:40.095Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:40.097Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:40.099Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Open"
+]
+[2026-01-24T11:54:40.100Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:40.104Z] [INFO] [Putaway Tasks API] Status filter applied:
+[
+  "Open"
+]
+[2026-01-24T11:54:40.105Z] [INFO] [Putaway Tasks API] No source_type filter - will return all source types (ASN and TransferIn)
+[2026-01-24T11:54:40.107Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Open"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:40.108Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Open",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:40.109Z] [INFO] [Putaway Tasks API] Query executed:
+{
+  "whereClause": "WHERE pt.status IN (?)",
+  "params": [
+    "Open"
+  ],
+  "tasks_found": 0
+}
+[2026-01-24T11:54:40.110Z] [WARN] [Putaway Tasks API] No tasks found with filters:
+{
+  "status": "Open",
+  "source_type": "ALL",
+  "advance_shipping_notice": "ALL",
+  "transfer_in": "ALL"
+}
+[2026-01-24T11:54:47.164Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:54:48.372Z] [INFO] 📥 GET /api/stock/item/SKU-HAT-301-BLU-OS/warehouse/WH-MAIN?format=flat
+{
+  "IP": "127.0.0.1",
+  "UserAgent": "unknown"
+}
+[2026-01-24T11:54:48.376Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:54:48.378Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:54:48.379Z] [INFO] [Stock Ledger] Item Location Breakdown API called
+{
+  "original_warehouse": "WH-MAIN",
+  "normalized_warehouse": "WH-MAIN",
+  "whUpper": "WH-MAIN",
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "bin_location_filter": null,
+  "normalized_bin_location": null
+}
+[2026-01-24T11:54:48.397Z] [INFO] [Stock Ledger] Found 1 carton(s) from tabTransactionHistory for item SKU-HAT-301-BLU-OS across all bins
+[2026-01-24T11:54:48.398Z] [INFO] [Stock Ledger] Transaction History cartons (raw): [
+  {
+    "carton_id": "PAW-ASN365425486-1769255611164",
+    "location_id": "A1-R02-L1-B2",
+    "qty_after": "25.00"
+  }
+]
+[2026-01-24T11:54:48.400Z] [INFO] [Stock Ledger] Processing carton PAW-ASN365425486-1769255611164: location_id=A1-R02-L1-B2, resolved=A1-R02-L1-B2, final=A1-R02-L1-B2
+[2026-01-24T11:54:48.403Z] [INFO] [Stock Ledger] ✅ Added carton PAW-ASN365425486-1769255611164 to bin A1-R02-L1-B2 with qty 25
+[2026-01-24T11:54:48.405Z] [INFO] [Stock Ledger] Processed Transaction History: 1 added, 0 updated
+[2026-01-24T11:54:48.415Z] [INFO] [Stock Ledger] Skipping bin A1-R02-L1-B2 - already exists in map
+[2026-01-24T11:54:48.419Z] [INFO] [Stock Ledger] Item Location Breakdown response
+{
+  "item_code": "SKU-HAT-301-BLU-OS",
+  "warehouse": "WH-MAIN",
+  "normalized_warehouse": "WH-MAIN",
+  "bin_location_filter": null,
+  "normalized_bin_location": null,
+  "format": "flat",
+  "grouped_count": 1,
+  "flat_count": 1,
+  "sample_bin": "A1-R02-L1-B2",
+  "sample_carton_id": "PAW-ASN365425486-1769255611164",
+  "cartons_with_ids": 1,
+  "cartons_without_ids": 0
+}
+[2026-01-24T11:54:48.421Z] [INFO] [Stock Ledger] Sample flat response entries: [
+  {
+    "location_id": "A1-R02-L1-B2",
+    "carton_id": "PAW-ASN365425486-1769255611164",
+    "qty": 25,
+    "available_qty": 25
+  }
+]
+[2026-01-24T11:55:02.451Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:55:17.271Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:55:32.421Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:55:46.181Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:55:48.453Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:55:53.996Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:02.403Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:06.180Z] [INFO] 📥 GET /api/relocation/carton/PAW-ASN365425486-1769255611164/contents
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:06.183Z] [DEBUG] Requesting database connection from pool
+[2026-01-24T11:56:06.185Z] [DEBUG] Database connection obtained from pool
+[2026-01-24T11:56:16.160Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:18.431Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:18.871Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:32.434Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:46.216Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:48.426Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:56:48.873Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:02.426Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:16.224Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:18.462Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:18.893Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:32.455Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:46.212Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:48.454Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:57:48.886Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
+[2026-01-24T11:58:02.457Z] [INFO] 📥 GET /api/health
+{
+  "IP": "192.168.103.205",
+  "UserAgent": "okhttp/4.12.0"
+}
