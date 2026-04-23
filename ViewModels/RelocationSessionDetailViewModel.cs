@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Wms.Desktop.Models;
@@ -17,6 +18,10 @@ public sealed class RelocationSessionDetailViewModel : BaseViewModel
     private string? _policy;
     private CartonContents? _fromCartonContents;
     private CartonContents? _toCartonContents;
+    private string? _erpTransactionNo;
+
+    /// <summary>Lines that will be sent to ERPNext (for display and for push). Populated from session lines or FROM carton contents.</summary>
+    public List<RelocationLine>? ResolvedPushLines { get; set; }
 
     public RelocationSession? Session
     {
@@ -42,6 +47,7 @@ public sealed class RelocationSessionDetailViewModel : BaseViewModel
                     {
                         Lines.Add(line);
                     }
+                    ErpTransactionNo = value.ErpTransactionNo;
                 }
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(SessionId));
@@ -51,6 +57,35 @@ public sealed class RelocationSessionDetailViewModel : BaseViewModel
                 OnPropertyChanged(nameof(CanCommitFull));
                 OnPropertyChanged(nameof(CanCommitPartial));
                 OnPropertyChanged(nameof(CanViewCartonContents));
+                OnPropertyChanged(nameof(CanPushToErpNext));
+            }
+        }
+    }
+
+    /// <summary>Full item details to show before Push to ERPNext (Item Code, Qty, From/To Bin, From/To Carton). Always shown when session is COMPLETED.</summary>
+    public ObservableCollection<RelocationPushLineDisplay> ItemsToPush { get; } = new();
+
+    /// <summary>Set the push preview from session lines or from carton-derived lines. Call after loading session or carton contents.</summary>
+    public void SetPushPreview(IEnumerable<RelocationPushLineDisplay> displayLines, List<RelocationLine>? resolvedLines)
+    {
+        ItemsToPush.Clear();
+        foreach (var line in displayLines ?? Array.Empty<RelocationPushLineDisplay>())
+            ItemsToPush.Add(line);
+        ResolvedPushLines = resolvedLines;
+        OnPropertyChanged(nameof(ItemsToPush));
+        OnPropertyChanged(nameof(ResolvedPushLines));
+    }
+
+    /// <summary>ERPNext document number after push (e.g. Stock Entry or Relocation doc).</summary>
+    public string? ErpTransactionNo
+    {
+        get => _erpTransactionNo;
+        set
+        {
+            if (_erpTransactionNo != value)
+            {
+                _erpTransactionNo = value;
+                OnPropertyChanged();
             }
         }
     }
@@ -198,6 +233,9 @@ public sealed class RelocationSessionDetailViewModel : BaseViewModel
                                     !string.IsNullOrWhiteSpace(FromCarton) && !string.IsNullOrWhiteSpace(ToCarton) &&
                                     !string.IsNullOrWhiteSpace(ToBin) && // Require ToBin for partial/carton-to-carton moves
                                     (Lines.Count > 0 || Mode == "CARTON_TO_CARTON");
+
+    /// <summary>True when session is COMPLETED and can be pushed to ERPNext.</summary>
+    public bool CanPushToErpNext => Session != null && Status == "COMPLETED";
 
     public ObservableCollection<RelocationLine> Lines { get; } = new();
 

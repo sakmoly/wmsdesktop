@@ -205,6 +205,11 @@ public static class RelocationApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
 
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
+            // Remove trailing /api if present to avoid double /api/api
+            if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+            {
+                baseUrl = baseUrl.Substring(0, baseUrl.Length - 4).TrimEnd('/');
+            }
             var apiUrl = $"{baseUrl}/api/carton/{cartonId}/contents";
 
             var response = await httpClient.GetAsync(apiUrl);
@@ -564,6 +569,10 @@ public static class RelocationApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
 
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
+            if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+            {
+                baseUrl = baseUrl.Substring(0, baseUrl.Length - 4).TrimEnd('/');
+            }
             var apiUrl = $"{baseUrl}/api/relocation/session/{sessionId}";
 
             var response = await httpClient.GetAsync(apiUrl);

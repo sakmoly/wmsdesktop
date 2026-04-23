@@ -280,49 +280,51 @@ public static class WmsTransactionDataService
 
             ErrorLogService.LogInfo($"WmsTransactionDataService: Successfully saved transaction '{transaction.Title}'");
 
-            // Update stock if transaction is completed
+            // Update stock if transaction is completed (use warehouse code for consistency in Stock Ledger)
             if (transaction.TransactionStatus == "Completed")
             {
                 try
                 {
+                    var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+                    var targetWarehouseCode = WarehouseDataService.ResolveToCode(transaction.TargetWarehouse, warehouses) ?? transaction.TargetWarehouse;
+                    var sourceWarehouseCode = WarehouseDataService.ResolveToCode(transaction.SourceWarehouse, warehouses) ?? transaction.SourceWarehouse;
+
                     switch (transaction.OperationType)
                     {
                         case OperationType.Receiving:
-                            // Check if this is a Transfer In receiving (by reference doc type)
                             if (transaction.ReferenceDocType == "Transfer In")
                             {
                                 await StockLedgerService.UpdateStockAfterTransferInAsync(
-                                    settings, transaction.Title, transaction.TargetWarehouse);
+                                    settings, transaction.Title, targetWarehouseCode);
                             }
                             else
                             {
                                 await StockLedgerService.UpdateStockAfterReceivingAsync(
-                                    settings, transaction.Title, transaction.TargetWarehouse);
+                                    settings, transaction.Title, targetWarehouseCode);
                             }
                             break;
 
                         case OperationType.Putaway:
                             await StockLedgerService.UpdateStockAfterPutawayAsync(
-                                settings, transaction.Title, transaction.TargetWarehouse);
+                                settings, transaction.Title, targetWarehouseCode);
                             break;
 
                         case OperationType.Picking:
-                            // Check if this is a Material Request picking (by reference doc type)
                             if (transaction.ReferenceDocType == "Material Request")
                             {
                                 await StockLedgerService.UpdateStockAfterMaterialRequestAsync(
-                                    settings, transaction.Title, transaction.SourceWarehouse);
+                                    settings, transaction.Title, sourceWarehouseCode);
                             }
                             else
                             {
                                 await StockLedgerService.UpdateStockAfterPickingAsync(
-                                    settings, transaction.Title, transaction.SourceWarehouse);
+                                    settings, transaction.Title, sourceWarehouseCode);
                             }
                             break;
 
                         case OperationType.CycleCount:
                             await StockLedgerService.UpdateStockAfterCycleCountAsync(
-                                settings, transaction.Title, transaction.SourceWarehouse);
+                                settings, transaction.Title, sourceWarehouseCode);
                             break;
                     }
                 }
@@ -331,6 +333,9 @@ public static class WmsTransactionDataService
                     // Log error but don't fail the transaction save
                     ErrorLogService.LogError($"WmsTransactionDataService: Error updating stock for transaction '{transaction.Title}'", stockEx);
                 }
+
+                // Push WMS snapshot to ERPNext so stock stays in sync (fire-and-forget)
+                WmsSnapshotDataService.TryPushSnapshotAfterTransaction(settings);
             }
 
             return true;

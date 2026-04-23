@@ -32,13 +32,14 @@
                 BorderBrush="#E5E7EB"
                 BorderThickness="1">
             <DataGrid x:Name="TransferCartonGrid"
-                      ItemsSource="{Binding TransferCartons}"
-                      AutoGenerateColumns="False"
-                      HeadersVisibility="Column"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
-                      CanUserResizeRows="False"
-                      IsReadOnly="True">
+                          ItemsSource="{Binding TransferCartons}"
+                          SelectionMode="Extended"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserResizeRows="False"
+                          IsReadOnly="True">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Transfer Carton ID"
                                         Binding="{Binding TcId}"

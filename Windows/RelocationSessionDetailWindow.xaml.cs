@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -111,11 +112,119 @@ public partial class RelocationSessionDetailWindow : Window
             if (success && session != null)
             {
                 _viewModel.Session = session;
+                var (savedTransactionNo, savedLines) = await RelocationErpPushDataService.GetAsync(settings, session.SessionId);
+                if (!string.IsNullOrWhiteSpace(savedTransactionNo))
+                    _viewModel.ErpTransactionNo = savedTransactionNo;
+                if (savedLines != null && savedLines.Count > 0 && (session.Lines == null || session.Lines.Count == 0))
+                {
+                    var fromBin = (session.FromBin ?? "").Trim();
+                    var toBin = (session.ToBin ?? "").Trim();
+                    var fromCarton = (session.FromCarton ?? "").Trim();
+                    var toCarton = (session.ToCarton ?? "").Trim();
+                    var displayLines = savedLines.ConvertAll(l => new RelocationPushLineDisplay
+                    {
+                        ItemCode = l.ItemCode ?? "",
+                        Qty = l.QtyMoved,
+                        FromBin = fromBin,
+                        ToBin = toBin,
+                        FromCarton = fromCarton,
+                        ToCarton = toCarton
+                    });
+                    _viewModel.SetPushPreview(displayLines, savedLines);
+                }
+                else
+                    await LoadPushPreviewAsync();
             }
         }
         catch (Exception ex)
         {
             ErrorLogService.LogError("Error loading relocation session", ex);
+        }
+    }
+
+    /// <summary>Populate ItemsToPush and ResolvedPushLines so user sees full item details before Push to ERPNext.</summary>
+    private async Task LoadPushPreviewAsync()
+    {
+        var session = _viewModel.Session;
+        if (session == null || !string.Equals(session.Status, "COMPLETED", StringComparison.OrdinalIgnoreCase))
+        {
+            _viewModel.SetPushPreview(Array.Empty<RelocationPushLineDisplay>(), null);
+            return;
+        }
+
+        var fromBin = (session.FromBin ?? "").Trim();
+        var toBin = (session.ToBin ?? "").Trim();
+        var fromCarton = (session.FromCarton ?? "").Trim();
+        var toCarton = (session.ToCarton ?? "").Trim();
+
+        var sessionLines = (session.Lines ?? Array.Empty<RelocationLine>()).ToList();
+        if (sessionLines.Count > 0)
+        {
+            var display = sessionLines
+                .Where(l => !string.IsNullOrWhiteSpace(l.ItemCode))
+                .Select((l, i) => new RelocationPushLineDisplay
+                {
+                    ItemCode = l.ItemCode ?? "",
+                    Qty = l.QtyMoved,
+                    FromBin = fromBin,
+                    ToBin = toBin,
+                    FromCarton = fromCarton,
+                    ToCarton = toCarton
+                })
+                .ToList();
+            _viewModel.SetPushPreview(display, sessionLines.Where(l => !string.IsNullOrWhiteSpace(l.ItemCode)).ToList());
+            return;
+        }
+
+        if (string.IsNullOrEmpty(fromCarton))
+        {
+            _viewModel.SetPushPreview(Array.Empty<RelocationPushLineDisplay>(), null);
+            return;
+        }
+
+        try
+        {
+            var settings = SettingsService.LoadSettings();
+            if (settings == null)
+            {
+                _viewModel.SetPushPreview(Array.Empty<RelocationPushLineDisplay>(), null);
+                return;
+            }
+
+            var (contentsOk, _, contents) = await RelocationApiService.GetCartonContentsAsync(settings, fromCarton);
+            if (!contentsOk || contents?.Items == null || contents.Items.Count == 0)
+            {
+                _viewModel.SetPushPreview(Array.Empty<RelocationPushLineDisplay>(), null);
+                return;
+            }
+
+            var resolvedLines = new List<RelocationLine>();
+            var displayLines = new List<RelocationPushLineDisplay>();
+            foreach (var item in contents.Items.Where(i => !string.IsNullOrWhiteSpace(i.ItemCode)))
+            {
+                resolvedLines.Add(new RelocationLine
+                {
+                    ItemCode = item.ItemCode,
+                    QtyMoved = item.Qty,
+                    Barcode = null,
+                    CreatedAt = null
+                });
+                displayLines.Add(new RelocationPushLineDisplay
+                {
+                    ItemCode = item.ItemCode,
+                    Qty = item.Qty,
+                    FromBin = fromBin,
+                    ToBin = toBin,
+                    FromCarton = fromCarton,
+                    ToCarton = toCarton
+                });
+            }
+            _viewModel.SetPushPreview(displayLines, resolvedLines);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("Error loading push preview", ex);
+            _viewModel.SetPushPreview(Array.Empty<RelocationPushLineDisplay>(), null);
         }
     }
 
@@ -436,6 +545,46 @@ public partial class RelocationSessionDetailWindow : Window
         catch (Exception ex)
         {
             ErrorLogService.LogError("Error committing partial move", ex);
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void PushToErpNext_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = SettingsService.LoadSettings();
+            if (settings == null || _viewModel.Session == null)
+            {
+                MessageBox.Show("Settings not found or session not initialized.", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var (success, error, transactionNo) = await ErpNextWmsSyncApiService.PushRelocationSessionToErpNextAsync(settings, _viewModel.Session, _viewModel.ResolvedPushLines);
+
+            if (success)
+            {
+                if (!string.IsNullOrWhiteSpace(transactionNo))
+                    _viewModel.ErpTransactionNo = transactionNo;
+                await RelocationErpPushDataService.SaveAsync(settings, _viewModel.Session.SessionId, transactionNo, _viewModel.ResolvedPushLines);
+                MessageBox.Show(
+                    string.IsNullOrWhiteSpace(transactionNo)
+                        ? "Relocation session pushed to ERPNext successfully."
+                        : $"Pushed to ERPNext successfully.\n\nTransaction: {transactionNo}",
+                    "Push to ERPNext",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show($"Failed to push to ERPNext:\n\n{error}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("Error pushing relocation to ERPNext", ex);
             MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

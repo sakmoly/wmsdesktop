@@ -28,9 +28,13 @@ public static class TransferCartonDataService
             var schemaInfo = await DetectSchemaAsync(connection);
             ErrorLogService.LogInfo($"Detected schema: AsnColumn={schemaInfo.AsnColumn}, ToColumn={schemaInfo.ToColumn}");
 
-            // Build SQL query based on detected schema
+            await DatabaseService.EnsureTabTransferCartonPrAndStockEntryColumnsAsync(settings);
+
+            // Build SQL query based on detected schema (include PR and Stock Entry columns)
             var sql = $@"SELECT tc_id, status, {schemaInfo.AsnColumn}, {schemaInfo.ToColumn}, store, 
-                               created_by, created_on, sealed_by, sealed_on, dispatched_on, remarks
+                               created_by, created_on, sealed_by, sealed_on, dispatched_on, remarks,
+                               purchase_receipt_no, purchase_receipt_docstatus, purchase_receipt_created, purchase_receipt_submitted,
+                               warehouse_transfer_no, warehouse_transfer_created
                         FROM tabTransferCarton
                         ORDER BY created_on DESC, tc_id";
             
@@ -42,20 +46,7 @@ public static class TransferCartonDataService
             while (await reader.ReadAsync())
             {
                 rowCount++;
-                cartons.Add(new TransferCarton
-                {
-                    TcId = reader.GetString(0),
-                    Status = reader.GetString(1),
-                    AdvanceShippingNotice = reader.IsDBNull(2) ? null : reader.GetString(2), // Handle NULL for Material Request transfer cartons
-                    TransferOrder = reader.IsDBNull(3) ? null : reader.GetString(3), // Handle NULL for Material Request transfer cartons
-                    Store = reader.GetString(4),
-                    CreatedBy = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    CreatedOn = reader.GetDateTime(6),
-                    SealedBy = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    SealedOn = reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-                    DispatchedOn = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
-                    Remarks = reader.IsDBNull(10) ? null : reader.GetString(10)
-                });
+                cartons.Add(ReadTransferCartonFromReader(reader));
             }
             
             ErrorLogService.LogInfo($"Loaded {rowCount} transfer cartons from database");
@@ -66,6 +57,31 @@ public static class TransferCartonDataService
         }
 
         return cartons;
+    }
+
+    private static TransferCarton ReadTransferCartonFromReader(System.Data.Common.DbDataReader reader)
+    {
+        var hasPrColumns = reader.FieldCount >= 17;
+        return new TransferCarton
+        {
+            TcId = reader.GetString(0),
+            Status = reader.GetString(1),
+            AdvanceShippingNotice = reader.IsDBNull(2) ? null : reader.GetString(2),
+            TransferOrder = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Store = reader.GetString(4),
+            CreatedBy = reader.IsDBNull(5) ? null : reader.GetString(5),
+            CreatedOn = reader.GetDateTime(6),
+            SealedBy = reader.IsDBNull(7) ? null : reader.GetString(7),
+            SealedOn = reader.IsDBNull(8) ? null : reader.GetDateTime(8),
+            DispatchedOn = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
+            Remarks = reader.IsDBNull(10) ? null : reader.GetString(10),
+            PurchaseReceiptNo = hasPrColumns && !reader.IsDBNull(11) ? reader.GetString(11) : null,
+            PurchaseReceiptDocstatus = hasPrColumns && !reader.IsDBNull(12) ? Convert.ToInt32(reader.GetValue(12)) : null,
+            PurchaseReceiptCreated = hasPrColumns && !reader.IsDBNull(13) ? (Convert.ToInt32(reader.GetValue(13)) != 0) : null,
+            PurchaseReceiptSubmitted = hasPrColumns && !reader.IsDBNull(14) ? (Convert.ToInt32(reader.GetValue(14)) != 0) : null,
+            WarehouseTransferNo = hasPrColumns && !reader.IsDBNull(15) ? reader.GetString(15) : null,
+            WarehouseTransferCreated = hasPrColumns && !reader.IsDBNull(16) ? (Convert.ToInt32(reader.GetValue(16)) != 0) : null
+        };
     }
 
     /// <summary>
@@ -487,9 +503,12 @@ public static class TransferCartonDataService
                 await transaction.CommitAsync();
                 ErrorLogService.LogInfo($"TransferCartonDataService: Successfully dispatched transfer carton {tcId}");
 
+                // Push WMS snapshot to ERPNext so stock stays in sync (fire-and-forget)
+                WmsSnapshotDataService.TryPushSnapshotAfterTransaction(settings);
+
                 return (true, $"Transfer carton {tcId} dispatched successfully");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 await transaction.RollbackAsync();
                 throw;
@@ -509,16 +528,17 @@ public static class TransferCartonDataService
     {
         try
         {
+            await DatabaseService.EnsureTabTransferCartonPrAndStockEntryColumnsAsync(settings);
             ErrorLogService.LogInfo($"TransferCartonDataService: Loading transfer carton {tcId}");
             var connectionString = DatabaseService.BuildConnectionString(settings);
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            // Detect schema
             var schemaInfo = await DetectSchemaAsync(connection);
-
             var sql = $@"SELECT tc_id, status, {schemaInfo.AsnColumn}, {schemaInfo.ToColumn}, store, 
-                               created_by, created_on, sealed_by, sealed_on, dispatched_on, remarks
+                               created_by, created_on, sealed_by, sealed_on, dispatched_on, remarks,
+                               purchase_receipt_no, purchase_receipt_docstatus, purchase_receipt_created, purchase_receipt_submitted,
+                               warehouse_transfer_no, warehouse_transfer_created
                         FROM tabTransferCarton
                         WHERE tc_id = @tcId";
             
@@ -527,29 +547,68 @@ public static class TransferCartonDataService
             await using var reader = await cmd.ExecuteReaderAsync();
 
             if (await reader.ReadAsync())
-            {
-                return new TransferCarton
-                {
-                    TcId = reader.GetString(0),
-                    Status = reader.GetString(1),
-                    AdvanceShippingNotice = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    TransferOrder = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    Store = reader.GetString(4),
-                    CreatedBy = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    CreatedOn = reader.GetDateTime(6),
-                    SealedBy = reader.IsDBNull(7) ? null : reader.GetString(7),
-                    SealedOn = reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-                    DispatchedOn = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
-                    Remarks = reader.IsDBNull(10) ? null : reader.GetString(10)
-                };
-            }
-
+                return ReadTransferCartonFromReader(reader);
             return null;
         }
         catch (Exception ex)
         {
             ErrorLogService.LogError($"TransferCartonDataService: Error loading transfer carton {tcId}", ex);
             return null;
+        }
+    }
+
+    /// <summary>Update transfer carton with PR status from get_pr_status_for_asn.</summary>
+    public static async Task<bool> UpdateTransferCartonPrStatusAsync(WmsSettings settings, string tcId,
+        string? purchaseReceiptNo, int? docstatus, bool? purchaseReceiptCreated, bool? purchaseReceiptSubmitted)
+    {
+        if (string.IsNullOrWhiteSpace(tcId)) return false;
+        try
+        {
+            await DatabaseService.EnsureTabTransferCartonPrAndStockEntryColumnsAsync(settings);
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand(@"
+                UPDATE tabTransferCarton SET 
+                    purchase_receipt_no = @prNo, purchase_receipt_docstatus = @docstatus,
+                    purchase_receipt_created = @created, purchase_receipt_submitted = @submitted,
+                    updated_on = NOW()
+                WHERE tc_id = @tcId", connection);
+            cmd.Parameters.AddWithValue("@tcId", tcId);
+            cmd.Parameters.AddWithValue("@prNo", string.IsNullOrWhiteSpace(purchaseReceiptNo) ? (object)DBNull.Value : purchaseReceiptNo.Trim());
+            cmd.Parameters.AddWithValue("@docstatus", docstatus ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("@created", purchaseReceiptCreated == null ? (object)DBNull.Value : (purchaseReceiptCreated == true ? 1 : 0));
+            cmd.Parameters.AddWithValue("@submitted", purchaseReceiptSubmitted == null ? (object)DBNull.Value : (purchaseReceiptSubmitted == true ? 1 : 0));
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"TransferCartonDataService: UpdateTransferCartonPrStatus failed for {tcId}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>Update transfer carton with Stock Entry number after create_stock_entry_from_transfer_carton.</summary>
+    public static async Task<bool> UpdateTransferCartonWarehouseTransferAsync(WmsSettings settings, string tcId, string? stockEntryNo)
+    {
+        if (string.IsNullOrWhiteSpace(tcId)) return false;
+        try
+        {
+            await DatabaseService.EnsureTabTransferCartonPrAndStockEntryColumnsAsync(settings);
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand(@"
+                UPDATE tabTransferCarton SET warehouse_transfer_no = @seNo, warehouse_transfer_created = 1, updated_on = NOW()
+                WHERE tc_id = @tcId", connection);
+            cmd.Parameters.AddWithValue("@tcId", tcId);
+            cmd.Parameters.AddWithValue("@seNo", string.IsNullOrWhiteSpace(stockEntryNo) ? (object)DBNull.Value : stockEntryNo.Trim());
+            return await cmd.ExecuteNonQueryAsync() > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"TransferCartonDataService: UpdateTransferCartonWarehouseTransfer failed for {tcId}", ex);
+            return false;
         }
     }
 }

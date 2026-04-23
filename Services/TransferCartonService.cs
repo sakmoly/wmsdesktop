@@ -12,6 +12,12 @@ namespace Wms.Desktop.Services;
 /// </summary>
 public static class TransferCartonService
 {
+    private static string? NormalizeBoxId(string? s) =>
+        string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string? PreferBoxId(string? a, string? b) =>
+        NormalizeBoxId(a) ?? NormalizeBoxId(b);
+
     /// <summary>
     /// Get transfer carton contents from WMS Scan Events
     /// Query events where event_type = 'PACK_BOX_TO_TC' and tc_id = tcId
@@ -44,14 +50,40 @@ public static class TransferCartonService
                 return items;
             }
 
+            var checkBoxIdSql = @"
+                SELECT COUNT(*) 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() 
+                AND TABLE_NAME = 'tabWmsScanEvent' 
+                AND COLUMN_NAME = 'box_id'";
+            await using var checkBoxIdCmd = new MySqlCommand(checkBoxIdSql, connection);
+            var hasBoxId = Convert.ToInt32(await checkBoxIdCmd.ExecuteScalarAsync()) > 0;
+
             // Query WMS Scan Events for this transfer carton
             // Get PACK_BOX_TO_TC and PACK_ITEM_TO_TC events with item_code (items packed into transfer carton)
             // CRITICAL: Group by item_code and carton_id to properly SUM all quantities
             // When the same item is scanned multiple times with the same carton_id and tc_id,
             // we need to SUM all the qty values from all events, not just use the latest value
             // Query matches user requirement: GROUP BY item_code, carton_id (without tc_id)
+            // box_id on the same rows links the scan to the sort box used when packing into this TC
             // This query MUST match the backend API query exactly
-            var sql = @"SELECT 
+            var sql = hasBoxId
+                ? @"SELECT 
+                            item_code,
+                            carton_id AS source_carton,
+                            MAX(NULLIF(TRIM(box_id), '')) AS sort_box_id,
+                            SUM(qty) AS quantity,
+                            MAX(user_id) AS packed_by,
+                            MAX(event_time) AS packed_on
+                        FROM tabWmsScanEvent
+                        WHERE tc_id = @tc_id
+                        AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
+                        AND item_code IS NOT NULL
+                        AND item_code != ''
+                        AND qty > 0
+                        GROUP BY item_code, carton_id
+                        ORDER BY packed_on DESC"
+                : @"SELECT 
                             item_code,
                             carton_id AS source_carton,
                             SUM(qty) AS quantity,
@@ -102,11 +134,29 @@ public static class TransferCartonService
                 rowCount++;
                 var itemCode = reader.IsDBNull(0) ? null : reader.GetString(0);
                 var sourceCartonId = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var quantity = Convert.ToDouble(reader.GetDecimal(2)); // Already summed by SQL (column name: quantity)
-                var packedBy = reader.IsDBNull(3) ? null : reader.GetString(3);
-                var packedOn = reader.GetDateTime(4);
+                string? boxId = null;
+                int qtyOrd;
+                int pbOrd;
+                int poOrd;
+                if (hasBoxId)
+                {
+                    boxId = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    qtyOrd = 3;
+                    pbOrd = 4;
+                    poOrd = 5;
+                }
+                else
+                {
+                    qtyOrd = 2;
+                    pbOrd = 3;
+                    poOrd = 4;
+                }
 
-                ErrorLogService.LogInfo($"TransferCartonService: Found grouped item - ItemCode: {itemCode ?? "NULL"}, SourceCarton: {sourceCartonId ?? "NULL"}, Quantity: {quantity}");
+                var quantity = Convert.ToDouble(reader.GetDecimal(qtyOrd)); // Already summed by SQL (column name: quantity)
+                var packedBy = reader.IsDBNull(pbOrd) ? null : reader.GetString(pbOrd);
+                var packedOn = reader.GetDateTime(poOrd);
+
+                ErrorLogService.LogInfo($"TransferCartonService: Found grouped item - ItemCode: {itemCode ?? "NULL"}, SourceCarton: {sourceCartonId ?? "NULL"}, BoxId: {boxId ?? "NULL"}, Quantity: {quantity}");
 
                 // Skip events without item_code
                 if (string.IsNullOrEmpty(itemCode))
@@ -128,6 +178,7 @@ public static class TransferCartonService
                     {
                         ItemCode = existing.ItemCode,
                         SourceCartonId = existing.SourceCartonId,
+                        BoxId = PreferBoxId(boxId, existing.BoxId),
                         Qty = quantity, // REPLACE with new quantity (SQL already summed correctly)
                         PackedOn = packedOn > existing.PackedOn ? packedOn : existing.PackedOn,
                         PackedBy = packedOn > existing.PackedOn ? (packedBy ?? string.Empty) : existing.PackedBy
@@ -140,6 +191,7 @@ public static class TransferCartonService
                     {
                         ItemCode = itemCode,
                         SourceCartonId = sourceCartonId,
+                        BoxId = NormalizeBoxId(boxId),
                         Qty = quantity, // Use the summed quantity from SQL
                         PackedOn = packedOn,
                         PackedBy = packedBy ?? string.Empty
@@ -232,8 +284,13 @@ public static class TransferCartonService
                     var hasMaterialRequestColumn = Convert.ToInt32(await checkColCmd.ExecuteScalarAsync()) > 0;
                     
                     var mrEventsSql = new System.Text.StringBuilder();
-                    mrEventsSql.Append(@"SELECT item_code, carton_id AS source_carton, 
-                                               SUM(qty) AS quantity, MAX(user_id) AS packed_by, MAX(event_time) AS packed_on
+                    mrEventsSql.Append(@"SELECT item_code, carton_id AS source_carton, ");
+                    if (hasBoxId)
+                    {
+                        mrEventsSql.Append(@"MAX(NULLIF(TRIM(box_id), '')) AS sort_box_id, ");
+                    }
+
+                    mrEventsSql.Append(@"SUM(qty) AS quantity, MAX(user_id) AS packed_by, MAX(event_time) AS packed_on
                                         FROM tabWmsScanEvent
                                         WHERE transfer_order = @transfer_order");
                     
@@ -271,9 +328,8 @@ public static class TransferCartonService
                         }
                         else
                         {
-                            // Created (not sealed): Look back 6 hours before creation and forward to Now
-                            // This catches events that happened before the TC was created
-                            startTime = createdOn.Value.AddHours(-6);
+                            // Created (not sealed): Look back 6 hours before creation and forward to Now (createdOn has value when sealedOn does not and outer condition is true)
+                            startTime = createdOn!.Value.AddHours(-6);
                             endTime = DateTime.Now;
                         }
                         
@@ -307,9 +363,27 @@ public static class TransferCartonService
                     {
                         var itemCode = mrReader.IsDBNull(0) ? null : mrReader.GetString(0);
                         var sourceCartonId = mrReader.IsDBNull(1) ? null : mrReader.GetString(1);
-                        var quantity = Convert.ToDouble(mrReader.GetDecimal(2));
-                        var packedBy = mrReader.IsDBNull(3) ? null : mrReader.GetString(3);
-                        var packedOn = mrReader.GetDateTime(4);
+                        string? mrBoxId = null;
+                        int mrQtyOrd;
+                        int mrPbOrd;
+                        int mrPoOrd;
+                        if (hasBoxId)
+                        {
+                            mrBoxId = mrReader.IsDBNull(2) ? null : mrReader.GetString(2);
+                            mrQtyOrd = 3;
+                            mrPbOrd = 4;
+                            mrPoOrd = 5;
+                        }
+                        else
+                        {
+                            mrQtyOrd = 2;
+                            mrPbOrd = 3;
+                            mrPoOrd = 4;
+                        }
+
+                        var quantity = Convert.ToDouble(mrReader.GetDecimal(mrQtyOrd));
+                        var packedBy = mrReader.IsDBNull(mrPbOrd) ? null : mrReader.GetString(mrPbOrd);
+                        var packedOn = mrReader.GetDateTime(mrPoOrd);
                         
                         if (!string.IsNullOrEmpty(itemCode))
                         {
@@ -323,6 +397,7 @@ public static class TransferCartonService
                                 {
                                     ItemCode = existing.ItemCode,
                                     SourceCartonId = existing.SourceCartonId,
+                                    BoxId = PreferBoxId(mrBoxId, existing.BoxId),
                                     Qty = quantity, // REPLACE with new quantity (SQL already summed correctly)
                                     PackedOn = packedOn > existing.PackedOn ? packedOn : existing.PackedOn,
                                     PackedBy = packedOn > existing.PackedOn ? (packedBy ?? string.Empty) : existing.PackedBy
@@ -334,6 +409,7 @@ public static class TransferCartonService
                                 {
                                     ItemCode = itemCode,
                                     SourceCartonId = sourceCartonId,
+                                    BoxId = NormalizeBoxId(mrBoxId),
                                     Qty = quantity,
                                     PackedOn = packedOn,
                                     PackedBy = packedBy ?? string.Empty
@@ -401,7 +477,14 @@ public static class TransferCartonService
                     if (boxIds.Count > 0)
                     {
                         var boxIdsParam = string.Join(",", boxIds.Select((_, i) => $"@box{i}"));
-                        var sortEventsSql = $@"SELECT item_code, carton_id, qty, event_time, user_id
+                        var sortEventsSql = hasBoxId
+                            ? $@"SELECT item_code, carton_id, box_id, qty, event_time, user_id
+                                              FROM tabWmsScanEvent
+                                              WHERE event_type = 'SORT_TO_BOX'
+                                              AND box_id IN ({boxIdsParam})
+                                              AND item_code IS NOT NULL
+                                              ORDER BY event_time DESC"
+                            : $@"SELECT item_code, carton_id, qty, event_time, user_id
                                               FROM tabWmsScanEvent
                                               WHERE event_type = 'SORT_TO_BOX'
                                               AND box_id IN ({boxIdsParam})
@@ -419,9 +502,27 @@ public static class TransferCartonService
                         {
                             var itemCode = sortReader.GetString(0);
                             var cartonId = sortReader.IsDBNull(1) ? null : sortReader.GetString(1);
-                            var qty = Convert.ToDouble(sortReader.GetDecimal(2));
-                            var eventTime = sortReader.GetDateTime(3);
-                            var userId = sortReader.IsDBNull(4) ? null : sortReader.GetString(4);
+                            string? sortBoxId = null;
+                            int sqOrd;
+                            int stOrd;
+                            int suOrd;
+                            if (hasBoxId)
+                            {
+                                sortBoxId = sortReader.IsDBNull(2) ? null : sortReader.GetString(2);
+                                sqOrd = 3;
+                                stOrd = 4;
+                                suOrd = 5;
+                            }
+                            else
+                            {
+                                sqOrd = 2;
+                                stOrd = 3;
+                                suOrd = 4;
+                            }
+
+                            var qty = Convert.ToDouble(sortReader.GetDecimal(sqOrd));
+                            var eventTime = sortReader.GetDateTime(stOrd);
+                            var userId = sortReader.IsDBNull(suOrd) ? null : sortReader.GetString(suOrd);
                             
                             var key = (itemCode, cartonId);
                             
@@ -435,6 +536,7 @@ public static class TransferCartonService
                                 {
                                     ItemCode = existing.ItemCode,
                                     SourceCartonId = existing.SourceCartonId,
+                                    BoxId = PreferBoxId(existing.BoxId, sortBoxId),
                                     Qty = existing.Qty + qty, // Sum for SORT_TO_BOX fallback (multiple boxes)
                                     PackedOn = eventTime > existing.PackedOn ? eventTime : existing.PackedOn,
                                     PackedBy = eventTime > existing.PackedOn ? (userId ?? string.Empty) : existing.PackedBy
@@ -446,6 +548,7 @@ public static class TransferCartonService
                                 {
                                     ItemCode = itemCode,
                                     SourceCartonId = cartonId,
+                                    BoxId = NormalizeBoxId(sortBoxId),
                                     Qty = qty,
                                     PackedOn = eventTime,
                                     PackedBy = userId ?? string.Empty
@@ -475,6 +578,89 @@ public static class TransferCartonService
         }
 
         return items;
+    }
+
+    /// <summary>
+    /// Packing-list lines for multiple transfer cartons, keyed by sort box (<c>box_id</c> on scan events).
+    /// When <c>box_id</c> is missing or the column does not exist, rows are grouped under <c>(No sort box) {tc_id}</c>.
+    /// </summary>
+    public static async Task<List<SortBoxPackingListRow>> GetPackingListRowsBySortBoxAsync(
+        WmsSettings settings,
+        IReadOnlyList<string> tcIds)
+    {
+        var rows = new List<SortBoxPackingListRow>();
+        if (tcIds == null || tcIds.Count == 0)
+            return rows;
+
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            var checkTcSql = @"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabWmsScanEvent' AND COLUMN_NAME = 'tc_id'";
+            await using var checkTcCmd = new MySqlCommand(checkTcSql, connection);
+            if (Convert.ToInt32(await checkTcCmd.ExecuteScalarAsync()) == 0)
+                return rows;
+
+            var checkBoxSql = @"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabWmsScanEvent' AND COLUMN_NAME = 'box_id'";
+            await using var checkBoxCmd = new MySqlCommand(checkBoxSql, connection);
+            var hasBoxId = Convert.ToInt32(await checkBoxCmd.ExecuteScalarAsync()) > 0;
+
+            var placeholders = string.Join(",", tcIds.Select((_, i) => $"@tc{i}"));
+            var boxKeyExpr = hasBoxId
+                ? "COALESCE(NULLIF(TRIM(box_id), ''), CONCAT('(No sort box) ', tc_id))"
+                : "CONCAT('(No sort box) ', tc_id)";
+
+            var sql = $@"SELECT 
+                            {boxKeyExpr} AS box_key,
+                            tc_id,
+                            item_code,
+                            carton_id AS source_carton,
+                            SUM(qty) AS quantity
+                        FROM tabWmsScanEvent
+                        WHERE tc_id IN ({placeholders})
+                        AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
+                        AND item_code IS NOT NULL
+                        AND item_code != ''
+                        AND qty > 0
+                        GROUP BY {boxKeyExpr}, tc_id, item_code, carton_id
+                        ORDER BY box_key, tc_id, item_code";
+
+            await using var cmd = new MySqlCommand(sql, connection);
+            for (var i = 0; i < tcIds.Count; i++)
+                cmd.Parameters.AddWithValue($"@tc{i}", tcIds[i]);
+
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var boxKey = reader.IsDBNull(0) ? "" : reader.GetString(0);
+                var tcId = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                var itemCode = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var source = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var qty = Convert.ToDouble(reader.GetDecimal(4));
+                if (string.IsNullOrEmpty(itemCode))
+                    continue;
+                rows.Add(new SortBoxPackingListRow
+                {
+                    BoxKey = boxKey,
+                    TcId = tcId,
+                    ItemCode = itemCode,
+                    SourceCartonId = source,
+                    Qty = qty
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("TransferCartonService: GetPackingListRowsBySortBoxAsync failed", ex);
+        }
+
+        return rows;
     }
 }
 

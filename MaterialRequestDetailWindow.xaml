@@ -47,6 +47,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
@@ -99,6 +100,15 @@
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />
                     <TextBlock Text="{Binding MaterialRequest.RequiredDate, StringFormat=d}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <TextBlock Text="Stock Entry (ERP)"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding StockEntryNo, FallbackValue=—}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
@@ -251,6 +261,11 @@
                        FontWeight="Bold"
                        Foreground="#1D4ED8"
                        VerticalAlignment="Center" />
+            <Button Content="Push to ERP"
+                    Width="100"
+                    Margin="0,0,8,0"
+                    Command="{Binding PushToErpCommand}"
+                    IsEnabled="{Binding CanPushToErp}" />
             <Button Content="Close"
                     Width="80"
                     IsCancel="True" />

@@ -11,7 +11,7 @@ namespace Wms.Desktop.ViewModels;
 
 /// <summary>
 /// ViewModel for Item Location Breakdown window.
-/// Uses transaction history to calculate In/Out/Balance per location and carton.
+/// Prefers tabCartonStock (current state) so all locations match Stock Locations; falls back to transaction history.
 /// </summary>
 public sealed class ItemLocationBreakdownViewModel : BaseViewModel
 {
@@ -54,44 +54,97 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                 return;
             }
 
-            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Loading location data for {item.Code} from transaction history");
+            var warehouseCode = await ResolveWarehouseCodeAsync(settings);
 
-            var connectionString = DatabaseService.BuildConnectionString(settings);
-            await using var connection = new MySqlConnection(connectionString);
-            await connection.OpenAsync();
+            // Prefer tabCartonStock so all locations show (same source as Stock Locations / API)
+            var fromCartonStock = await LoadFromCartonStockAsync(settings, item, warehouseCode);
+            if (fromCartonStock.Count > 0)
+            {
+                await ApplyLocationsAsync(fromCartonStock);
+                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Loaded {fromCartonStock.Count} entries from tabCartonStock, Total: {TotalQty}");
+                return;
+            }
 
-            // Query from transaction history with proper source/target bin handling
-            var sql = @"
+            // Fallback: transaction history
+            await LoadFromTransactionHistoryAsync(settings, item, warehouseCode);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"ItemLocationBreakdownViewModel: Error loading location data for {item.Code}", ex);
+        }
+    }
+
+    private static async Task<string> ResolveWarehouseCodeAsync(WmsSettings settings)
+    {
+        var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+        return WarehouseDataService.ResolveToCode(settings.DefaultPickingWarehouse ?? "Main Warehouse", warehouses);
+    }
+
+    private static async Task<System.Collections.Generic.List<ItemLocationStock>> LoadFromCartonStockAsync(
+        WmsSettings settings,
+        Item item,
+        string warehouseCode)
+    {
+        var list = new System.Collections.Generic.List<ItemLocationStock>();
+        var rows = await CartonDataService.GetCartonStockAsync(settings, cartonId: null, itemCode: item.Code, warehouse: null, binLocation: null);
+        foreach (var row in rows.OrderBy(r => r.BinLocation).ThenBy(r => r.CartonId))
+        {
+            if (row.Qty <= 0) continue;
+            list.Add(new ItemLocationStock
+            {
+                ItemCode = item.Code,
+                ItemName = item.Name,
+                Warehouse = warehouseCode,
+                LocationId = row.BinLocation ?? "",
+                CartonId = row.CartonId,
+                InQty = 0,
+                OutQty = 0,
+                BalanceQty = row.Qty
+            });
+        }
+        return list;
+    }
+
+    private async Task LoadFromTransactionHistoryAsync(WmsSettings settings, Item item, string warehouseCode)
+    {
+        ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Loading location data for {item.Code} from transaction history");
+
+        var connectionString = DatabaseService.BuildConnectionString(settings);
+        await using var connection = new MySqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var sql = @"
+            SELECT
+                location_id,
+                carton_id,
+                SUM(CASE WHEN stock_direction = 'IN' THEN qty_change ELSE 0 END) AS in_qty,
+                SUM(CASE WHEN stock_direction = 'OUT' THEN ABS(qty_change) ELSE 0 END) AS out_qty,
+                SUM(qty_change) AS balance_qty
+            FROM (
                 SELECT
-                    location_id,
+                    CASE
+                        WHEN stock_direction = 'IN' THEN COALESCE(NULLIF(TRIM(target_bin), ''), NULLIF(TRIM(bin_location), ''), location_id)
+                        WHEN stock_direction = 'OUT' THEN COALESCE(NULLIF(TRIM(source_bin), ''), NULLIF(TRIM(bin_location), ''), location_id)
+                        ELSE COALESCE(NULLIF(TRIM(bin_location), ''), location_id)
+                    END AS location_id,
                     carton_id,
-                    SUM(CASE WHEN stock_direction = 'IN' THEN qty_change ELSE 0 END) AS in_qty,
-                    SUM(CASE WHEN stock_direction = 'OUT' THEN ABS(qty_change) ELSE 0 END) AS out_qty,
-                    SUM(qty_change) AS balance_qty
-                FROM (
-                    SELECT
-                        CASE
-                            WHEN stock_direction = 'IN' THEN COALESCE(NULLIF(target_bin, ''), location_id)
-                            WHEN stock_direction = 'OUT' THEN COALESCE(NULLIF(source_bin, ''), location_id)
-                            ELSE location_id
-                        END AS location_id,
-                        carton_id,
-                        stock_direction,
-                        qty_change
-                    FROM tabtransactionhistory
-                    WHERE item_code = @itemCode
-                ) t
-                GROUP BY location_id, carton_id
-                HAVING balance_qty <> 0
-                ORDER BY location_id, carton_id";
+                    stock_direction,
+                    qty_change
+                FROM tabtransactionhistory
+                WHERE item_code = @itemCode
+            ) t
+            GROUP BY location_id, carton_id
+            HAVING balance_qty <> 0
+            ORDER BY location_id, carton_id";
 
-            await using var cmd = new MySqlCommand(sql, connection);
-            cmd.Parameters.AddWithValue("@itemCode", item.Code);
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@itemCode", item.Code);
 
+        System.Collections.Generic.List<ItemLocationStock> locations;
+        try
+        {
+            locations = new System.Collections.Generic.List<ItemLocationStock>();
             await using var reader = await cmd.ExecuteReaderAsync();
-
-            var locations = new System.Collections.Generic.List<ItemLocationStock>();
-
             while (await reader.ReadAsync())
             {
                 var locationId = reader.IsDBNull(0) ? "Unknown" : reader.GetString(0);
@@ -104,7 +157,7 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                 {
                     ItemCode = item.Code,
                     ItemName = item.Name,
-                    Warehouse = settings.DefaultPickingWarehouse ?? "Main Warehouse",
+                    Warehouse = warehouseCode,
                     LocationId = locationId,
                     CartonId = cartonId,
                     InQty = inQty,
@@ -112,25 +165,79 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
                     BalanceQty = balanceQty
                 });
             }
-
-            ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found {locations.Count} location/carton entries from transaction history");
-
-            // Update UI on UI thread
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                Locations.Clear();
-                foreach (var loc in locations)
-                {
-                    Locations.Add(loc);
-                }
-                TotalQty = Locations.Sum(l => l.BalanceQty);
-                
-                ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Displayed {Locations.Count} entries, Total Balance: {TotalQty}");
-            }, System.Windows.Threading.DispatcherPriority.Normal);
         }
-        catch (Exception ex)
+        catch (MySqlException)
         {
-            ErrorLogService.LogError($"ItemLocationBreakdownViewModel: Error loading location data for {item.Code}", ex);
+            // Table or columns (e.g. bin_location) may not exist; retry without bin_location
+            locations = await LoadFromTransactionHistoryFallbackAsync(connection, item, warehouseCode);
         }
+
+        ErrorLogService.LogInfo($"ItemLocationBreakdownViewModel: Found {locations.Count} location/carton entries from transaction history");
+        await ApplyLocationsAsync(locations);
+    }
+
+    private static async Task<System.Collections.Generic.List<ItemLocationStock>> LoadFromTransactionHistoryFallbackAsync(
+        MySqlConnection connection,
+        Item item,
+        string warehouseCode)
+    {
+        var locations = new System.Collections.Generic.List<ItemLocationStock>();
+        var sql = @"
+            SELECT
+                location_id,
+                carton_id,
+                SUM(CASE WHEN stock_direction = 'IN' THEN qty_change ELSE 0 END) AS in_qty,
+                SUM(CASE WHEN stock_direction = 'OUT' THEN ABS(qty_change) ELSE 0 END) AS out_qty,
+                SUM(qty_change) AS balance_qty
+            FROM (
+                SELECT
+                    CASE
+                        WHEN stock_direction = 'IN' THEN COALESCE(NULLIF(TRIM(target_bin), ''), location_id)
+                        WHEN stock_direction = 'OUT' THEN COALESCE(NULLIF(TRIM(source_bin), ''), location_id)
+                        ELSE location_id
+                    END AS location_id,
+                    carton_id,
+                    stock_direction,
+                    qty_change
+                FROM tabtransactionhistory
+                WHERE item_code = @itemCode
+            ) t
+            GROUP BY location_id, carton_id
+            HAVING balance_qty <> 0
+            ORDER BY location_id, carton_id";
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@itemCode", item.Code);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var locationId = reader.IsDBNull(0) ? "Unknown" : reader.GetString(0);
+            var cartonId = reader.IsDBNull(1) ? null : reader.GetString(1);
+            var inQty = reader.IsDBNull(2) ? 0.0 : reader.GetDouble(2);
+            var outQty = reader.IsDBNull(3) ? 0.0 : reader.GetDouble(3);
+            var balanceQty = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4);
+            locations.Add(new ItemLocationStock
+            {
+                ItemCode = item.Code,
+                ItemName = item.Name,
+                Warehouse = warehouseCode,
+                LocationId = locationId,
+                CartonId = cartonId,
+                InQty = inQty,
+                OutQty = outQty,
+                BalanceQty = balanceQty
+            });
+        }
+        return locations;
+    }
+
+    private async Task ApplyLocationsAsync(System.Collections.Generic.List<ItemLocationStock> locations)
+    {
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Locations.Clear();
+            foreach (var loc in locations)
+                Locations.Add(loc);
+            TotalQty = Locations.Sum(l => l.BalanceQty);
+        }, System.Windows.Threading.DispatcherPriority.Normal);
     }
 }

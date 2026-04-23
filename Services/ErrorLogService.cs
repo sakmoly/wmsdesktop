@@ -1,14 +1,60 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
 namespace Wms.Desktop.Services;
+
+/// <summary>
+/// Single log entry for in-app display
+/// </summary>
+public sealed class LogEntry
+{
+    public DateTime Timestamp { get; init; }
+    public string Level { get; init; } = "INFO"; // INFO or ERROR
+    public string Message { get; init; } = string.Empty;
+    public string FullLine => $"[{Timestamp:yyyy-MM-dd HH:mm:ss}] {Level}: {Message}";
+}
 
 public static class ErrorLogService
 {
     private static readonly object _lockObject = new object();
     private static string? _logDirectory;
     private static string? _logFilePath;
+
+    /// <summary>Max in-memory log lines for in-app viewer</summary>
+    private const int MaxInMemoryLogLines = 300;
+
+    private static readonly List<LogEntry> _inMemoryLog = new();
+
+    /// <summary>Raised when a new log entry is added (for UI binding)</summary>
+    public static event Action<LogEntry>? LogAdded;
+
+    /// <summary>Get a copy of recent log entries (newest last)</summary>
+    public static IReadOnlyList<LogEntry> GetRecentLogs()
+    {
+        lock (_lockObject)
+        {
+            return _inMemoryLog.ToArray();
+        }
+    }
+
+    private static void AddToInMemoryLog(string level, string message)
+    {
+        var entry = new LogEntry
+        {
+            Timestamp = DateTime.Now,
+            Level = level,
+            Message = message
+        };
+        lock (_lockObject)
+        {
+            _inMemoryLog.Add(entry);
+            while (_inMemoryLog.Count > MaxInMemoryLogLines)
+                _inMemoryLog.RemoveAt(0);
+        }
+        try { LogAdded?.Invoke(entry); } catch { /* UI may not be ready */ }
+    }
 
     /// <summary>
     /// Initialize log directory and file path
@@ -72,6 +118,7 @@ public static class ErrorLogService
             {
                 File.AppendAllText(_logFilePath!, logEntry);
             }
+            AddToInMemoryLog("ERROR", errorMessage);
         }
         catch
         {
@@ -111,6 +158,7 @@ public static class ErrorLogService
                     File.AppendAllText(_logFilePath!, logEntry);
                 }
             });
+            AddToInMemoryLog("ERROR", errorMessage);
         }
         catch
         {
@@ -133,6 +181,7 @@ public static class ErrorLogService
             {
                 File.AppendAllText(_logFilePath!, logEntry);
             }
+            AddToInMemoryLog("INFO", message);
         }
         catch
         {

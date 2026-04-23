@@ -35,13 +35,21 @@ public static class CycleCountTaskDataService
                 ErrorLogService.LogInfo("CycleCountTaskDataService: tabCycleCountLine table does not exist, lines will not be loaded");
             }
 
-            // Get all Cycle Count Tasks
-            var taskSql = @"SELECT title, status, count_type, warehouse, zone, count_date, 
-                                  scheduled_start_time, scheduled_end_time, freeze_stock, 
-                                  created_by, assigned_to, total_items, counted_items, items_with_discrepancy
-                           FROM tabCycleCountTask
-                           ORDER BY count_date DESC, title";
-            
+            // Optional: ERP reference columns (added in MIGRATION_008)
+            var erpRefColumnExists = await CheckColumnExistsAsync(connection, "tabCycleCountTask", "erp_reference");
+            var taskSql = erpRefColumnExists
+                ? @"SELECT title, status, count_type, warehouse, zone, count_date, 
+                         scheduled_start_time, scheduled_end_time, freeze_stock, 
+                         created_by, assigned_to, total_items, counted_items, items_with_discrepancy,
+                         erp_reference, erp_synced_at
+                   FROM tabCycleCountTask
+                   ORDER BY count_date DESC, title"
+                : @"SELECT title, status, count_type, warehouse, zone, count_date, 
+                         scheduled_start_time, scheduled_end_time, freeze_stock, 
+                         created_by, assigned_to, total_items, counted_items, items_with_discrepancy
+                   FROM tabCycleCountTask
+                   ORDER BY count_date DESC, title";
+
             await using var taskCmd = new MySqlCommand(taskSql, connection);
             await using var taskReader = await taskCmd.ExecuteReaderAsync();
 
@@ -61,6 +69,11 @@ public static class CycleCountTaskDataService
                 
                 taskTitles.Add(title);
                 
+                var erpRef = erpRefColumnExists && !taskReader.IsDBNull(14) ? taskReader.GetString(14) : null;
+                var erpSyncedAt = erpRefColumnExists && taskReader.FieldCount > 15 && !taskReader.IsDBNull(15)
+                    ? taskReader.GetDateTime(15)
+                    : (DateTime?)null;
+
                 tasks.Add(new CycleCountTask
                 {
                     Title = title,
@@ -77,7 +90,9 @@ public static class CycleCountTaskDataService
                     AssignedTo = taskReader.IsDBNull(10) ? null : taskReader.GetString(10),
                     TotalItems = taskReader.GetInt32(11),
                     CountedItems = taskReader.GetInt32(12),
-                    ItemsWithDiscrepancy = taskReader.GetInt32(13)
+                    ItemsWithDiscrepancy = taskReader.GetInt32(13),
+                    ErpReference = erpRef,
+                    ErpSyncedAt = erpSyncedAt
                 });
             }
 
@@ -187,6 +202,8 @@ public static class CycleCountTaskDataService
                                 TotalItems = task.TotalItems,
                                 CountedItems = task.CountedItems,
                                 ItemsWithDiscrepancy = task.ItemsWithDiscrepancy,
+                                ErpReference = task.ErpReference,
+                                ErpSyncedAt = task.ErpSyncedAt,
                                 Lines = lines
                             };
                         }
@@ -214,6 +231,8 @@ public static class CycleCountTaskDataService
                                 TotalItems = task.TotalItems,
                                 CountedItems = task.CountedItems,
                                 ItemsWithDiscrepancy = task.ItemsWithDiscrepancy,
+                                ErpReference = task.ErpReference,
+                                ErpSyncedAt = task.ErpSyncedAt,
                                 Lines = new List<CycleCountLine>()
                             };
                         }
@@ -243,6 +262,8 @@ public static class CycleCountTaskDataService
                             TotalItems = task.TotalItems,
                             CountedItems = task.CountedItems,
                             ItemsWithDiscrepancy = task.ItemsWithDiscrepancy,
+                            ErpReference = task.ErpReference,
+                            ErpSyncedAt = task.ErpSyncedAt,
                             Lines = new List<CycleCountLine>()
                         };
                     }
@@ -276,6 +297,39 @@ public static class CycleCountTaskDataService
         }
         
         return task;
+    }
+
+    /// <summary>
+    /// Update ERP reference and sync timestamp after successful push to ERPNext (sync_task_capture_only).
+    /// </summary>
+    public static async Task<bool> UpdateCycleCountTaskErpReferenceAsync(WmsSettings settings, string title, string? erpReference)
+    {
+        if (string.IsNullOrEmpty(title))
+            return false;
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            var hasColumn = await CheckColumnExistsAsync(connection, "tabCycleCountTask", "erp_reference");
+            if (!hasColumn)
+            {
+                ErrorLogService.LogInfo("CycleCountTaskDataService: erp_reference column not found; run MIGRATION_008.");
+                return false;
+            }
+            await using var cmd = new MySqlCommand(
+                "UPDATE tabCycleCountTask SET erp_reference = @ref, erp_synced_at = NOW() WHERE title = @title",
+                connection);
+            cmd.Parameters.AddWithValue("@ref", (object?)erpReference ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@title", title);
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("CycleCountTaskDataService: UpdateCycleCountTaskErpReference failed", ex);
+            return false;
+        }
     }
 
     /// <summary>

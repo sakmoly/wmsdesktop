@@ -1260,25 +1260,50 @@ export const completePutaway = async (req, res) => {
          FOR UPDATE`,
         [box_id]
       );
-      
-      if (boxRows.length === 0) {
+
+      let boxRow = boxRows.length > 0 ? boxRows[0] : null;
+      let usedTaskDeclaredSortBox = false;
+
+      if (!boxRow && putaway_task) {
+        const pt = String(putaway_task).trim();
+        const dec = await resolveDeclaredBoxIdFromPutawayTask(connection, pt, box_id);
+        if (dec) {
+          const [tMeta] = await connection.execute(
+            `SELECT advance_shipping_notice, warehouse, status FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+            [pt]
+          );
+          const tm = tMeta[0] || {};
+          boxRow = {
+            box_id: dec.boxId,
+            status: tm.status || "Open",
+            advance_shipping_notice: tm.advance_shipping_notice ?? dec.advance_shipping_notice,
+            store: tm.warehouse ?? dec.warehouse ?? null,
+          };
+          usedTaskDeclaredSortBox = true;
+          logger.info(
+            `[Putaway complete] tabSortBox miss for ${box_id}; using task-declared box on task ${pt}`
+          );
+        }
+      }
+
+      if (!boxRow) {
         await connection.rollback();
         connection.release();
         return res.status(400).json({
           ok: false,
           error: {
             code: "BOX_NOT_FOUND",
-            message: `Putaway box ${box_id} not found in tabSortBox. Box must be created during sorting before putaway.`
-          }
+            message: `Putaway box ${box_id} not found in tabSortBox. Box must be created during sorting before putaway, or use putaway_task with tabPutawayTask.box_id set.`,
+          },
         });
       }
-      
-      boxStatus = boxRows[0].status;
-      actualBoxId = boxRows[0].box_id;
-      
+
+      boxStatus = boxRow.status;
+      actualBoxId = boxRow.box_id;
+
       // IDEMPOTENCY: If box is already closed, check if task is actually completed
       // If task is NOT completed, reopen box and allow putaway to proceed (retry after error)
-      if (boxStatus === "Closed") {
+      if (boxStatus === "Closed" && !usedTaskDeclaredSortBox) {
         // Check if box_id column exists in tabPutawayLine
         const [lineColumnsCheck] = await connection.execute(`
           SELECT COLUMN_NAME
@@ -4174,6 +4199,170 @@ export const completePutaway = async (req, res) => {
 };
 
 /**
+ * When mobile sends PUT-* + a PAW-* sort box (e.g. PAW-WMS* from WMS-ASN-*), allow validation
+ * only if the task is ASN (not TI-PUT / Transfer In) and not finished.
+ */
+async function resolveAllowTaskAsnPawBoxId(connection, putawayTaskTitle) {
+  const title = String(putawayTaskTitle || "").trim();
+  if (!title) return false;
+  if (title.startsWith("TI-PUT-")) return false;
+  if (!title.startsWith("PUT-")) return false;
+
+  const [cols] = await connection.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayTask'
+     AND COLUMN_NAME IN ('source_type','transfer_in','advance_shipping_notice','status')`
+  );
+  const colSet = new Set(cols.map((c) => c.COLUMN_NAME));
+  const selectParts = ["title"];
+  if (colSet.has("status")) selectParts.push("status");
+  if (colSet.has("source_type")) selectParts.push("source_type");
+  if (colSet.has("transfer_in")) selectParts.push("transfer_in");
+  if (colSet.has("advance_shipping_notice")) selectParts.push("advance_shipping_notice");
+
+  const [rows] = await connection.execute(
+    `SELECT ${selectParts.join(", ")} FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+    [title]
+  );
+  if (!rows.length) return false;
+  const row = rows[0];
+  const status = row.status != null ? String(row.status).trim() : "";
+  if (status === "Completed" || status === "Closed" || status === "Cancelled") return false;
+
+  const transferInVal =
+    colSet.has("transfer_in") && row.transfer_in != null && String(row.transfer_in).trim();
+  const sourceRaw =
+    colSet.has("source_type") && row.source_type != null ? String(row.source_type) : "";
+  const sourceNorm = sourceRaw.replace(/[\s_-]/g, "").toLowerCase();
+  const isTransferInTask = sourceNorm === "transferin" || !!transferInVal;
+  if (isTransferInTask) return false;
+
+  const asnRef =
+    colSet.has("advance_shipping_notice") &&
+    row.advance_shipping_notice != null &&
+    String(row.advance_shipping_notice).trim();
+  const isAsnSource = sourceNorm === "asn" || !!asnRef;
+  return isAsnSource;
+}
+
+/**
+ * Accept shelf-bound ids that are not CTN-/PAW-/BOX- when they match this putaway task:
+ * - tabPutawayTask.box_id (if set), or
+ * - tabPutawayLine.carton_id / tabPutawayLine.box_id for parent_title = task (WMS often stores MOOSA-* on lines only).
+ */
+async function resolveDeclaredBoxIdFromPutawayTask(connection, taskTitle, scannedRaw) {
+  const scan = String(scannedRaw || "").trim();
+  const title = String(taskTitle || "").trim();
+  if (!scan || !title) return null;
+
+  const [cols] = await connection.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayTask'
+     AND COLUMN_NAME IN ('box_id','advance_shipping_notice','warehouse','status','source_type','transfer_in')`
+  );
+  const colSet = new Set(cols.map((c) => c.COLUMN_NAME));
+
+  const selectParts = [];
+  if (colSet.has("box_id")) selectParts.push("box_id");
+  if (colSet.has("advance_shipping_notice")) selectParts.push("advance_shipping_notice");
+  if (colSet.has("warehouse")) selectParts.push("warehouse");
+  if (colSet.has("status")) selectParts.push("status");
+  if (colSet.has("source_type")) selectParts.push("source_type");
+  if (colSet.has("transfer_in")) selectParts.push("transfer_in");
+  if (selectParts.length === 0) return null;
+
+  const [rows] = await connection.execute(
+    `SELECT ${selectParts.join(", ")} FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+    [title]
+  );
+  if (!rows.length) return null;
+
+  const row = rows[0];
+  const transferInVal =
+    colSet.has("transfer_in") && row.transfer_in && String(row.transfer_in).trim();
+  const sourceRaw =
+    colSet.has("source_type") && row.source_type != null ? String(row.source_type) : "";
+  const sourceNorm = sourceRaw.replace(/[\s_-]/g, "").toLowerCase();
+  if (transferInVal || sourceNorm === "transferin") return null;
+
+  const scanLc = scan.toLowerCase();
+
+  if (colSet.has("box_id") && row.box_id != null && String(row.box_id).trim() !== "") {
+    const dbBox = String(row.box_id).trim();
+    if (dbBox.toLowerCase() === scanLc) {
+      return {
+        boxId: dbBox,
+        advance_shipping_notice: colSet.has("advance_shipping_notice")
+          ? row.advance_shipping_notice
+          : null,
+        warehouse: colSet.has("warehouse") ? row.warehouse : null,
+        status: colSet.has("status") ? row.status : null,
+      };
+    }
+  }
+
+  const [lineCols] = await connection.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayLine'
+     AND COLUMN_NAME IN ('carton_id','box_id')`
+  );
+  const lineColSet = new Set(lineCols.map((c) => c.COLUMN_NAME));
+  if (!lineColSet.has("carton_id")) return null;
+
+  const hasLineBoxId = lineColSet.has("box_id");
+  const lineSql = hasLineBoxId
+    ? `SELECT carton_id, box_id FROM tabPutawayLine WHERE parent_title = ?
+         AND (LOWER(TRIM(COALESCE(carton_id,''))) = ? OR LOWER(TRIM(COALESCE(box_id,''))) = ?)
+         LIMIT 1`
+    : `SELECT carton_id FROM tabPutawayLine WHERE parent_title = ?
+         AND LOWER(TRIM(COALESCE(carton_id,''))) = ?
+         LIMIT 1`;
+  const lineParams = hasLineBoxId ? [title, scanLc, scanLc] : [title, scanLc];
+  const [lineRows] = await connection.execute(lineSql, lineParams);
+  if (lineRows.length > 0) {
+    const lr = lineRows[0];
+    const lineBox =
+      hasLineBoxId && lr.box_id != null && String(lr.box_id).trim() !== ""
+        ? String(lr.box_id).trim()
+        : String(lr.carton_id || "").trim();
+    if (!lineBox) return null;
+    return {
+      boxId: lineBox,
+      advance_shipping_notice: colSet.has("advance_shipping_notice")
+        ? row.advance_shipping_notice
+        : null,
+      warehouse: colSet.has("warehouse") ? row.warehouse : null,
+      status: colSet.has("status") ? row.status : null,
+    };
+  }
+
+  // Mobile list often shows tabSortBox.box_id (e.g. MOOSA-1258EXTBAG-002) while putaway line/task still has another id
+  const asnRef =
+    colSet.has("advance_shipping_notice") &&
+    row.advance_shipping_notice != null &&
+    String(row.advance_shipping_notice).trim();
+  if (!asnRef) return null;
+
+  const asnTrim = String(asnRef).trim();
+  const [sbRows] = await connection.execute(
+    `SELECT box_id, status, advance_shipping_notice, store
+     FROM tabSortBox
+     WHERE LOWER(TRIM(box_id)) = ?
+       AND LOWER(TRIM(COALESCE(advance_shipping_notice,''))) = LOWER(?)
+     LIMIT 1`,
+    [scanLc, asnTrim]
+  );
+  if (!sbRows.length) return null;
+  const sb = sbRows[0];
+  return {
+    boxId: String(sb.box_id).trim(),
+    advance_shipping_notice: sb.advance_shipping_notice,
+    warehouse: sb.store,
+    status: sb.status,
+  };
+}
+
+/**
  * POST /api/putaway/scan-transfer-carton
  * VALIDATE transfer carton/box and location - NO AUTO-CREATION
  * This endpoint only validates that carton_id and location_id exist
@@ -4208,49 +4397,108 @@ export const scanTransferCarton = async (req, res) => {
     });
   }
 
+  const trimmedPutawayTask =
+    putaway_task != null && String(putaway_task).trim() ? String(putaway_task).trim() : "";
+  const actualPutawayTask = trimmedPutawayTask || null;
+
+  const connection = await getConnection();
+
+  let allowTaskAsnPawBox = false;
+  try {
+    if (trimmedPutawayTask) {
+      allowTaskAsnPawBox = await resolveAllowTaskAsnPawBoxId(connection, trimmedPutawayTask);
+      logger.info(
+        `[Putaway Scan] putaway_task=${trimmedPutawayTask} allowTaskAsnPawBox=${allowTaskAsnPawBox}`
+      );
+    }
+  } catch (e) {
+    logger.warn(`[Putaway Scan] Could not resolve ASN task for PAW-* allowance: ${e?.message}`);
+    allowTaskAsnPawBox = false;
+  }
+
+  // Reject stale mobile state: client must not scan location against a finished task
+  if (trimmedPutawayTask) {
+    const [taskStatRows] = await connection.execute(
+      `SELECT status FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+      [trimmedPutawayTask]
+    );
+    if (taskStatRows.length > 0) {
+      const stt = String(taskStatRows[0].status || "").trim();
+      if (stt === "Completed" || stt === "Closed" || stt === "Cancelled") {
+        connection.release();
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "TASK_ALREADY_COMPLETED",
+            message: `Putaway task ${trimmedPutawayTask} is already ${stt}. Refresh the list and select the current Open task for this box.`,
+          },
+        });
+      }
+    }
+  }
+
   // CRITICAL: Normalize and validate carton_id/box_id - reject old TI-PUT-* and PUT-* formats
-  // For ASN putaway, allow PAW-ASN-* format as box_id
   const inputId = carton_id || box_id || tc_id;
   let actualCartonId = null;
   let actualBoxId = null;
   let validatedBoxId = null; // Initialize early to avoid ReferenceError
+  /** When set, scanned id matched tabPutawayTask.box_id for this PUT-* task (may not exist in tabSortBox). */
+  let taskDeclaredBox = null;
 
-  if (inputId) {
-    // Check if this might be ASN putaway (PAW-ASN-* or BOX-* format)
+  if (trimmedPutawayTask && inputId) {
+    try {
+      taskDeclaredBox = await resolveDeclaredBoxIdFromPutawayTask(
+        connection,
+        trimmedPutawayTask,
+        String(inputId).trim()
+      );
+    } catch (e) {
+      logger.warn(`[Putaway Scan] resolveDeclaredBoxIdFromPutawayTask: ${e?.message}`);
+      taskDeclaredBox = null;
+    }
+  }
+
+  if (taskDeclaredBox) {
+    actualCartonId = null;
+    actualBoxId = taskDeclaredBox.boxId;
+    validatedBoxId = taskDeclaredBox.boxId;
+    logger.info(
+      `[Putaway Scan] Matched tabPutawayTask.box_id for task ${trimmedPutawayTask}: ${taskDeclaredBox.boxId}`
+    );
+  } else if (inputId) {
     const upperInputId = String(inputId).trim().toUpperCase();
-    const isAsnBoxId = upperInputId.startsWith('PAW-ASN') || upperInputId.startsWith('BOX-');
-    
-    // Validate for putaway - allow PAW-ASN-* and BOX-* formats for ASN putaway
-    const validated = validateForPutaway(inputId, isAsnBoxId);
+    const isAsnBoxId =
+      upperInputId.startsWith("PAW-ASN") || upperInputId.startsWith("BOX-");
+
+    const validated = validateForPutaway(inputId, isAsnBoxId, allowTaskAsnPawBox);
     if (!validated.ok) {
+      connection.release();
       return res.status(400).json({
         ok: false,
         error: {
           code: validated.reason,
-          message: validated.message || `Invalid format: ${inputId}. Putaway requires carton ID (CTN-* format) or ASN box ID (PAW-ASN-* format). Old format (TI-PUT-* or PUT-*) is no longer supported.`,
+          message:
+            validated.message ||
+            `Invalid format: ${inputId}. Putaway requires carton ID (CTN-*), ASN sort box (BOX-* or PAW-* with putaway_task for ASN), legacy PAW-ASN-*, or the same value as tabPutawayTask.box_id for your PUT-* task. Old task IDs (TI-PUT-* / PUT-*) are not valid carton scans.`,
         },
       });
     }
     actualCartonId = validated.carton_id;
-    actualBoxId = validated.box_id; // For ASN: box_id = PAW-ASN-*, carton_id = null
-    validatedBoxId = validated.box_id; // Set validatedBoxId immediately
+    actualBoxId = validated.box_id;
+    validatedBoxId = validated.box_id;
   }
 
-  // If putaway_task is provided, use it (for desktop app workflow)
-  const actualPutawayTask = putaway_task;
-  let taskTitleToCheck = actualPutawayTask; // Initialize with putaway_task if provided
-  
   if (!actualCartonId && !actualBoxId && !actualPutawayTask) {
+    connection.release();
     return res.status(400).json({
       ok: false,
       error: {
         code: "VALIDATION_ERROR",
-        message: "Either carton_id (CTN-* format), box_id (CTN-* or PAW-ASN-* format), or putaway_task is required",
+        message:
+          "Either carton_id (CTN-*), box_id (CTN-* / BOX-* / PAW-* with ASN putaway_task), or putaway_task is required",
       },
     });
   }
-
-  const connection = await getConnection();
 
   try {
     // VALIDATION ONLY - No transaction needed (no database writes)
@@ -4468,7 +4716,29 @@ export const scanTransferCarton = async (req, res) => {
         [validatedBoxId]
       );
 
-      if (boxRows.length === 0) {
+      let box = null;
+      if (boxRows.length > 0) {
+        box = boxRows[0];
+      } else if (taskDeclaredBox && trimmedPutawayTask) {
+        // tabPutawayTask.box_id is the shelf-bound id (e.g. MOOSAASN-127211) — may not match tabSortBox.box_id
+        const [tMeta] = await connection.execute(
+          `SELECT advance_shipping_notice, warehouse, status FROM tabPutawayTask WHERE title = ? LIMIT 1`,
+          [trimmedPutawayTask]
+        );
+        const tm = tMeta[0] || {};
+        box = {
+          box_id: taskDeclaredBox.boxId,
+          status: tm.status || "Open",
+          advance_shipping_notice:
+            tm.advance_shipping_notice ?? taskDeclaredBox.advance_shipping_notice ?? null,
+          store: tm.warehouse ?? taskDeclaredBox.warehouse ?? null,
+        };
+        logger.info(
+          `[Putaway Scan] tabSortBox miss for ${validatedBoxId}; using task-declared box on ${trimmedPutawayTask}`
+        );
+      }
+
+      if (!box) {
         // Box not found - provide helpful error message
         let helpfulMessage = `Box ${validatedBoxId} not found in tabSortBox.`;
         let hint = null;
@@ -4511,8 +4781,6 @@ export const scanTransferCarton = async (req, res) => {
           },
         });
       }
-
-      const box = boxRows[0];
       
       // Validate box status (should be Open or Assigned, not Closed/Completed)
       // BUT: If box is Closed but putaway task is NOT completed, allow retry (reopen box)
@@ -4646,9 +4914,15 @@ export const scanTransferCarton = async (req, res) => {
         putawayTaskQuery += `advance_shipping_notice = ?`;
         taskParams.push(documentTitle);
       }
-      
-      putawayTaskQuery += ` ORDER BY created_at DESC LIMIT 1`;
-      
+
+      if (hasStatus) {
+        putawayTaskQuery += ` AND status NOT IN ('Completed','Cancelled','Closed')`;
+      }
+      // Prefer active work: Open > In Progress > Draft, then newest
+      putawayTaskQuery += hasStatus
+        ? ` ORDER BY CASE status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Draft' THEN 2 ELSE 3 END, created_at DESC LIMIT 1`
+        : ` ORDER BY created_at DESC LIMIT 1`;
+
       const [taskRows] = await connection.execute(putawayTaskQuery, taskParams);
       let foundPutawayTask = taskRows.length > 0 ? taskRows[0] : null;
       
@@ -4731,9 +5005,39 @@ export const scanTransferCarton = async (req, res) => {
       // Update taskTitleToCheck with found task (if not already set from putaway_task parameter)
       if (!taskTitleToCheck) {
         taskTitleToCheck = foundPutawayTask.title;
-      } else {
-        // Verify the found task matches the provided putaway_task
-        if (taskTitleToCheck !== foundPutawayTask.title) {
+      } else if (taskTitleToCheck !== foundPutawayTask.title) {
+        // Mobile sends the correct task+box pair; ASN-only discovery can still hit another task row for the same ASN.
+        // Accept the client's putaway_task when this box is actually on that task (line, task.box_id, or resolver match).
+        const scanLcBox = String(validatedBoxId || "").trim().toLowerCase();
+        let acceptClientTask = Boolean(
+          taskDeclaredBox && trimmedPutawayTask === taskTitleToCheck
+        );
+        if (!acceptClientTask && scanLcBox) {
+          const [plc] = await connection.execute(
+            `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayLine'
+             AND COLUMN_NAME IN ('carton_id','box_id')`
+          );
+          const hasPlBox = plc.some((c) => c.COLUMN_NAME === "box_id");
+          const sqlPl = hasPlBox
+            ? `SELECT id FROM tabPutawayLine WHERE parent_title = ?
+                 AND (LOWER(TRIM(COALESCE(carton_id,''))) = ? OR LOWER(TRIM(COALESCE(box_id,''))) = ?) LIMIT 1`
+            : `SELECT id FROM tabPutawayLine WHERE parent_title = ?
+                 AND LOWER(TRIM(COALESCE(carton_id,''))) = ? LIMIT 1`;
+          const prms = hasPlBox
+            ? [taskTitleToCheck, scanLcBox, scanLcBox]
+            : [taskTitleToCheck, scanLcBox];
+          const [plHit] = await connection.execute(sqlPl, prms);
+          if (plHit.length) acceptClientTask = true;
+        }
+        if (!acceptClientTask && scanLcBox) {
+          const [tbHit] = await connection.execute(
+            `SELECT title FROM tabPutawayTask WHERE title = ? AND LOWER(TRIM(COALESCE(box_id,''))) = ? LIMIT 1`,
+            [taskTitleToCheck, scanLcBox]
+          );
+          if (tbHit.length) acceptClientTask = true;
+        }
+        if (!acceptClientTask) {
           connection.release();
           return res.status(400).json({
             ok: false,
@@ -4743,6 +5047,9 @@ export const scanTransferCarton = async (req, res) => {
             },
           });
         }
+        logger.info(
+          `[Putaway Scan] Client task ${taskTitleToCheck} differs from ASN-discovered ${foundPutawayTask.title}; box is linked to client task — using client task`
+        );
       }
 
       // Validate box belongs to correct document (ASN or Transfer In)

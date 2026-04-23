@@ -24,7 +24,8 @@
             <TextBlock Text="  (mock data)"
                        VerticalAlignment="Bottom"
                        Foreground="#6B7280"
-                       FontSize="12" />
+                       FontSize="12"
+                       Visibility="{Binding IsUsingMockData, Converter={StaticResource BooleanToVisibilityConverter}}" />
         </StackPanel>
 
         <Border Grid.Row="1"

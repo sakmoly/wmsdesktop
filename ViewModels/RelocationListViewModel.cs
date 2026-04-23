@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using Wms.Desktop.Models;
 using Wms.Desktop.Services;
@@ -8,11 +9,17 @@ namespace Wms.Desktop.ViewModels;
 
 public sealed class RelocationListViewModel : BaseViewModel
 {
-    public ObservableCollection<RelocationSession> Sessions { get; } = new();
+    public ObservableCollection<RelocationSessionDisplayItem> Sessions { get; } = new();
 
     public RelocationListViewModel()
     {
         _ = LoadDataAsync();
+    }
+
+    /// <summary>Reload sessions from API and refresh the list (warehouse shown as code).</summary>
+    public async Task RefreshAsync()
+    {
+        await LoadDataAsync();
     }
 
     private async Task LoadDataAsync()
@@ -26,18 +33,25 @@ public sealed class RelocationListViewModel : BaseViewModel
             }
 
             var (success, message, sessions) = await RelocationApiService.GetSessionsAsync(settings);
-            
-            if (success && sessions != null)
+            if (!success || sessions == null)
             {
-                Sessions.Clear();
-                foreach (var session in sessions)
-                {
-                    Sessions.Add(session);
-                }
+                if (!success)
+                    ErrorLogService.LogError($"Failed to load relocation sessions: {message}", null);
+                return;
             }
-            else
+
+            var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+            Sessions.Clear();
+            foreach (var session in sessions)
             {
-                ErrorLogService.LogError($"Failed to load relocation sessions: {message}", null);
+                var warehouseCode = WarehouseDataService.ResolveToCode(session.WarehouseId, warehouses);
+                if (string.IsNullOrWhiteSpace(warehouseCode))
+                    warehouseCode = session.WarehouseId ?? string.Empty;
+                Sessions.Add(new RelocationSessionDisplayItem
+                {
+                    Session = session,
+                    WarehouseCode = warehouseCode
+                });
             }
         }
         catch (Exception ex)

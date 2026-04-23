@@ -16,13 +16,26 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Transfer In (Showroom to Warehouse)"
-                       FontSize="22"
-                       FontWeight="Bold"
-                       Foreground="#111827" />
-            <TextBlock Text="Items transferred from showroom to warehouse"
-                       FontSize="12"
-                       Foreground="#6B7280" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Transfer In (Showroom to Warehouse)"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#111827" />
+                    <TextBlock Text="Items transferred from showroom to warehouse (local import + ERPNext sync)"
+                               FontSize="12"
+                               Foreground="#6B7280" />
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Padding="12,6"
+                        VerticalAlignment="Center" />
+            </Grid>
         </StackPanel>
 
         <Border Grid.Row="1"

@@ -20,9 +20,19 @@
                        FontSize="22"
                        FontWeight="Bold"
                        Foreground="#111827" />
-            <TextBlock Text="Hierarchy of product groups (mock data)"
-                       FontSize="12"
-                       Foreground="#6B7280" />
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <TextBlock Text="Synced from ERPNext (Sync tab or button below). "
+                           FontSize="12"
+                           Foreground="#6B7280"
+                           VerticalAlignment="Center" />
+                <Button Content="Sync Item Groups"
+                        Command="{Binding SyncItemGroupsCommand}"
+                        Padding="10,6"
+                        Margin="0,0,8,0" />
+                <Button Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        Padding="10,6" />
+            </StackPanel>
         </StackPanel>
 
         <Border Grid.Row="1"

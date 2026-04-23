@@ -7,6 +7,10 @@ public sealed class Item
     public string Code { get; init; } = string.Empty;
     public string Name { get; init; } = string.Empty;
     public string? ItemGroup { get; init; }
+    public string? Color { get; init; }
+    public string? Size { get; init; }
+    public string? Year { get; init; }
+    public string? Season { get; init; }
     public string? Brand { get; init; }
     public string? DefaultUom { get; init; }
     public string? StockUom { get; init; }

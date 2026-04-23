@@ -146,6 +146,16 @@
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
+
+                <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <TextBlock Text="ERP Reference"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding CycleCountTask.ErpReference, FallbackValue='Not synced'}"
+                               FontSize="14"
+                               Foreground="#111827"
+                               ToolTip="ERPNext document reference after push" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -391,11 +401,22 @@
                             Command="{Binding CompleteCycleCountCommand}"
                             IsEnabled="{Binding CanComplete}"
                             Padding="16,8"
+                            Margin="0,0,8,0"
                             Background="#10B981"
                             Foreground="White"
                             BorderThickness="0"
                             Cursor="Hand"
                             FontWeight="SemiBold" />
+                    <Button Content="Push to ERP"
+                            Command="{Binding PushToErpCommand}"
+                            IsEnabled="{Binding CanPushToErp}"
+                            Padding="16,8"
+                            Background="#059669"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            FontWeight="SemiBold"
+                            ToolTip="Send cycle count to ERPNext (sync_task_capture_only). Use to retry if push failed." />
                 </StackPanel>
             </Grid>
         </Border>

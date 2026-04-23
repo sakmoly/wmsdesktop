@@ -1,3 +1,4 @@
-WMS API Server
-Build Date: 2026-01-05T13:06:17.847Z
-Version: 1.0.0
+WMS API Server — deployment bundle
+package.json version: 1.0.0
+build_timestamp_utc: 2026-04-23T10:34:19.411Z
+build_local: Thu Apr 23 2026 13:34:19 GMT+0300 (Arabian Standard Time)

@@ -23,16 +23,19 @@ public static class PutawayTaskDataService
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            // Check if source_type, transfer_in, and location_id columns exist
+            // Check if source_type, transfer_in, location_id, and receipt_stock_entry_no columns exist
             var hasSourceType = await CheckColumnExistsAsync(connection, "tabPutawayTask", "source_type");
             var hasTransferIn = await CheckColumnExistsAsync(connection, "tabPutawayTask", "transfer_in");
             var hasTaskLocationId = await CheckColumnExistsAsync(connection, "tabPutawayTask", "location_id");
+            var hasReceiptStockEntryNo = await CheckColumnExistsAsync(connection, "tabPutawayTask", "receipt_stock_entry_no");
 
             // Build query based on column existence
             string sourceTypeColumn = hasSourceType ? "COALESCE(source_type, 'ASN') as source_type," : "'ASN' as source_type,";
             string transferInColumn = hasTransferIn ? "transfer_in," : "NULL as transfer_in,";
             string locationIdColumn = hasTaskLocationId ? "pt.location_id," : "NULL as location_id,";
-            string locationIdGroupBy = hasTaskLocationId ? "pt.location_id," : "";
+            string receiptColumn = hasReceiptStockEntryNo ? "pt.receipt_stock_entry_no," : "NULL as receipt_stock_entry_no,";
+            string locationIdGroupBy = hasTaskLocationId ? "pt.location_id" : "";
+            string receiptGroupBy = hasReceiptStockEntryNo ? "pt.receipt_stock_entry_no" : "";
             
             // Get unique tasks by title, selecting the most recent one (by updated_at, then created_at)
             // This prevents duplicate tasks from appearing in the list when there are multiple rows with same title
@@ -47,6 +50,7 @@ public static class PutawayTaskDataService
                                    pt.inbound_session, 
                                    pt.created_by,
                                    {locationIdColumn}
+                                   {receiptColumn}
                                    NULL as rack,
                                    NULL as bin
                             FROM tabPutawayTask pt
@@ -57,7 +61,7 @@ public static class PutawayTaskDataService
                                 GROUP BY title
                             ) latest ON pt.title = latest.title 
                                 AND COALESCE(pt.updated_at, pt.created_at) = latest.max_date
-                            GROUP BY pt.title, pt.status, pt.advance_shipping_notice, pt.inbound_session, pt.created_by{(!string.IsNullOrEmpty(locationIdGroupBy) ? ", " + locationIdGroupBy : "")}
+                            GROUP BY pt.title, pt.status, pt.advance_shipping_notice, pt.inbound_session, pt.created_by{(!string.IsNullOrEmpty(locationIdGroupBy) ? ", " + locationIdGroupBy : "")}{(!string.IsNullOrEmpty(receiptGroupBy) ? ", " + receiptGroupBy : "")}
                             ORDER BY pt.title";
             
             await using var taskCmd = new MySqlCommand(taskSql, connection);
@@ -89,6 +93,8 @@ public static class PutawayTaskDataService
                     var inboundSession = taskReader.IsDBNull(5) ? "" : taskReader.GetString(5);
                     var createdBy = taskReader.IsDBNull(6) ? "SYSTEM" : taskReader.GetString(6);
                     var locationId = taskReader.IsDBNull(7) ? null : taskReader.GetString(7);
+                    var receiptStockEntryNo = hasReceiptStockEntryNo && !taskReader.IsDBNull(8) ? taskReader.GetString(8) : null;
+                    if (receiptStockEntryNo != null && string.IsNullOrWhiteSpace(receiptStockEntryNo)) receiptStockEntryNo = null;
                     
                     // For task level, location_id comes directly from the column (no construction from rack+bin needed)
                     // rack and bin are only at the line level (tabPutawayLine), not at task level (tabPutawayTask)
@@ -101,6 +107,7 @@ public static class PutawayTaskDataService
                         SourceType = sourceType,
                         AdvanceShippingNotice = sourceType == "ASN" ? asn : null,
                         TransferIn = sourceType == "TransferIn" ? transferIn : null,
+                        ReceiptStockEntryNo = receiptStockEntryNo,
                         InboundSession = inboundSession,
                         CreatedBy = createdBy,
                         LocationId = finalLocationId
@@ -695,6 +702,81 @@ public static class PutawayTaskDataService
         var sequence = (count + 1).ToString("D4");
         
         return $"PUT-{datePrefix}-{sequence}";
+    }
+
+    /// <summary>
+    /// Get Transfer In titles that have a completed putaway task and no receipt_stock_entry_no yet (not yet end-transited).
+    /// Used to send End Transit API only once per transfer in; after success we store receipt_stock_entry_no and skip next time.
+    /// </summary>
+    public static async Task<List<string>> GetTransferInTitlesWithCompletedPutawayAsync(WmsSettings settings)
+    {
+        var list = new List<string>();
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            var hasTransferIn = await CheckColumnExistsAsync(connection, "tabPutawayTask", "transfer_in");
+            var hasSourceType = await CheckColumnExistsAsync(connection, "tabPutawayTask", "source_type");
+            var hasReceiptNo = await CheckColumnExistsAsync(connection, "tabPutawayTask", "receipt_stock_entry_no");
+            if (!hasTransferIn)
+                return list;
+
+            var notYetEndTransit = hasReceiptNo
+                ? " AND (receipt_stock_entry_no IS NULL OR TRIM(COALESCE(receipt_stock_entry_no,'')) = '')"
+                : "";
+
+            var sql = hasSourceType
+                ? $@"SELECT DISTINCT transfer_in FROM tabPutawayTask 
+                   WHERE status = 'Completed' AND (source_type = 'TransferIn' OR transfer_in IS NOT NULL) 
+                   AND transfer_in IS NOT NULL AND TRIM(transfer_in) != ''{notYetEndTransit}"
+                : $@"SELECT DISTINCT transfer_in FROM tabPutawayTask 
+                   WHERE status = 'Completed' AND transfer_in IS NOT NULL AND TRIM(transfer_in) != ''{notYetEndTransit}";
+
+            await using var cmd = new MySqlCommand(sql, connection);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var ti = reader.GetString(0)?.Trim();
+                if (!string.IsNullOrEmpty(ti) && !list.Contains(ti))
+                    list.Add(ti);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("PutawayTaskDataService: GetTransferInTitlesWithCompletedPutaway failed", ex);
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Update putaway task(s) for this transfer in with the receipt Stock Entry number from end_transit_create_receipt.
+    /// So we skip calling End Transit again for this transfer in (duplicate control).
+    /// </summary>
+    public static async Task UpdateReceiptStockEntryNoForTransferInAsync(WmsSettings settings, string transferInTitle, string receiptStockEntryNo)
+    {
+        if (string.IsNullOrWhiteSpace(transferInTitle) || string.IsNullOrWhiteSpace(receiptStockEntryNo))
+            return;
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            var hasReceiptNo = await CheckColumnExistsAsync(connection, "tabPutawayTask", "receipt_stock_entry_no");
+            if (!hasReceiptNo)
+                return;
+            await using var cmd = new MySqlCommand(
+                "UPDATE tabPutawayTask SET receipt_stock_entry_no = @no, updated_at = COALESCE(updated_at, NOW()) WHERE transfer_in = @ti AND status = 'Completed'", connection);
+            cmd.Parameters.AddWithValue("@no", receiptStockEntryNo.Trim());
+            cmd.Parameters.AddWithValue("@ti", transferInTitle.Trim());
+            var rows = await cmd.ExecuteNonQueryAsync();
+            ErrorLogService.LogInfo($"PutawayTaskDataService: Updated receipt_stock_entry_no={receiptStockEntryNo} for transfer_in={transferInTitle}, rows={rows}");
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("PutawayTaskDataService: UpdateReceiptStockEntryNoForTransferIn failed", ex);
+        }
     }
 
     /// <summary>

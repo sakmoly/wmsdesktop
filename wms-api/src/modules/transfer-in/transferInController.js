@@ -2941,11 +2941,13 @@ export const getTransferInPutawayBoxes = async (req, res) => {
     query += `
       FROM tabSortBox
       WHERE advance_shipping_notice = ?
+        AND status != 'Closed'
     `;
     
     const params = [title];
     
     // Match ASN pattern: No purpose filter, rely on advance_shipping_notice matching Transfer In title
+    // CRITICAL: Exclude closed boxes - they've already been put away
     query += ` ORDER BY created_on DESC`;
 
     const [boxes] = await connection.execute(query, params);
@@ -3014,7 +3016,8 @@ export const validateTransferInCarton = async (req, res) => {
     const { title } = req.params;
     // CRITICAL: For Transfer In Putaway, carton_id IS the box_id (same as ASN)
     // Accept both carton_id and box_id parameters (they should be the same)
-    const { carton_id, box_id } = req.body;
+    // create_carton_if_missing: when true, if box exists in tabCarton/tabCartonStock but not in this Transfer In, add it so user can "scan to existing box"
+    const { carton_id, box_id, create_carton_if_missing } = req.body || {};
     const actualBoxId = box_id || carton_id; // Use box_id if provided, otherwise use carton_id
 
     // Validate title parameter
@@ -3254,6 +3257,74 @@ export const validateTransferInCarton = async (req, res) => {
       }
     }
 
+    // Scan to existing box: if carton not in Transfer In but exists in system, add it when create_carton_if_missing is true
+    if (!cartonExists && create_carton_if_missing) {
+      let existingCartonFound = false;
+      const [cartonTableCheck] = await connection.execute(`
+        SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabTransferInCarton'
+      `);
+      const hasMultiCartonTables = cartonTableCheck.length > 0;
+
+      if (hasMultiCartonTables) {
+        // Check if carton exists in tabCarton or tabCartonStock (any transfer)
+        const [tabCartonExists] = await connection.execute(
+          `SELECT 1 FROM tabCarton WHERE carton_id = ? LIMIT 1`,
+          [actualBoxId]
+        );
+        let [tabCartonStockExists] = [[]];
+        try {
+          [tabCartonStockExists] = await connection.execute(
+            `SELECT 1 FROM tabCartonStock WHERE carton_id = ? LIMIT 1`,
+            [actualBoxId]
+          );
+        } catch (_) {
+          // tabCartonStock may not exist
+        }
+        if (tabCartonExists.length > 0 || tabCartonStockExists.length > 0) {
+          try {
+            await connection.beginTransaction();
+            const cartonName = `TIC-${titleToUse}-${actualBoxId}-${Date.now()}`.replace(/\s/g, '-');
+            await connection.execute(
+              `INSERT INTO tabTransferInCarton (name, carton_id, transfer_in, status, created_by, created_at)
+               VALUES (?, ?, ?, 'Draft', 'SYSTEM', NOW())
+               ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+              [cartonName, actualBoxId, titleToUse]
+            );
+            // Add carton lines from Transfer In items so putaway can use this box
+            const [lineTableCheck] = await connection.execute(`
+              SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabTransferInCartonLine'
+            `);
+            if (lineTableCheck.length > 0) {
+              const [items] = await connection.execute(
+                `SELECT item_code FROM tabTransferInItem WHERE parent_title = ? GROUP BY item_code`,
+                [titleToUse]
+              );
+              for (const row of items) {
+                const lineName = `TICL-${titleToUse}-${actualBoxId}-${row.item_code}-${Date.now()}`.replace(/\s/g, '-');
+                await connection.execute(
+                  `INSERT IGNORE INTO tabTransferInCartonLine (name, transfer_in, carton_id, item_code, received_qty, created_at)
+                   VALUES (?, ?, ?, ?, 0, NOW())`,
+                  [lineName, titleToUse, actualBoxId, row.item_code]
+                );
+              }
+            }
+            await connection.commit();
+            cartonExists = true;
+            existingCartonFound = true;
+            console.log(`[Validate Carton] ✅ Added existing box ${actualBoxId} to Transfer In ${titleToUse} (create_carton_if_missing)`);
+          } catch (err) {
+            await connection.rollback();
+            console.error(`[Validate Carton] Failed to add existing box to Transfer In:`, err);
+          }
+        }
+      }
+      if (!existingCartonFound) {
+        console.log(`[Validate Carton] create_carton_if_missing=true but carton ${actualBoxId} not found in tabCarton/tabCartonStock`);
+      }
+    }
+
     if (!cartonExists) {
       // Debug: Check what boxes/cartons actually exist
       const [debugBoxes] = await connection.execute(
@@ -3286,7 +3357,7 @@ export const validateTransferInCarton = async (req, res) => {
         ok: false,
         error: {
           code: "BOX_NOT_FOUND",
-          message: `Box ${actualBoxId} not found in Transfer In ${titleToUse}. For Transfer In Putaway, box_id should equal carton_id. Please ensure the carton was received and putaway task was created.`,
+          message: `Box ${actualBoxId} not found in Transfer In ${titleToUse}. For Transfer In Putaway, box_id should equal carton_id. To scan an existing box, send create_carton_if_missing: true in the request body.`,
           debug: process.env.NODE_ENV === 'development' ? {
             searched_box_id: actualBoxId,
             transfer_in: titleToUse,
@@ -3337,10 +3408,22 @@ export const validateTransferInCarton = async (req, res) => {
       } else {
         console.log(`[Validate Carton] ⚠️ No putaway task found for Transfer In ${titleToUse} - carton is valid but putaway task needs to be created`);
         
-        // AUTO-CREATE PUTAWAY TASK: If Transfer In is "Received" or "Receiving", create putaway task now
+        // AUTO-CREATE PUTAWAY TASK: Check if items have been received (regardless of status)
         // This ensures validation can return ready_for_putaway=true immediately
-        if (transferInStatus === 'Received' || transferInStatus === 'Receiving') {
-          console.log(`[Validate Carton] 🔄 Auto-creating putaway task for Transfer In ${titleToUse} (status: ${transferInStatus})`);
+        // Check if any items have been received (received_qty > 0)
+        const [receivedItemsCheck] = await connection.execute(`
+          SELECT COUNT(*) as received_count
+          FROM tabTransferInItem
+          WHERE parent_title = ? AND received_qty > 0
+        `, [titleToUse]);
+        
+        const hasReceivedItems = receivedItemsCheck.length > 0 && receivedItemsCheck[0].received_count > 0;
+        const shouldAutoCreate = transferInStatus === 'Received' || 
+                                 transferInStatus === 'Receiving' || 
+                                 (transferInStatus === 'Submitted' && hasReceivedItems);
+        
+        if (shouldAutoCreate) {
+          console.log(`[Validate Carton] 🔄 Auto-creating putaway task for Transfer In ${titleToUse} (status: ${transferInStatus}, hasReceivedItems: ${hasReceivedItems})`);
           
           try {
             // Get warehouse from Transfer In
@@ -3389,6 +3472,8 @@ export const validateTransferInCarton = async (req, res) => {
             // Don't fail validation - just log error and continue
             // The putaway task will be created later during receiving
           }
+        } else {
+          console.log(`[Validate Carton] ⚠️ Cannot auto-create putaway task: Transfer In status is "${transferInStatus}" and no items received yet. Please receive items first.`);
         }
       }
     }

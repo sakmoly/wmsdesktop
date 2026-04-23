@@ -462,6 +462,508 @@ public static class DatabaseService
     }
 
     /// <summary>
+    /// Ensure tabItem has required columns (add if missing): default_uom, stock_uom, color, size, year, season.
+    /// Call this before querying items so older databases get the columns.
+    /// </summary>
+    public static async Task EnsureTabItemUomColumnsAsync(MySqlConnection connection)
+    {
+        if (connection?.State != System.Data.ConnectionState.Open)
+            return;
+        try
+        {
+            var dbName = connection.Database;
+            // Order: color/size/year/season after item_group (in chain); then default_uom after brand, stock_uom after default_uom
+            var columnsToAdd = new[] {
+                ("color", "VARCHAR(100) NULL", "item_group"),
+                ("size", "VARCHAR(100) NULL", "color"),
+                ("year", "VARCHAR(50) NULL", "size"),
+                ("season", "VARCHAR(100) NULL", "year"),
+                ("default_uom", "VARCHAR(50) NULL", "brand"),
+                ("stock_uom", "VARCHAR(50) NULL", "default_uom")
+            };
+            foreach (var (colName, colDef, afterCol) in columnsToAdd)
+            {
+                var checkSql = @"
+                    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = @dbName AND TABLE_NAME = 'tabItem' AND COLUMN_NAME = @colName";
+                await using (var checkCmd = new MySqlCommand(checkSql, connection))
+                {
+                    checkCmd.Parameters.AddWithValue("@dbName", dbName);
+                    checkCmd.Parameters.AddWithValue("@colName", colName);
+                    var count = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
+                    if (count > 0)
+                        continue;
+                }
+                var alterSql = $"ALTER TABLE tabItem ADD COLUMN `{colName}` {colDef} AFTER `{afterCol}`";
+                await using var alterCmd = new MySqlCommand(alterSql, connection);
+                await alterCmd.ExecuteNonQueryAsync();
+                ErrorLogService.LogInfo($"DatabaseService: Added column tabItem.{colName}");
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabItemUomColumns failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure tabItemGroup exists (for existing DBs that were created before Item Group sync was added).
+    /// </summary>
+    public static async Task EnsureTabItemGroupExistsAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            const string sql = @"
+                CREATE TABLE IF NOT EXISTS tabItemGroup (
+                  name VARCHAR(100) PRIMARY KEY,
+                  parent_item_group VARCHAR(100) NULL,
+                  is_group BOOLEAN DEFAULT FALSE,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_parent (parent_item_group)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using var cmd = new MySqlCommand(sql, connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabItemGroupExists failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure tabRelocationErpPush exists (stores ERP transaction number and line items after pushing relocation to ERPNext).
+    /// </summary>
+    public static async Task EnsureTabRelocationErpPushExistsAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            const string sql = @"
+                CREATE TABLE IF NOT EXISTS tabRelocationErpPush (
+                  session_id VARCHAR(100) PRIMARY KEY,
+                  erp_transaction_no VARCHAR(150) NULL,
+                  pushed_at_utc DATETIME NULL,
+                  lines_json TEXT NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using var cmd = new MySqlCommand(sql, connection);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabRelocationErpPushExists failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure ASN tables exist (for existing DBs that were created before ASN sync was added).
+    /// </summary>
+    public static async Task EnsureTabAsnTablesExistAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            const string asnTable = @"
+                CREATE TABLE IF NOT EXISTS tabAdvanceShippingNotice (
+                  title VARCHAR(100) PRIMARY KEY,
+                  status VARCHAR(50) DEFAULT 'Draft',
+                  purchase_order VARCHAR(100) NULL,
+                  supplier VARCHAR(100) NOT NULL,
+                  shipment_date DATE NOT NULL,
+                  expected_arrival_date DATE NOT NULL,
+                  total_shipped_qty DECIMAL(10,2) NOT NULL,
+                  airway_bill_no VARCHAR(100) NULL,
+                  shipment_type VARCHAR(50) NULL,
+                  wms_export_status VARCHAR(50) NULL DEFAULT 'Pending',
+                  updated_on TIMESTAMP NULL,
+                  payload_json LONGTEXT NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_status (status),
+                  INDEX idx_purchase_order (purchase_order),
+                  INDEX idx_supplier (supplier)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(asnTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+            await EnsureTabAdvanceShippingNoticeWmsExportStatusColumnAsync(connection);
+            await EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumnAsync(connection);
+            await EnsureTabAdvanceShippingNoticeWarehouseColumnAsync(connection);
+            const string asnDetailsTable = @"
+                CREATE TABLE IF NOT EXISTS tabAsnItemDetails (
+                  id INT AUTO_INCREMENT PRIMARY KEY,
+                  parent_title VARCHAR(100) NOT NULL,
+                  item_code VARCHAR(100) NOT NULL,
+                  po_item_reference VARCHAR(100) NULL,
+                  shipped_qty DECIMAL(10,2) NOT NULL,
+                  carton_id VARCHAR(100) NULL,
+                  carton_assigned_status VARCHAR(50) DEFAULT 'Assigned',
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_parent (parent_title),
+                  INDEX idx_item_code (item_code),
+                  INDEX idx_carton_id (carton_id),
+                  FOREIGN KEY (parent_title) REFERENCES tabAdvanceShippingNotice(title) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(asnDetailsTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAsnTablesExist failed", ex);
+        }
+    }
+
+    private static async Task EnsureTabAdvanceShippingNoticeWmsExportStatusColumnAsync(MySqlConnection connection)
+    {
+        try
+        {
+            await using var checkCmd = new MySqlCommand(@"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabAdvanceShippingNotice' AND COLUMN_NAME = 'wms_export_status'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabAdvanceShippingNotice ADD COLUMN wms_export_status VARCHAR(50) NULL DEFAULT 'Pending' AFTER shipment_type", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAdvanceShippingNoticeWmsExportStatusColumn failed", ex);
+        }
+    }
+
+    private static async Task EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumnAsync(MySqlConnection connection)
+    {
+        try
+        {
+            await using var checkCmd = new MySqlCommand(@"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabAdvanceShippingNotice' AND COLUMN_NAME = 'purchase_receipt_no'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabAdvanceShippingNotice ADD COLUMN purchase_receipt_no VARCHAR(100) NULL AFTER wms_export_status", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumn failed", ex);
+        }
+    }
+
+    private static async Task EnsureTabAdvanceShippingNoticeWarehouseColumnAsync(MySqlConnection connection)
+    {
+        try
+        {
+            await using var checkCmd = new MySqlCommand(@"
+                SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabAdvanceShippingNotice' AND COLUMN_NAME = 'warehouse'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabAdvanceShippingNotice ADD COLUMN warehouse VARCHAR(100) NULL AFTER purchase_receipt_no", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAdvanceShippingNoticeWarehouseColumn failed", ex);
+        }
+    }
+
+    /// <summary>Ensures tabAdvanceShippingNotice has purchase_receipt_no column (e.g. before saving PR number from Create PR API).</summary>
+    public static async Task EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumnAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings?.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumnAsync(connection);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumn (public) failed", ex);
+        }
+    }
+
+    /// <summary>Ensures tabAdvanceShippingNotice has warehouse column (e.g. before saving default receiving warehouse for ASN).</summary>
+    public static async Task EnsureTabAdvanceShippingNoticeWarehouseColumnAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings?.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsureTabAdvanceShippingNoticeWarehouseColumnAsync(connection);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabAdvanceShippingNoticeWarehouseColumn (public) failed", ex);
+        }
+    }
+
+    /// <summary>Ensures tabTransferCarton has PR and Stock Entry columns for ERPNext integration.</summary>
+    public static async Task EnsureTabTransferCartonPrAndStockEntryColumnsAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings?.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await EnsureTabTransferCartonPrAndStockEntryColumnsAsync(connection);
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabTransferCartonPrAndStockEntryColumns failed", ex);
+        }
+    }
+
+    private static async Task EnsureTabTransferCartonPrAndStockEntryColumnsAsync(MySqlConnection connection)
+    {
+        var columns = new[] {
+            ("purchase_receipt_no", "VARCHAR(100) NULL AFTER remarks"),
+            ("purchase_receipt_docstatus", "INT NULL AFTER purchase_receipt_no"),
+            ("purchase_receipt_created", "TINYINT(1) NULL AFTER purchase_receipt_docstatus"),
+            ("purchase_receipt_submitted", "TINYINT(1) NULL AFTER purchase_receipt_created"),
+            ("warehouse_transfer_no", "VARCHAR(100) NULL AFTER purchase_receipt_submitted"),
+            ("warehouse_transfer_created", "TINYINT(1) NULL AFTER warehouse_transfer_no")
+        };
+        foreach (var (colName, colDef) in columns)
+        {
+            try
+            {
+                await using var checkCmd = new MySqlCommand(@"
+                    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabTransferCarton' AND COLUMN_NAME = @col", connection);
+                checkCmd.Parameters.AddWithValue("@col", colName);
+                var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+                if (exists) continue;
+                await using var alterCmd = new MySqlCommand($"ALTER TABLE tabTransferCarton ADD COLUMN {colName} {colDef}", connection);
+                await alterCmd.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                ErrorLogService.LogError($"DatabaseService: Add column tabTransferCarton.{colName} failed", ex);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ensure Transfer Order tables exist (for existing DBs that were created before TO sync was added).
+    /// </summary>
+    public static async Task EnsureTabTransferOrderTablesExistAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            const string toTable = @"
+                CREATE TABLE IF NOT EXISTS tabTransferOrder (
+                  title VARCHAR(100) PRIMARY KEY,
+                  status VARCHAR(50) DEFAULT 'Draft',
+                  advance_shipping_notice VARCHAR(100) NOT NULL,
+                  from_warehouse VARCHAR(100) NOT NULL,
+                  wms_export_status VARCHAR(50) NULL DEFAULT 'Pending',
+                  prepared_by VARCHAR(100) NOT NULL,
+                  required_date DATE NULL,
+                  total_allocated_qty DECIMAL(10,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_asn (advance_shipping_notice),
+                  INDEX idx_status (status),
+                  INDEX idx_from_warehouse (from_warehouse)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(toTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+            await EnsureTabTransferOrderWmsExportStatusColumnAsync(connection);
+            const string toItemTable = @"
+                CREATE TABLE IF NOT EXISTS tabTransferOrderItem (
+                  id INT AUTO_INCREMENT PRIMARY KEY,
+                  parent_title VARCHAR(100) NOT NULL,
+                  store VARCHAR(100) NOT NULL,
+                  item_code VARCHAR(100) NOT NULL,
+                  allocated_qty DECIMAL(10,2) NOT NULL,
+                  sorted_qty DECIMAL(10,2) DEFAULT 0,
+                  packed_qty DECIMAL(10,2) DEFAULT 0,
+                  pending_qty DECIMAL(10,2) DEFAULT 0,
+                  remarks TEXT NULL,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_parent (parent_title),
+                  INDEX idx_store (store),
+                  INDEX idx_item_code (item_code),
+                  FOREIGN KEY (parent_title) REFERENCES tabTransferOrder(title) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(toItemTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabTransferOrderTablesExist failed", ex);
+        }
+    }
+
+    private static async Task EnsureTabTransferOrderWmsExportStatusColumnAsync(MySqlConnection connection)
+    {
+        try
+        {
+            await using var checkCmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabTransferOrder' AND COLUMN_NAME = 'wms_export_status'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabTransferOrder ADD COLUMN wms_export_status VARCHAR(50) NULL DEFAULT 'Pending' AFTER from_warehouse", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabTransferOrderWmsExportStatusColumn failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure Material Request tables exist (for ERPNext get_material_transfer_requests sync).
+    /// </summary>
+    public static async Task EnsureTabMaterialRequestTablesExistAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            const string mrTable = @"
+                CREATE TABLE IF NOT EXISTS tabMaterialRequest (
+                  title VARCHAR(100) PRIMARY KEY,
+                  status VARCHAR(50) DEFAULT 'Draft',
+                  from_warehouse VARCHAR(100) NOT NULL,
+                  to_showroom VARCHAR(255) NULL,
+                  requested_date DATE NOT NULL,
+                  required_date DATE NULL,
+                  requested_by VARCHAR(100) NOT NULL,
+                  total_requested_qty DECIMAL(10,2) NOT NULL DEFAULT 0,
+                  total_picked_qty DECIMAL(10,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_status (status),
+                  INDEX idx_from_warehouse (from_warehouse),
+                  INDEX idx_requested_date (requested_date)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(mrTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+            const string mrItemTable = @"
+                CREATE TABLE IF NOT EXISTS tabMaterialRequestItem (
+                  id INT AUTO_INCREMENT PRIMARY KEY,
+                  parent_title VARCHAR(100) NOT NULL,
+                  item_code VARCHAR(100) NOT NULL,
+                  requested_qty DECIMAL(10,2) NOT NULL,
+                  picked_qty DECIMAL(10,2) DEFAULT 0,
+                  status VARCHAR(50) DEFAULT 'Pending',
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  INDEX idx_parent (parent_title),
+                  INDEX idx_item_code (item_code),
+                  FOREIGN KEY (parent_title) REFERENCES tabMaterialRequest(title) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            await using (var cmd = new MySqlCommand(mrItemTable, connection))
+                await cmd.ExecuteNonQueryAsync();
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureTabMaterialRequestTablesExist failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Drop the legacy tabTransferInStockEntry and tabTransferInStockEntryItem tables if they exist.
+    /// Transfer In now uses only tabTransferIn and tabTransferInItem (shared with mobile/API).
+    /// </summary>
+    public static async Task DropTabTransferInStockEntryTablesIfExistAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            // Drop item table first (has FK to header)
+            await using (var cmd = new MySqlCommand("DROP TABLE IF EXISTS tabTransferInStockEntryItem", connection))
+                await cmd.ExecuteNonQueryAsync();
+            await using (var cmd = new MySqlCommand("DROP TABLE IF EXISTS tabTransferInStockEntry", connection))
+                await cmd.ExecuteNonQueryAsync();
+            ErrorLogService.LogInfo("DatabaseService: Dropped tabTransferInStockEntry and tabTransferInStockEntryItem if they existed.");
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: DropTabTransferInStockEntryTablesIfExist failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure tabPutawayTask has receipt_stock_entry_no column (Stock Entry created by end_transit_create_receipt).
+    /// Used to avoid duplicate End Transit calls: once set, we skip that transfer in.
+    /// </summary>
+    public static async Task EnsurePutawayTaskReceiptStockEntryNoColumnAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var checkCmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayTask' AND COLUMN_NAME = 'receipt_stock_entry_no'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabPutawayTask ADD COLUMN receipt_stock_entry_no VARCHAR(100) NULL", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+            ErrorLogService.LogInfo("DatabaseService: Added tabPutawayTask.receipt_stock_entry_no column.");
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsurePutawayTaskReceiptStockEntryNoColumn failed", ex);
+        }
+    }
+
+    /// <summary>
+    /// Ensure tabMaterialRequest has stock_entry_no column (Stock Entry from Push to ERP / add to transit).
+    /// </summary>
+    public static async Task EnsureMaterialRequestStockEntryNoColumnAsync(WmsSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.DatabaseName)) return;
+        try
+        {
+            var connectionString = BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var checkCmd = new MySqlCommand(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabMaterialRequest' AND COLUMN_NAME = 'stock_entry_no'", connection);
+            var exists = Convert.ToInt32(await checkCmd.ExecuteScalarAsync()) > 0;
+            if (exists) return;
+            await using var alterCmd = new MySqlCommand("ALTER TABLE tabMaterialRequest ADD COLUMN stock_entry_no VARCHAR(100) NULL", connection);
+            await alterCmd.ExecuteNonQueryAsync();
+            ErrorLogService.LogInfo("DatabaseService: Added tabMaterialRequest.stock_entry_no column.");
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("DatabaseService: EnsureMaterialRequestStockEntryNoColumn failed", ex);
+        }
+    }
+
+    /// <summary>
     /// Build MySQL connection string
     /// </summary>
     public static string BuildConnectionString(WmsSettings settings)
@@ -511,6 +1013,7 @@ CREATE TABLE IF NOT EXISTS tabAdvanceShippingNotice (
   total_shipped_qty DECIMAL(10,2) NOT NULL,
   airway_bill_no VARCHAR(100) NULL,
   shipment_type VARCHAR(50) NULL,
+  wms_export_status VARCHAR(50) NULL DEFAULT 'Pending',
   updated_on TIMESTAMP NULL,
   payload_json LONGTEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -543,6 +1046,7 @@ CREATE TABLE IF NOT EXISTS tabTransferOrder (
   status VARCHAR(50) DEFAULT 'Draft',
   advance_shipping_notice VARCHAR(100) NOT NULL,
   from_warehouse VARCHAR(100) NOT NULL,
+  wms_export_status VARCHAR(50) NULL DEFAULT 'Pending',
   prepared_by VARCHAR(100) NOT NULL,
   required_date DATE NULL,
   total_allocated_qty DECIMAL(10,2) NOT NULL DEFAULT 0,
@@ -756,6 +1260,10 @@ CREATE TABLE IF NOT EXISTS tabItem (
   code VARCHAR(100) PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
   item_group VARCHAR(100) NULL,
+  color VARCHAR(100) NULL,
+  size VARCHAR(100) NULL,
+  year VARCHAR(50) NULL,
+  season VARCHAR(100) NULL,
   brand VARCHAR(100) NULL,
   default_uom VARCHAR(50) NULL,
   stock_uom VARCHAR(50) NULL,
@@ -763,12 +1271,34 @@ CREATE TABLE IF NOT EXISTS tabItem (
   maintain_stock BOOLEAN DEFAULT TRUE,
   stock_qty DECIMAL(10,2) DEFAULT 0,
   reserved_qty DECIMAL(10,2) DEFAULT 0,
+  disabled BOOLEAN DEFAULT FALSE,
+  wms_modified TIMESTAMP NULL,
   updated_on TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_barcode (barcode),
   INDEX idx_item_group (item_group),
-  INDEX idx_brand (brand)
+  INDEX idx_brand (brand),
+  INDEX idx_wms_modified (wms_modified)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- App Sync State (for tracking sync cursors)
+CREATE TABLE IF NOT EXISTS app_sync_state (
+  `key` VARCHAR(100) PRIMARY KEY,
+  `value` TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_key (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Item Group (Master Data - from ERPNext)
+CREATE TABLE IF NOT EXISTS tabItemGroup (
+  name VARCHAR(100) PRIMARY KEY,
+  parent_item_group VARCHAR(100) NULL,
+  is_group BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_parent (parent_item_group)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Warehouse (Master Data)

@@ -53,6 +53,9 @@
                     <DataGridTextColumn Header="From Warehouse"
                                         Binding="{Binding FromWarehouse}"
                                         Width="150" />
+                    <DataGridTextColumn Header="WMS Export Status"
+                                        Binding="{Binding WmsExportStatus, FallbackValue=Pending}"
+                                        Width="130" />
                     <DataGridTextColumn Header="Prepared By"
                                         Binding="{Binding PreparedBy}"
                                         Width="120" />

@@ -89,39 +89,35 @@ public sealed partial class StockLedgerListViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task GoToFirstPageAsync()
+    private Task GoToFirstPageAsync()
     {
         if (CurrentPage > 1)
-        {
             CurrentPage = 1;
-        }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
-    private async Task GoToPreviousPageAsync()
+    private Task GoToPreviousPageAsync()
     {
         if (CurrentPage > 1)
-        {
             CurrentPage--;
-        }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
-    private async Task GoToNextPageAsync()
+    private Task GoToNextPageAsync()
     {
         if (CurrentPage < TotalPages)
-        {
             CurrentPage++;
-        }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]
-    private async Task GoToLastPageAsync()
+    private Task GoToLastPageAsync()
     {
         if (CurrentPage < TotalPages)
-        {
             CurrentPage = TotalPages;
-        }
+        return Task.CompletedTask;
     }
 
     [RelayCommand]

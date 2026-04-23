@@ -34,6 +34,30 @@ export const getAllAsns = async (req, res) => {
   const connection = await getConnection();
   
   try {
+    // Check if tabPutawayTask table exists and has status column
+    const [putawayTaskTable] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'tabPutawayTask'
+    `);
+    const hasPutawayTaskTable = putawayTaskTable.length > 0;
+    
+    // Check if tabPutawayTask has status and advance_shipping_notice columns
+    let hasPutawayStatusColumn = false;
+    let hasAdvanceShippingNoticeColumn = false;
+    if (hasPutawayTaskTable) {
+      const [putawayColumns] = await connection.execute(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'tabPutawayTask'
+          AND COLUMN_NAME IN ('status', 'advance_shipping_notice')
+      `);
+      hasPutawayStatusColumn = putawayColumns.some(col => col.COLUMN_NAME === 'status');
+      hasAdvanceShippingNoticeColumn = putawayColumns.some(col => col.COLUMN_NAME === 'advance_shipping_notice');
+    }
+    
     // Match desktop app query exactly:
     // - Same table: tabAdvanceShippingNotice
     // - Same JOIN: LEFT JOIN tabAsnItemDetails (removed carton_id filter to calculate total correctly)
@@ -42,9 +66,16 @@ export const getAllAsns = async (req, res) => {
     // - Same ORDER BY: shipment_date DESC, title
     // - Same carton count: COUNT(DISTINCT d.carton_id)
     // 
+    // ✅ NEW: Filter out ASNs that have completed putaway
+    // An ASN has completed putaway when:
+    // - All putaway tasks for that ASN have status = 'Completed'
+    // - OR there are no putaway tasks (ASN hasn't been put away yet)
+    // - Exclude ASNs where all tasks are 'Completed' (they're done, don't show in StartInbound)
+    // 
     // CRITICAL: Use a.title directly - NO normalization, NO formatting
     // Preserves original format exactly as stored in database
-    const query = `
+    // Build query with optional putaway completion filter
+    let query = `
       SELECT 
         a.title,  -- ✅ Use original format from database (no normalization)
         a.status,
@@ -60,6 +91,40 @@ export const getAllAsns = async (req, res) => {
       FROM tabAdvanceShippingNotice a
       LEFT JOIN tabAsnItemDetails d 
         ON a.title = d.parent_title
+    `;
+    
+    // Add putaway completion check if table exists
+    if (hasPutawayTaskTable && hasPutawayStatusColumn && hasAdvanceShippingNoticeColumn) {
+      query += `
+      LEFT JOIN (
+        SELECT 
+          advance_shipping_notice,
+          COUNT(*) as total_tasks,
+          SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed_tasks
+        FROM tabPutawayTask
+        WHERE advance_shipping_notice IS NOT NULL
+        GROUP BY advance_shipping_notice
+      ) pt ON a.title = pt.advance_shipping_notice
+      `;
+    }
+    
+    query += `
+      WHERE 1=1
+    `;
+    
+    // Filter out ASNs with all putaway tasks completed
+    // Include ASN if:
+    // - No putaway tasks exist (pt.advance_shipping_notice IS NULL)
+    // - Some tasks are not completed (pt.completed_tasks < pt.total_tasks)
+    // Exclude ASN if:
+    // - All tasks are completed (pt.completed_tasks = pt.total_tasks AND pt.total_tasks > 0)
+    if (hasPutawayTaskTable && hasPutawayStatusColumn && hasAdvanceShippingNoticeColumn) {
+      query += `
+        AND (pt.advance_shipping_notice IS NULL OR pt.completed_tasks < pt.total_tasks)
+      `;
+    }
+    
+    query += `
       GROUP BY 
         a.title, 
         a.status, 
@@ -91,7 +156,14 @@ export const getAllAsns = async (req, res) => {
       total_carton_count: parseInt(row.total_carton_count) || 0
     }));
 
-    console.log(`ASN list fetched: ${asns.length} ASNs (original format preserved)`);
+    const filteredCount = asns.length;
+    const totalCount = rows.length;
+    
+    if (hasPutawayTaskTable && hasPutawayStatusColumn && hasAdvanceShippingNoticeColumn) {
+      console.log(`ASN list fetched: ${filteredCount} ASNs (${totalCount - filteredCount} completed putaway ASNs filtered out)`);
+    } else {
+      console.log(`ASN list fetched: ${filteredCount} ASNs (original format preserved, putaway completion check not available)`);
+    }
 
     res.json(asns);
     
@@ -1084,6 +1156,10 @@ export const getAllItems = async (req, res) => {
         code,
         name,
         item_group,
+        color,
+        size,
+        year,
+        season,
         brand,
         default_uom,
         stock_uom,
@@ -1104,6 +1180,10 @@ export const getAllItems = async (req, res) => {
       item_name: row.name,
       name: row.name, // Keep for backward compatibility
       item_group: row.item_group || null,
+      color: row.color || null,
+      size: row.size || null,
+      year: row.year || null,
+      season: row.season || null,
       brand: row.brand || null,
       default_uom: row.default_uom || null,
       stock_uom: row.stock_uom || null,

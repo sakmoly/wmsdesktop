@@ -1,0 +1,72 @@
+[2026-04-13 16:33:42] INFO: ErpNextItemApiService: [ERPNext] Using URL: http://87.237.225.155:90, Key: 9c9cddef8b35474:8c32...
+[2026-04-13 16:33:42] INFO: ErpNextItemApiService: Authorization header: token 9c9cddef8b35474:8c32cc7ca4afbec
+[2026-04-13 16:33:42] INFO: ErpNextItemApiService: [ERPNext] Fetching items from http://87.237.225.155:90/api/method/printechs_wms.api.item.get_items_compact (limit=10, offset=0)
+[2026-04-13 16:33:42] ERROR: ErpNextItemApiService: Failed to parse ItemSyncFilters. Error: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Exception Type: JsonException
+Exception Message: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Stack Trace:    at System.Text.Json.ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type propertyType)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, TDictionary& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 utf8Json, JsonTypeInfo`1 jsonTypeInfo, Nullable`1 actualByteCount)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 json, JsonTypeInfo`1 jsonTypeInfo)
+   at System.Text.Json.JsonSerializer.Deserialize[TValue](String json, JsonSerializerOptions options)
+   at Wms.Desktop.Services.ErpNextItemApiService.FetchItemsFromErpNextAsync(WmsSettings settings, Int32 limit, Int32 offset, Nullable`1 maxModified, String overrideBaseUrl, String overrideApiKey, String endpointName) in d:\Development Project\Printechs WMS\Wms.Desktop\Services\ErpNextItemApiService.cs:line 110
+--------------------------------------------------------------------------------
+[2026-04-13 16:33:42] INFO: ErpNextItemApiService: Using fields: [item_code, item_name, year, season, brand, stock_uom, is_stock, barcode, custom_wms_modified, disabled], attribute_filters: , flatten_attributes: 1
+[2026-04-13 16:33:42] ERROR: ErpNextItemApiService: API returned Unauthorized: {"exception":"frappe.exceptions.AuthenticationError","exc_type":"AuthenticationError","exc":"[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 102, in application\\n    validate_auth()\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 621, in validate_auth\\n    validate_auth_via_api_keys(authorization_header)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 687, in validate_auth_via_api_keys\\n    validate_api_key_secret(api_key, api_secret, authorization_source)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 707, in validate_api_key_secret\\n    raise frappe.AuthenticationError\\nfrappe.exceptions.AuthenticationError\\n\"]"}
+--------------------------------------------------------------------------------
+[2026-04-13 16:34:19] INFO: ErpNextItemApiService: [ERPNext] Using URL: http://87.237.225.155:90, Key: 9c9cddef8b35474:8c32...
+[2026-04-13 16:34:19] INFO: ErpNextItemApiService: Authorization header: token 9c9cddef8b35474:8c32cc7ca4afbec
+[2026-04-13 16:34:19] INFO: ErpNextItemApiService: [ERPNext] Fetching items from http://87.237.225.155:90/api/method/printechs_wms.api.item.get_items_compact (limit=10, offset=0)
+[2026-04-13 16:34:19] ERROR: ErpNextItemApiService: Failed to parse ItemSyncFilters. Error: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Exception Type: JsonException
+Exception Message: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Stack Trace:    at System.Text.Json.ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type propertyType)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, TDictionary& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 utf8Json, JsonTypeInfo`1 jsonTypeInfo, Nullable`1 actualByteCount)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 json, JsonTypeInfo`1 jsonTypeInfo)
+   at System.Text.Json.JsonSerializer.Deserialize[TValue](String json, JsonSerializerOptions options)
+   at Wms.Desktop.Services.ErpNextItemApiService.FetchItemsFromErpNextAsync(WmsSettings settings, Int32 limit, Int32 offset, Nullable`1 maxModified, String overrideBaseUrl, String overrideApiKey, String endpointName) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\ErpNextItemApiService.cs:line 110
+--------------------------------------------------------------------------------
+[2026-04-13 16:34:19] INFO: ErpNextItemApiService: Using fields: [item_code, item_name, year, season, brand, stock_uom, is_stock, barcode, custom_wms_modified, disabled], attribute_filters: , flatten_attributes: 1
+[2026-04-13 16:34:19] ERROR: ErpNextItemApiService: API returned Unauthorized: {"exception":"frappe.exceptions.AuthenticationError","exc_type":"AuthenticationError","exc":"[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 102, in application\\n    validate_auth()\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 621, in validate_auth\\n    validate_auth_via_api_keys(authorization_header)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 687, in validate_auth_via_api_keys\\n    validate_api_key_secret(api_key, api_secret, authorization_source)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 707, in validate_api_key_secret\\n    raise frappe.AuthenticationError\\nfrappe.exceptions.AuthenticationError\\n\"]"}
+--------------------------------------------------------------------------------
+[2026-04-13 16:37:30] INFO: ErpNextItemApiService: [ERPNext] Using URL: http://87.237.225.155:90, Key: 9c9cddef8b35474:8c32...
+[2026-04-13 16:37:30] INFO: ErpNextItemApiService: Authorization header: token 9c9cddef8b35474:8c32cc7ca4afbec
+[2026-04-13 16:37:30] INFO: ErpNextItemApiService: [ERPNext] Fetching items from http://87.237.225.155:90/api/method/printechs_wms.api.item.get_items_compact (limit=10, offset=0)
+[2026-04-13 16:37:30] ERROR: ErpNextItemApiService: Failed to parse ItemSyncFilters. Error: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Exception Type: JsonException
+Exception Message: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Stack Trace:    at System.Text.Json.ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type propertyType)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, TDictionary& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 utf8Json, JsonTypeInfo`1 jsonTypeInfo, Nullable`1 actualByteCount)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 json, JsonTypeInfo`1 jsonTypeInfo)
+   at System.Text.Json.JsonSerializer.Deserialize[TValue](String json, JsonSerializerOptions options)
+   at Wms.Desktop.Services.ErpNextItemApiService.FetchItemsFromErpNextAsync(WmsSettings settings, Int32 limit, Int32 offset, Nullable`1 maxModified, String overrideBaseUrl, String overrideApiKey, String endpointName) in d:\Development Project\Printechs WMS\Wms.Desktop\Services\ErpNextItemApiService.cs:line 118
+--------------------------------------------------------------------------------
+[2026-04-13 16:37:30] INFO: ErpNextItemApiService: Using fields: [item_code, item_name, year, season, brand, stock_uom, is_stock, barcode, custom_wms_modified, disabled], attribute_filters: , flatten_attributes: 1
+[2026-04-13 16:37:30] ERROR: ErpNextItemApiService: API returned Unauthorized: {"exception":"frappe.exceptions.AuthenticationError","exc_type":"AuthenticationError","exc":"[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 102, in application\\n    validate_auth()\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 621, in validate_auth\\n    validate_auth_via_api_keys(authorization_header)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 687, in validate_auth_via_api_keys\\n    validate_api_key_secret(api_key, api_secret, authorization_source)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 707, in validate_api_key_secret\\n    raise frappe.AuthenticationError\\nfrappe.exceptions.AuthenticationError\\n\"]"}
+--------------------------------------------------------------------------------
+[2026-04-13 16:38:03] INFO: ErpNextItemApiService: [ERPNext] Using URL: http://87.237.225.155:90, Key: 9c9cddef8b35474:8c32...
+[2026-04-13 16:38:03] INFO: ErpNextItemApiService: Authorization header: token 9c9cddef8b35474:8c32cc7ca4afbec
+[2026-04-13 16:38:03] INFO: ErpNextItemApiService: [ERPNext] Fetching items from http://87.237.225.155:90/api/method/printechs_wms.api.item.get_items_compact (limit=10, offset=0)
+[2026-04-13 16:38:03] ERROR: ErpNextItemApiService: Failed to parse ItemSyncFilters. Error: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Exception Type: JsonException
+Exception Message: The JSON value could not be converted to System.Collections.Generic.Dictionary`2[System.String,System.String]. Path: $ | LineNumber: 0 | BytePositionInLine: 1.
+Stack Trace:    at System.Text.Json.ThrowHelper.ThrowJsonException_DeserializeUnableToConvertValue(Type propertyType)
+   at System.Text.Json.Serialization.JsonDictionaryConverter`3.OnTryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, TDictionary& value)
+   at System.Text.Json.Serialization.JsonConverter`1.TryRead(Utf8JsonReader& reader, Type typeToConvert, JsonSerializerOptions options, ReadStack& state, T& value, Boolean& isPopulatedValue)
+   at System.Text.Json.Serialization.JsonConverter`1.ReadCore(Utf8JsonReader& reader, JsonSerializerOptions options, ReadStack& state)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 utf8Json, JsonTypeInfo`1 jsonTypeInfo, Nullable`1 actualByteCount)
+   at System.Text.Json.JsonSerializer.ReadFromSpan[TValue](ReadOnlySpan`1 json, JsonTypeInfo`1 jsonTypeInfo)
+   at System.Text.Json.JsonSerializer.Deserialize[TValue](String json, JsonSerializerOptions options)
+   at Wms.Desktop.Services.ErpNextItemApiService.FetchItemsFromErpNextAsync(WmsSettings settings, Int32 limit, Int32 offset, Nullable`1 maxModified, String overrideBaseUrl, String overrideApiKey, String endpointName) in D:\Development Project\Printechs WMS\Wms.Desktop\Services\ErpNextItemApiService.cs:line 118
+--------------------------------------------------------------------------------
+[2026-04-13 16:38:03] INFO: ErpNextItemApiService: Using fields: [item_code, item_name, year, season, brand, stock_uom, is_stock, barcode, custom_wms_modified, disabled], attribute_filters: , flatten_attributes: 1
+[2026-04-13 16:38:04] ERROR: ErpNextItemApiService: API returned Unauthorized: {"exception":"frappe.exceptions.AuthenticationError","exc_type":"AuthenticationError","exc":"[\"Traceback (most recent call last):\\n  File \\\"apps/frappe/frappe/app.py\\\", line 102, in application\\n    validate_auth()\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 621, in validate_auth\\n    validate_auth_via_api_keys(authorization_header)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 687, in validate_auth_via_api_keys\\n    validate_api_key_secret(api_key, api_secret, authorization_source)\\n  File \\\"apps/frappe/frappe/auth.py\\\", line 707, in validate_api_key_secret\\n    raise frappe.AuthenticationError\\nfrappe.exceptions.AuthenticationError\\n\"]"}
+--------------------------------------------------------------------------------

@@ -1352,5 +1352,617 @@ public static class PrintService
             return false;
         }
     }
+
+    /// <summary>
+    /// Combined packing list grouped by sort box (<c>box_id</c> from scan events): summary page plus one page per box.
+    /// </summary>
+    public static bool PrintSortBoxPackingList(
+        IReadOnlyList<SortBoxPackingListRow> packRows,
+        IReadOnlyDictionary<string, TransferCarton> transferCartonById,
+        Dictionary<string, Item>? itemsDictionary = null)
+    {
+        if (packRows == null || packRows.Count == 0)
+            return false;
+
+        try
+        {
+            var byBox = packRows.GroupBy(r => r.BoxKey).OrderBy(g => g.Key).ToList();
+            ErrorLogService.LogInfo($"PrintService: Sort-box packing list — {byBox.Count} box group(s), {packRows.Count} line(s)");
+
+            var printDialog = new PrintDialog();
+            try
+            {
+                if (printDialog.PrintTicket != null)
+                    printDialog.PrintTicket.PageMediaSize = new PageMediaSize(210, 297);
+            }
+            catch { /* use default */ }
+
+            if (printDialog.ShowDialog() != true)
+            {
+                ErrorLogService.LogInfo("PrintService: Packing list print cancelled");
+                return false;
+            }
+
+            var pageWidth = printDialog.PrintableAreaWidth;
+            var pageHeight = printDialog.PrintableAreaHeight;
+            var sideMargin = 16.0;
+            var contentWidth = Math.Max(320, pageWidth - 2 * sideMargin);
+            var fixedDoc = new FixedDocument();
+
+            void AddPage(FrameworkElement content)
+            {
+                var pageContent = new PageContent();
+                var fixedPage = new FixedPage { Width = pageWidth, Height = pageHeight };
+                fixedPage.Children.Add(content);
+                pageContent.Child = fixedPage;
+                fixedDoc.Pages.Add(pageContent);
+            }
+
+            static (string store, string to, string asn, string status) MetaForTcs(
+                IEnumerable<string> tcIds,
+                IReadOnlyDictionary<string, TransferCarton> lookup)
+            {
+                string store = "-", to = "-", asn = "-", status = "-";
+                foreach (var id in tcIds.Distinct(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (!lookup.TryGetValue(id, out var tc))
+                        continue;
+                    if (store == "-" && !string.IsNullOrWhiteSpace(tc.Store)) store = tc.Store;
+                    if (to == "-" && !string.IsNullOrWhiteSpace(tc.TransferOrder)) to = tc.TransferOrder;
+                    if (asn == "-" && !string.IsNullOrWhiteSpace(tc.AdvanceShippingNotice)) asn = tc.AdvanceShippingNotice;
+                    if (status == "-" && !string.IsNullOrWhiteSpace(tc.Status)) status = tc.Status;
+                }
+                return (store, to, asn, status);
+            }
+
+            static string StoreSummaryForReport(
+                IEnumerable<string> tcIds,
+                IReadOnlyDictionary<string, TransferCarton> lookup)
+            {
+                var pairs = tcIds
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Select(id =>
+                    {
+                        lookup.TryGetValue(id, out var tc);
+                        return (id, store: string.IsNullOrWhiteSpace(tc?.Store) ? "—" : tc!.Store!);
+                    })
+                    .ToList();
+                var distinctStores = pairs.Select(p => p.store).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                if (pairs.Count == 0)
+                    return "—";
+                if (distinctStores.Count == 1)
+                    return distinctStores[0];
+                return string.Join(" · ", pairs.Select(p => $"{p.id}: {p.store}"));
+            }
+
+            var reportTcIds = packRows
+                .Select(r => r.TcId)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList();
+            var reportTcLine = reportTcIds.Count == 0
+                ? "—"
+                : string.Join(", ", reportTcIds);
+            var reportStoreLine = StoreSummaryForReport(reportTcIds, transferCartonById);
+
+            // --- Summary page ---
+            var summaryRoot = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Width = contentWidth,
+                Margin = new Thickness(sideMargin, 20, sideMargin, 20),
+                Background = Brushes.White
+            };
+            summaryRoot.Children.Add(new TextBlock
+            {
+                Text = "SORT BOX PACKING LIST",
+                FontSize = 24,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            summaryRoot.Children.Add(new TextBlock
+            {
+                Text = $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm}   ·   Sort boxes: {byBox.Count}",
+                FontSize = 12,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            var reportHdr = new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(249, 250, 251)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(229, 231, 235)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(14, 12, 14, 12),
+                Margin = new Thickness(0, 0, 0, 16)
+            };
+            var reportHdrStack = new StackPanel { Orientation = Orientation.Vertical };
+            reportHdrStack.Children.Add(new TextBlock
+            {
+                Text = "Transfer carton(s)",
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 0, 0, 3)
+            });
+            reportHdrStack.Children.Add(new TextBlock
+            {
+                Text = reportTcLine,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                TextWrapping = TextWrapping.Wrap
+            });
+            reportHdrStack.Children.Add(new TextBlock
+            {
+                Text = "Store",
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 10, 0, 3)
+            });
+            reportHdrStack.Children.Add(new TextBlock
+            {
+                Text = reportStoreLine,
+                FontSize = 13,
+                Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                TextWrapping = TextWrapping.Wrap
+            });
+            reportHdr.Child = reportHdrStack;
+            summaryRoot.Children.Add(reportHdr);
+
+            var summaryHeader = new Grid { Margin = new Thickness(0, 0, 0, 8), Width = contentWidth };
+            summaryHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3.4, GridUnitType.Star) });
+            summaryHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.4, GridUnitType.Star) });
+            summaryHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.6, GridUnitType.Star) });
+            summaryHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.6, GridUnitType.Star) });
+            void AddSummaryHeaderCell(int col, string text)
+            {
+                var b = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                    Padding = new Thickness(10, 8, 10, 8),
+                    Margin = new Thickness(0, 0, 1, 0)
+                };
+                b.Child = new TextBlock
+                {
+                    Text = text,
+                    Foreground = Brushes.White,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 12
+                };
+                Grid.SetColumn(b, col);
+                summaryHeader.Children.Add(b);
+            }
+            AddSummaryHeaderCell(0, "Sort box (Box ID)");
+            AddSummaryHeaderCell(1, "Transfer order");
+            AddSummaryHeaderCell(2, "Lines");
+            AddSummaryHeaderCell(3, "Qty");
+            summaryRoot.Children.Add(summaryHeader);
+
+            var rowIndex = 0;
+            foreach (var g in byBox)
+            {
+                rowIndex++;
+                var tcIds = g.Select(x => x.TcId).Where(s => !string.IsNullOrEmpty(s));
+                var meta = MetaForTcs(tcIds, transferCartonById);
+                var lineCount = g.Count();
+                var sumQty = g.Sum(x => x.Qty);
+                var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 2), Width = contentWidth };
+                for (var c = 0; c < 4; c++)
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = summaryHeader.ColumnDefinitions[c].Width });
+
+                void AddCell(int col, string text, bool right = false)
+                {
+                    var bg = rowIndex % 2 == 0
+                        ? new SolidColorBrush(Color.FromRgb(249, 250, 251))
+                        : Brushes.White;
+                    var cell = new Border { Background = bg, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 0, 1, 0) };
+                    cell.Child = new TextBlock
+                    {
+                        Text = text,
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left
+                    };
+                    Grid.SetColumn(cell, col);
+                    rowGrid.Children.Add(cell);
+                }
+                AddCell(0, g.Key);
+                AddCell(1, meta.to);
+                AddCell(2, lineCount.ToString(), right: true);
+                AddCell(3, sumQty.ToString("0.##"), right: true);
+                summaryRoot.Children.Add(rowGrid);
+            }
+
+            AddPage(summaryRoot);
+
+            // --- One page per sort box ---
+            foreach (var g in byBox)
+            {
+                var page = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Width = contentWidth,
+                    Margin = new Thickness(sideMargin, 18, sideMargin, 18),
+                    Background = Brushes.White
+                };
+                page.Children.Add(new TextBlock
+                {
+                    Text = "SORT BOX CONTENTS",
+                    FontSize = 17,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                var detailHdrBand = new Border
+                {
+                    Background = new SolidColorBrush(Color.FromRgb(249, 250, 251)),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(229, 231, 235)),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(6),
+                    Padding = new Thickness(14, 12, 14, 12),
+                    Margin = new Thickness(0, 0, 0, 14)
+                };
+                var detailHdrStack = new StackPanel { Orientation = Orientation.Vertical };
+                detailHdrStack.Children.Add(new TextBlock
+                {
+                    Text = "Transfer carton(s)",
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 11,
+                    Foreground = Brushes.Gray,
+                    Margin = new Thickness(0, 0, 0, 3)
+                });
+                detailHdrStack.Children.Add(new TextBlock
+                {
+                    Text = reportTcLine,
+                    FontSize = 13,
+                    Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                detailHdrStack.Children.Add(new TextBlock
+                {
+                    Text = "Store",
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 11,
+                    Foreground = Brushes.Gray,
+                    Margin = new Thickness(0, 8, 0, 3)
+                });
+                detailHdrStack.Children.Add(new TextBlock
+                {
+                    Text = reportStoreLine,
+                    FontSize = 13,
+                    Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                detailHdrBand.Child = detailHdrStack;
+                page.Children.Add(detailHdrBand);
+
+                var tcIds = g.Select(x => x.TcId).Where(s => !string.IsNullOrEmpty(s));
+                var meta = MetaForTcs(tcIds, transferCartonById);
+                var hdr = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+                void AddLine(string label, string value)
+                {
+                    var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 4) };
+                    sp.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, Width = 172, FontSize = 12 });
+                    sp.Children.Add(new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap });
+                    hdr.Children.Add(sp);
+                }
+                AddLine("Sort box (Box ID):", g.Key);
+                AddLine("ASN:", meta.asn);
+                AddLine("Transfer order:", meta.to);
+                AddLine("Status:", meta.status);
+                page.Children.Add(hdr);
+
+                var detailRows = g
+                    .OrderBy(x => x.TcId)
+                    .ThenBy(x => x.ItemCode)
+                    .ThenBy(x => x.SourceCartonId)
+                    .ToList();
+
+                var distinctTcInBox = detailRows.Select(x => x.TcId).Where(s => !string.IsNullOrWhiteSpace(s))
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count();
+                var showTcColumn = distinctTcInBox > 1;
+                GridLength[] colW = showTcColumn
+                    ? new[]
+                    {
+                        new GridLength(1.35, GridUnitType.Star),
+                        new GridLength(2.35, GridUnitType.Star),
+                        new GridLength(1.1, GridUnitType.Star),
+                        new GridLength(1.05, GridUnitType.Star),
+                        new GridLength(0.7, GridUnitType.Star)
+                    }
+                    : new[]
+                    {
+                        new GridLength(1.55, GridUnitType.Star),
+                        new GridLength(2.75, GridUnitType.Star),
+                        new GridLength(1.25, GridUnitType.Star),
+                        new GridLength(0.7, GridUnitType.Star)
+                    };
+                var colCount = colW.Length;
+
+                var thGrid = new Grid { Margin = new Thickness(0, 4, 0, 4), Width = contentWidth };
+                foreach (var w in colW)
+                    thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
+                void ThCell(int col, string t)
+                {
+                    var tb = new TextBlock
+                    {
+                        Text = t,
+                        Foreground = Brushes.White,
+                        FontWeight = FontWeights.Bold,
+                        FontSize = 12,
+                        Margin = new Thickness(8, 5, 8, 5)
+                    };
+                    Grid.SetColumn(tb, col);
+                    thGrid.Children.Add(tb);
+                }
+                var thWrap = new Border
+                {
+                    Width = contentWidth,
+                    Background = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                    Padding = new Thickness(8, 6, 8, 6),
+                    Margin = new Thickness(0, 0, 0, 3),
+                    Child = thGrid
+                };
+                ThCell(0, "Item code");
+                ThCell(1, "Description");
+                ThCell(2, "Source carton");
+                if (showTcColumn)
+                    ThCell(3, "Transfer carton");
+                ThCell(showTcColumn ? 4 : 3, "Qty");
+                page.Children.Add(thWrap);
+
+                var r = 0;
+                double pageTotal = 0;
+                foreach (var line in detailRows)
+                {
+                    r++;
+                    pageTotal += line.Qty;
+                    var itemRow = new Grid { Margin = new Thickness(0, 0, 0, 2), Width = contentWidth };
+                    foreach (var w in colW)
+                        itemRow.ColumnDefinitions.Add(new ColumnDefinition { Width = w });
+
+                    var rowBg = r % 2 == 0 ? new SolidColorBrush(Color.FromRgb(249, 250, 251)) : Brushes.White;
+                    var bgBorder = new Border { Background = rowBg, Padding = new Thickness(6, 6, 6, 6) };
+                    Grid.SetColumnSpan(bgBorder, colCount);
+                    itemRow.Children.Add(bgBorder);
+
+                    var desc = itemsDictionary?.GetValueOrDefault(line.ItemCode)?.Name ?? "-";
+                    var codeTb = new TextBlock { Text = line.ItemCode, FontSize = 12, Margin = new Thickness(10, 6, 10, 6), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                    Grid.SetColumn(codeTb, 0);
+                    itemRow.Children.Add(codeTb);
+                    var descTb = new TextBlock { Text = desc, FontSize = 12, Margin = new Thickness(10, 6, 10, 6), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                    Grid.SetColumn(descTb, 1);
+                    itemRow.Children.Add(descTb);
+                    var srcTb = new TextBlock { Text = string.IsNullOrEmpty(line.SourceCartonId) ? "-" : line.SourceCartonId, FontSize = 12, Margin = new Thickness(10, 6, 10, 6), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                    Grid.SetColumn(srcTb, 2);
+                    itemRow.Children.Add(srcTb);
+                    var qtyCol = 3;
+                    if (showTcColumn)
+                    {
+                        var tcTb = new TextBlock { Text = line.TcId, FontSize = 12, Margin = new Thickness(10, 6, 10, 6), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                        Grid.SetColumn(tcTb, 3);
+                        itemRow.Children.Add(tcTb);
+                        qtyCol = 4;
+                    }
+                    var qtyTb = new TextBlock { Text = line.Qty.ToString("0.##"), FontSize = 12, Margin = new Thickness(10, 6, 10, 6), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
+                    Grid.SetColumn(qtyTb, qtyCol);
+                    itemRow.Children.Add(qtyTb);
+                    page.Children.Add(itemRow);
+                }
+
+                var foot = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
+                foot.Children.Add(new TextBlock
+                {
+                    Text = $"Lines: {detailRows.Count}   Total qty: {pageTotal.ToString("0.##")}",
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 13
+                });
+                page.Children.Add(foot);
+
+                AddPage(page);
+            }
+
+            printDialog.PrintDocument(fixedDoc.DocumentPaginator, "Sort Box Packing List");
+            ErrorLogService.LogInfo("PrintService: Sort-box packing list printed");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("PrintService: Error printing sort-box packing list", ex);
+            MessageBox.Show($"Error printing packing list: {ex.Message}",
+                "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Single-page print for <b>one</b> transfer carton — same aggregated lines as the Carton Contents grid (not the multi-carton sort-box report).
+    /// </summary>
+    public static bool PrintSingleTransferCartonContentsList(
+        TransferCarton transferCarton,
+        IReadOnlyList<TransferCartonItem> lines,
+        Dictionary<string, Item>? itemsDictionary = null)
+    {
+        if (transferCarton == null || lines == null || lines.Count == 0)
+            return false;
+
+        try
+        {
+            var printDialog = new PrintDialog();
+            try
+            {
+                if (printDialog.PrintTicket != null)
+                    printDialog.PrintTicket.PageMediaSize = new PageMediaSize(210, 297);
+            }
+            catch { /* default */ }
+
+            if (printDialog.ShowDialog() != true)
+                return false;
+
+            var pageWidth = printDialog.PrintableAreaWidth;
+            var pageHeight = printDialog.PrintableAreaHeight;
+            var fixedDoc = new FixedDocument();
+            var pageContent = new PageContent();
+            var fixedPage = new FixedPage { Width = pageWidth, Height = pageHeight };
+
+            // Use nearly full printable width so tables and text scale across the page
+            var sideMargin = 16.0;
+            var contentWidth = Math.Max(320, pageWidth - 2 * sideMargin);
+
+            var root = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Width = contentWidth,
+                Margin = new Thickness(sideMargin, 18, sideMargin, 18),
+                Background = Brushes.White
+            };
+
+            root.Children.Add(new TextBlock
+            {
+                Text = "TRANSFER CARTON CONTENTS",
+                FontSize = 24,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = $"This carton only · {DateTime.Now:yyyy-MM-dd HH:mm}",
+                FontSize = 12,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 0, 0, 16)
+            });
+
+            void AddHdr(string label, string value)
+            {
+                var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+                sp.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, Width = 168, FontSize = 12 });
+                sp.Children.Add(new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap });
+                root.Children.Add(sp);
+            }
+
+            AddHdr("Transfer carton:", transferCarton.TcId);
+            AddHdr("Store:", transferCarton.Store ?? "—");
+            AddHdr("ASN:", string.IsNullOrWhiteSpace(transferCarton.AdvanceShippingNotice) ? "—" : transferCarton.AdvanceShippingNotice);
+            AddHdr("Transfer order:", transferCarton.TransferOrder ?? "—");
+            AddHdr("Status:", transferCarton.Status ?? "—");
+
+            root.Children.Add(new Rectangle { Height = 1, Fill = Brushes.LightGray, Margin = new Thickness(0, 8, 0, 14) });
+
+            // Prefer sort box (box_id); when missing, keep lines distinct by source carton for qty aggregation
+            var grouped = lines
+                .GroupBy(i =>
+                {
+                    var box = string.IsNullOrWhiteSpace(i.BoxId) ? null : i.BoxId.Trim();
+                    var src = i.SourceCartonId ?? "";
+                    return (i.ItemCode, LineKey: box ?? ("SRC:" + src));
+                })
+                .Select(g =>
+                {
+                    var first = g.First();
+                    var boxDisp = string.IsNullOrWhiteSpace(first.BoxId) ? "—" : first.BoxId.Trim();
+                    return (first.ItemCode, BoxDisp: boxDisp, Qty: g.Sum(x => x.Qty));
+                })
+                .OrderBy(x => x.ItemCode)
+                .ThenBy(x => x.BoxDisp)
+                .ToList();
+
+            var th = new Border
+            {
+                Width = contentWidth,
+                Background = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 0, 0, 3)
+            };
+            var thGrid = new Grid();
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.55, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.85, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.55, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
+            string[] heads = { "Item code", "Description", "Sort box (Box ID)", "Qty" };
+            for (var hi = 0; hi < heads.Length; hi++)
+            {
+                var tb = new TextBlock
+                {
+                    Text = heads[hi],
+                    Foreground = Brushes.White,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 12,
+                    Margin = new Thickness(8, 4, 8, 4),
+                    HorizontalAlignment = hi == 3 ? HorizontalAlignment.Right : HorizontalAlignment.Left
+                };
+                Grid.SetColumn(tb, hi);
+                thGrid.Children.Add(tb);
+            }
+            th.Child = thGrid;
+            root.Children.Add(th);
+
+            var ri = 0;
+            double total = 0;
+            foreach (var (itemCode, boxDisp, qty) in grouped)
+            {
+                ri++;
+                total += qty;
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 2), Width = contentWidth };
+                for (var c = 0; c < 4; c++)
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = thGrid.ColumnDefinitions[c].Width });
+
+                var bg = new Border
+                {
+                    Background = ri % 2 == 0 ? new SolidColorBrush(Color.FromRgb(249, 250, 251)) : Brushes.White,
+                    Padding = new Thickness(8, 7, 8, 7)
+                };
+                Grid.SetColumnSpan(bg, 4);
+                row.Children.Add(bg);
+
+                var desc = itemsDictionary?.GetValueOrDefault(itemCode)?.Name ?? "—";
+                var t0 = new TextBlock { Text = itemCode, FontSize = 12, Margin = new Thickness(10, 5, 10, 5), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(t0, 0);
+                row.Children.Add(t0);
+                var t1 = new TextBlock { Text = desc, FontSize = 12, Margin = new Thickness(10, 5, 10, 5), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(t1, 1);
+                row.Children.Add(t1);
+                var t2 = new TextBlock { Text = boxDisp, FontSize = 12, Margin = new Thickness(10, 5, 10, 5), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+                Grid.SetColumn(t2, 2);
+                row.Children.Add(t2);
+                var t3 = new TextBlock { Text = qty.ToString("0.##"), FontSize = 12, Margin = new Thickness(10, 5, 10, 5), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
+                Grid.SetColumn(t3, 3);
+                row.Children.Add(t3);
+                root.Children.Add(row);
+            }
+
+            var footSp = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 18, 0, 0)
+            };
+            footSp.Children.Add(new TextBlock
+            {
+                Text = $"Lines: {grouped.Count}    Total qty: {total:0.##}",
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 13
+            });
+            root.Children.Add(footSp);
+
+            fixedPage.Children.Add(root);
+            pageContent.Child = fixedPage;
+            fixedDoc.Pages.Add(pageContent);
+            printDialog.PrintDocument(fixedDoc.DocumentPaginator, $"Transfer carton {transferCarton.TcId}");
+            ErrorLogService.LogInfo($"PrintService: Single transfer carton contents printed for {transferCarton.TcId}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"PrintService: Error printing single transfer carton {transferCarton.TcId}", ex);
+            MessageBox.Show($"Error printing: {ex.Message}", "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+    }
 }
 

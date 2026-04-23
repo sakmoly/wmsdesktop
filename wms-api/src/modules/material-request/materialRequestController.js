@@ -4,6 +4,9 @@
 import { getConnection } from '../../db/connection.js';
 import { postStock } from '../stock-ledger/stockPostingService.js';
 
+/** ERPNext uses "Pending" for submitted MRs; WMS/mobile use "Submitted" for Start Picking. Expose as Submitted to client. */
+const statusForClient = (s) => (s === 'Pending' ? 'Submitted' : s);
+
 /**
  * GET /api/material-requests
  * Get all Material Request documents
@@ -235,7 +238,7 @@ export const getMaterialRequests = async (req, res) => {
       
       return {
         title: row.title,
-        status: status,
+        status: statusForClient(status),
         from_warehouse: row.from_warehouse,
         to_showroom: row.to_showroom,
         request_date: row.requested_date ? row.requested_date.toISOString().split('T')[0] : null,
@@ -440,7 +443,7 @@ export const getMaterialRequestByTitle = async (req, res) => {
     
     res.json({
       title: row.title,
-      status: status,
+      status: statusForClient(status),
       from_warehouse: row.from_warehouse,
       to_showroom: row.to_showroom,
       request_date: row.requested_date ? row.requested_date.toISOString().split('T')[0] : null,
@@ -759,7 +762,9 @@ export const updateMaterialRequestStatus = async (req, res) => {
  *       "source_bin": "A1-R01-L1-B1"  // location_id where item was picked from
  *     }
  *   ],
- *   "warehouse": "WH-MAIN"  // Optional, defaults to from_warehouse
+ *   "warehouse": "WH-MAIN",  // Optional, defaults to from_warehouse
+ *   "user_id": "USER-001",  // Optional: from body, else from JWT (req.user.user_id), else "MOBILE-USER"
+ *   "created_by": "USER-001" // Optional: alias for user_id
  * }
  */
 export const pickMaterialRequestItems = async (req, res) => {
@@ -769,18 +774,9 @@ export const pickMaterialRequestItems = async (req, res) => {
     const { title } = req.params;
     const { items, warehouse, user_id, created_by } = req.body;
     
-    // Normalize user_id/created_by (support both mobile and desktop app formats)
-    const userId = user_id || created_by || null;
-    if (!userId) {
-      return res.status(400).json({
-        ok: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'user_id or created_by is required'
-        }
-      });
-    }
-    const normalizedCreatedBy = userId.trim();
+    // Normalize user: body (user_id/created_by) > JWT (req.user.user_id) > fallback for audit
+    const userId = user_id || created_by || req.user?.user_id || 'MOBILE-USER';
+    const normalizedCreatedBy = (typeof userId === 'string' ? userId : String(userId || '')).trim() || 'MOBILE-USER';
     
     // Validation
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -1286,12 +1282,18 @@ export const pickMaterialRequestItems = async (req, res) => {
             }
             
             // Add qty_reduced if column exists
+            // CRITICAL FIX: Get aggregated qty_change from tabTransactionHistory instead of using incremental value
+            // This ensures stock ledger shows total picked quantity (e.g., -5.00) instead of last scan (e.g., -1.00)
+            let finalQtyReduced = qtyReduced; // Default to incremental value
             if (hasQtyReduced) {
+              // Get aggregated qty_change from tabTransactionHistory (after trigger has aggregated it)
+              // The trigger runs AFTER INSERT on tabStockTransaction, so we need to query after inserting
+              // We'll update this after inserting the transaction record
               insertFields += `, qty_reduced`;
               insertValues += `, ?`;
-              insertParams.push(qtyReduced);
+              insertParams.push(finalQtyReduced); // Will be updated after transaction insert
               updateFields += `, qty_reduced = ?`;
-              updateParams.push(qtyReduced);
+              updateParams.push(finalQtyReduced); // Will be updated after transaction insert
             }
 
             // Use carton_id from request if provided, otherwise use from stock ledger
@@ -1306,20 +1308,8 @@ export const pickMaterialRequestItems = async (req, res) => {
               updateParams.push(finalCartonId);
             }
             
-            // Update stock ledger (decrease from source bin)
-            // NOTE: tabStockLedger has UNIQUE KEY on (item_code, warehouse, bin_location)
-            // This means it will UPDATE the existing record for that bin, not create a new one
-            // This is CORRECT - tabStockLedger shows CURRENT stock at each bin
-            // Transaction history is stored in tabStockTransaction table
-            await connection.execute(`
-              INSERT INTO tabStockLedger 
-                (${insertFields})
-              VALUES (${insertValues})
-              ON DUPLICATE KEY UPDATE
-                ${updateFields}
-            `, [...insertParams, ...updateParams]);
-            
             // ALWAYS create a transaction log entry (for history/audit trail)
+            // This must be done BEFORE updating stock ledger so the aggregation trigger can run
             // Use actualBinLocation for bin_location, but keep source_bin in source_bin field for reference
             // Check if carton_id column exists in tabStockTransaction
             const [cartonIdColumn] = await connection.execute(`
@@ -1379,6 +1369,102 @@ export const pickMaterialRequestItems = async (req, res) => {
                 normalizedCreatedBy || null // performed_by
               ]);
             }
+
+            // CRITICAL FIX: Get aggregated qty_change from tabTransactionHistory after trigger has aggregated it
+            // This ensures stock ledger shows total picked quantity (e.g., -5.00) instead of last scan (e.g., -1.00)
+            if (hasQtyReduced) {
+              try {
+                // Query aggregated qty_change from tabTransactionHistory
+                // The trigger aggregates by: item_code, location (bin_location/location_id), carton_id, reference_doc, transaction_type, same day
+                const [aggregatedHistory] = await connection.execute(`
+                  SELECT 
+                    qty_change,
+                    qty_before,
+                    qty_after
+                  FROM tabTransactionHistory
+                  WHERE item_code = ?
+                    AND warehouse = ?
+                    AND (
+                      (location_id = ? OR bin_location = ?)
+                      OR (location_id IS NULL AND ? IS NULL)
+                      OR (bin_location IS NULL AND ? IS NULL)
+                    )
+                    AND (
+                      (carton_id = ?)
+                      OR (carton_id IS NULL AND ? IS NULL)
+                    )
+                    AND reference_doc = ?
+                    AND transaction_type = 'Picking'
+                    AND DATE(transaction_date) = CURDATE()
+                  ORDER BY transaction_date DESC
+                  LIMIT 1
+                `, [
+                  item_code,
+                  targetWarehouse,
+                  actualBinLocation,
+                  actualBinLocation,
+                  actualBinLocation,
+                  actualBinLocation,
+                  finalCartonId,
+                  finalCartonId,
+                  title
+                ]);
+
+                if (aggregatedHistory.length > 0) {
+                  // Use aggregated qty_change from transaction history
+                  finalQtyReduced = parseFloat(aggregatedHistory[0].qty_change) || qtyReduced;
+                  // Also update qty_before from aggregated history (first transaction's qty_before)
+                  if (hasQtyBefore && aggregatedHistory[0].qty_before != null) {
+                    const aggregatedQtyBefore = parseFloat(aggregatedHistory[0].qty_before);
+                    // Update qty_before in insertParams (it's added after item_code, warehouse, bin_location, qty, reserved_qty, title)
+                    // insertParams order: [item_code, warehouse, bin_location, newQty, currentReservedQty, title, qty_before?, qty_reduced?]
+                    if (hasQtyBefore) {
+                      const qtyBeforeIndex = insertParams.length - (hasQtyReduced ? 2 : 1);
+                      if (qtyBeforeIndex >= 0 && qtyBeforeIndex < insertParams.length) {
+                        insertParams[qtyBeforeIndex] = aggregatedQtyBefore;
+                      }
+                      // updateParams order: [newQty, title, qty_before?, qty_reduced?]
+                      const updateQtyBeforeIndex = updateParams.length - (hasQtyReduced ? 2 : 1);
+                      if (updateQtyBeforeIndex >= 0 && updateQtyBeforeIndex < updateParams.length) {
+                        updateParams[updateQtyBeforeIndex] = aggregatedQtyBefore;
+                      }
+                    }
+                  }
+                  console.log(`[MR Picking] ✅ Using aggregated qty_change from transaction history: ${finalQtyReduced} (incremental was: ${qtyReduced})`);
+                } else {
+                  console.log(`[MR Picking] ⚠️ No aggregated history found yet, using incremental qty_reduced: ${qtyReduced}`);
+                }
+              } catch (historyError) {
+                console.error(`[MR Picking] ❌ Error fetching aggregated history, using incremental value:`, historyError);
+                // Fallback to incremental value if query fails
+              }
+            }
+
+            // Update stock ledger (decrease from source bin)
+            // NOTE: tabStockLedger has UNIQUE KEY on (item_code, warehouse, bin_location)
+            // This means it will UPDATE the existing record for that bin, not create a new one
+            // This is CORRECT - tabStockLedger shows CURRENT stock at each bin
+            // Transaction history is stored in tabStockTransaction table
+            // CRITICAL: Update insertParams and updateParams with final aggregated qty_reduced
+            if (hasQtyReduced) {
+              // Find and update qty_reduced in params
+              const qtyReducedIndex = insertParams.length - (hasQtyBefore ? 2 : 1);
+              if (qtyReducedIndex >= 0 && qtyReducedIndex < insertParams.length) {
+                insertParams[qtyReducedIndex] = finalQtyReduced;
+              }
+              const updateQtyReducedIndex = updateParams.length - 1;
+              if (updateQtyReducedIndex >= 0 && updateQtyReducedIndex < updateParams.length) {
+                updateParams[updateQtyReducedIndex] = finalQtyReduced;
+              }
+            }
+
+            await connection.execute(`
+              INSERT INTO tabStockLedger 
+                (${insertFields})
+              VALUES (${insertValues})
+              ON DUPLICATE KEY UPDATE
+                ${updateFields}
+            `, [...insertParams, ...updateParams]);
 
             // Update tabCartonStock if carton_id is provided (from request or stock ledger) and tabCartonStock table exists
             if (finalCartonId) {

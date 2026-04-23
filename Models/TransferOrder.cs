@@ -9,6 +9,7 @@ public sealed class TransferOrder
     public string Status { get; init; } = "Draft"; // Draft, Submitted, Approved, Executing, Completed, Cancelled
     public string AdvanceShippingNotice { get; init; } = string.Empty;
     public string FromWarehouse { get; init; } = string.Empty;
+    public string? WmsExportStatus { get; init; } // Pending, Reserved, Exported (from ERPNext wms_export_status)
     public string PreparedBy { get; init; } = string.Empty;
     public DateTime? RequiredDate { get; init; }
     public double TotalAllocatedQty { get; init; }

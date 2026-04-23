@@ -30,14 +30,16 @@ public static class MaterialRequestDataService
                 return materialRequests;
             }
 
+            await DatabaseService.EnsureMaterialRequestStockEntryNoColumnAsync(settings);
+
             if (!await CheckTableExistsAsync(connection, "tabMaterialRequestItem"))
             {
                 ErrorLogService.LogInfo("MaterialRequestDataService: tabMaterialRequestItem table does not exist, items will not be loaded");
             }
 
-            // Get all Material Requests
+            // Get all Material Requests (stock_entry_no from Push to ERP)
             var mrSql = @"SELECT title, status, from_warehouse, to_showroom, requested_date, 
-                                 required_date, requested_by, total_requested_qty, total_picked_qty
+                                 required_date, requested_by, total_requested_qty, total_picked_qty, stock_entry_no
                           FROM tabMaterialRequest
                           ORDER BY requested_date DESC, title";
             
@@ -60,7 +62,8 @@ public static class MaterialRequestDataService
                     RequiredDate = mrReader.IsDBNull(5) ? null : mrReader.GetDateTime(5),
                     RequestedBy = mrReader.GetString(6),
                     TotalRequestedQty = Convert.ToDouble(mrReader.GetDecimal(7)),
-                    TotalPickedQty = Convert.ToDouble(mrReader.GetDecimal(8))
+                    TotalPickedQty = Convert.ToDouble(mrReader.GetDecimal(8)),
+                    StockEntryNo = mrReader.IsDBNull(9) ? null : mrReader.GetString(9)
                 });
             }
 
@@ -123,6 +126,7 @@ public static class MaterialRequestDataService
                                 RequestedBy = mr.RequestedBy,
                                 TotalRequestedQty = mr.TotalRequestedQty,
                                 TotalPickedQty = mr.TotalPickedQty,
+                                StockEntryNo = mr.StockEntryNo,
                                 Items = items
                             };
                         }
@@ -133,29 +137,6 @@ public static class MaterialRequestDataService
                         for (int i = 0; i < materialRequests.Count; i++)
                         {
                             var mr = materialRequests[i];
-                            materialRequests[i] = new MaterialRequest
-                            {
-                                Title = mr.Title,
-                                Status = mr.Status,
-                                FromWarehouse = mr.FromWarehouse,
-                                ToShowroom = mr.ToShowroom,
-                                RequestedDate = mr.RequestedDate,
-                                RequiredDate = mr.RequiredDate,
-                                RequestedBy = mr.RequestedBy,
-                                TotalRequestedQty = mr.TotalRequestedQty,
-                                TotalPickedQty = mr.TotalPickedQty,
-                                Items = new List<MaterialRequestItem>()
-                            };
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ErrorLogService.LogError("Error loading Material Request items", ex);
-                    // Continue with empty items list
-                    for (int i = 0; i < materialRequests.Count; i++)
-                    {
-                        var mr = materialRequests[i];
                         materialRequests[i] = new MaterialRequest
                         {
                             Title = mr.Title,
@@ -167,12 +148,37 @@ public static class MaterialRequestDataService
                             RequestedBy = mr.RequestedBy,
                             TotalRequestedQty = mr.TotalRequestedQty,
                             TotalPickedQty = mr.TotalPickedQty,
+                            StockEntryNo = mr.StockEntryNo,
                             Items = new List<MaterialRequestItem>()
                         };
                     }
                 }
             }
-        }
+                catch (Exception ex)
+                {
+                    ErrorLogService.LogError("Error loading Material Request items", ex);
+                    // Continue with empty items list
+                    for (int i = 0; i < materialRequests.Count; i++)
+                    {
+                        var mr = materialRequests[i];
+                            materialRequests[i] = new MaterialRequest
+                            {
+                                Title = mr.Title,
+                                Status = mr.Status,
+                                FromWarehouse = mr.FromWarehouse,
+                                ToShowroom = mr.ToShowroom,
+                                RequestedDate = mr.RequestedDate,
+                                RequiredDate = mr.RequiredDate,
+                                RequestedBy = mr.RequestedBy,
+                                TotalRequestedQty = mr.TotalRequestedQty,
+                                TotalPickedQty = mr.TotalPickedQty,
+                                StockEntryNo = mr.StockEntryNo,
+                                Items = new List<MaterialRequestItem>()
+                            };
+                        }
+                    }
+                }
+            }
         catch (Exception ex)
         {
             ErrorLogService.LogError("Error loading Material Requests from database", ex);
@@ -189,6 +195,32 @@ public static class MaterialRequestDataService
     {
         var materialRequests = await GetMaterialRequestsAsync(settings);
         return materialRequests.FirstOrDefault(mr => mr.Title == title);
+    }
+
+    /// <summary>
+    /// Update Material Request with Stock Entry number (after Push to ERP / add to transit).
+    /// </summary>
+    public static async Task<bool> UpdateMaterialRequestStockEntryNoAsync(WmsSettings settings, string title, string stockEntryNo)
+    {
+        if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(stockEntryNo)) return false;
+        try
+        {
+            await DatabaseService.EnsureMaterialRequestStockEntryNoColumnAsync(settings);
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand(
+                "UPDATE tabMaterialRequest SET stock_entry_no = @no, updated_at = CURRENT_TIMESTAMP WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@no", stockEntryNo.Trim());
+            cmd.Parameters.AddWithValue("@title", title);
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("MaterialRequestDataService: UpdateMaterialRequestStockEntryNo failed", ex);
+            return false;
+        }
     }
 
     /// <summary>

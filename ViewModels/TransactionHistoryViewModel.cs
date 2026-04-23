@@ -16,7 +16,7 @@ namespace Wms.Desktop.ViewModels;
 
 public sealed partial class TransactionHistoryViewModel : ObservableObject
 {
-    public ObservableCollection<TransactionHistory> Transactions { get; } = new();
+    public ObservableCollection<TransactionHistoryDisplay> Transactions { get; } = new();
 
     [ObservableProperty]
     private string _searchItemCode = string.Empty;
@@ -124,11 +124,11 @@ public sealed partial class TransactionHistoryViewModel : ObservableObject
                 foreach (var transaction in Transactions)
                 {
                     csv.AppendLine($"{EscapeCsv(transaction.TransactionNumber)}," +
-                                 $"{transaction.TransactionDate:yyyy-MM-dd HH:mm:ss}," +
+                                 $"{transaction.TransactionDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? ""}," +
                                  $"{EscapeCsv(transaction.TransactionType)}," +
                                  $"{EscapeCsv(transaction.ItemCode)}," +
                                  $"{EscapeCsv(transaction.ItemName ?? "")}," +
-                                 $"{EscapeCsv(transaction.Warehouse)}," +
+                                 $"{EscapeCsv(transaction.Warehouse ?? "")}," +
                                  $"{EscapeCsv(transaction.BinLocation ?? "")}," +
                                  $"{EscapeCsv(transaction.CartonId ?? "")}," +
                                  $"{transaction.QtyChange}," +
@@ -204,6 +204,8 @@ public sealed partial class TransactionHistoryViewModel : ObservableObject
             
             ErrorLogService.LogInfo($"TransactionHistoryViewModel: Service returned {transactions?.Count ?? 0} transactions");
 
+            var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+
             // Update UI on UI thread (using Application dispatcher for reliability)
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -215,13 +217,15 @@ public sealed partial class TransactionHistoryViewModel : ObservableObject
                     
                     foreach (var transaction in transactions)
                     {
-                        // Log first transaction details for debugging
-                        if (Transactions.Count == 0)
+                        var warehouseCode = WarehouseDataService.ResolveToCode(
+                            transaction.Warehouse ?? transaction.WarehouseName,
+                            warehouses);
+                        Transactions.Add(new TransactionHistoryDisplay(transaction, warehouseCode));
+
+                        if (Transactions.Count == 1)
                         {
                             ErrorLogService.LogInfo($"TransactionHistoryViewModel: First transaction - ID: {transaction.Id}, TransactionNumber: {transaction.TransactionNumber ?? "NULL"}, TransactionDate: {transaction.TransactionDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? "NULL"}, ItemCode: {transaction.ItemCode ?? "NULL"}, TransactionType: {transaction.TransactionType ?? "NULL"}");
                         }
-                        
-                        Transactions.Add(transaction);
                     }
                     
                     ErrorLogService.LogInfo($"TransactionHistoryViewModel: Added {Transactions.Count} transactions to ObservableCollection on UI thread");

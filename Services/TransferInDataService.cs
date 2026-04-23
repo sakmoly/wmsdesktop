@@ -11,45 +11,36 @@ namespace Wms.Desktop.Services;
 public static class TransferInDataService
 {
     /// <summary>
-    /// Get all Transfer Ins from database
+    /// Get all Transfer Ins from database (tabTransferIn and tabTransferInItem — local import and ERPNext sync use the same tables).
     /// </summary>
     public static async Task<List<TransferIn>> GetTransferInsAsync(WmsSettings settings)
     {
         var transferIns = new List<TransferIn>();
-        
+        var titles = new List<string>();
+
         try
         {
             var connectionString = DatabaseService.BuildConnectionString(settings);
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            // Check if tables exist
             if (!await CheckTableExistsAsync(connection, "tabTransferIn"))
-            {
-                ErrorLogService.LogInfo("TransferInDataService: tabTransferIn table does not exist, returning empty list");
                 return transferIns;
-            }
-
             if (!await CheckTableExistsAsync(connection, "tabTransferInItem"))
-            {
                 ErrorLogService.LogInfo("TransferInDataService: tabTransferInItem table does not exist, items will not be loaded");
-            }
 
-            // Get all Transfer Ins
             var tiSql = @"SELECT title, status, from_showroom, to_warehouse, transfer_date, 
                                  expected_arrival_date, prepared_by, received_by, received_on, total_qty
                           FROM tabTransferIn
                           ORDER BY transfer_date DESC, title";
-            
+
             await using var tiCmd = new MySqlCommand(tiSql, connection);
             await using var tiReader = await tiCmd.ExecuteReaderAsync();
 
-            var tiTitles = new List<string>();
             while (await tiReader.ReadAsync())
             {
                 var title = tiReader.GetString(0);
-                tiTitles.Add(title);
-                
+                titles.Add(title);
                 transferIns.Add(new TransferIn
                 {
                     Title = title,
@@ -64,17 +55,17 @@ public static class TransferInDataService
                     TotalQty = Convert.ToDouble(tiReader.GetDecimal(9))
                 });
             }
-
             await tiReader.CloseAsync();
 
-            // Get Transfer In items for each Transfer In
-            if (tiTitles.Count > 0)
+            transferIns = transferIns.OrderByDescending(ti => ti.TransferDate).ThenBy(ti => ti.Title).ToList();
+
+            // Load items for all Transfer Ins from tabTransferInItem
+            if (titles.Count > 0 && await CheckTableExistsAsync(connection, "tabTransferInItem"))
             {
                 try
                 {
-                    if (await CheckTableExistsAsync(connection, "tabTransferInItem"))
                     {
-                        var placeholders = string.Join(",", tiTitles.Select((_, i) => $"@title{i}"));
+                        var placeholders = string.Join(",", titles.Select((_, i) => $"@title{i}"));
                         // Check if status column exists
                         var statusColumnExists = await CheckColumnExistsAsync(connection, "tabTransferInItem", "status");
                         
@@ -94,9 +85,9 @@ public static class TransferInDataService
                                  ORDER BY parent_title, item_code";
                         
                         await using var itemsCmd = new MySqlCommand(itemsSql, connection);
-                        for (int i = 0; i < tiTitles.Count; i++)
+                        for (int i = 0; i < titles.Count; i++)
                         {
-                            itemsCmd.Parameters.AddWithValue($"@title{i}", tiTitles[i]);
+                            itemsCmd.Parameters.AddWithValue($"@title{i}", titles[i]);
                         }
                         
                         await using var itemsReader = await itemsCmd.ExecuteReaderAsync();
@@ -125,8 +116,8 @@ public static class TransferInDataService
                         for (int i = 0; i < transferIns.Count; i++)
                         {
                             var ti = transferIns[i];
-                            var items = itemsDict.ContainsKey(ti.Title) ? itemsDict[ti.Title] : new List<TransferInItem>();
-                            
+                            if (!itemsDict.ContainsKey(ti.Title)) continue;
+                            var items = itemsDict[ti.Title];
                             transferIns[i] = new TransferIn
                             {
                                 Title = ti.Title,
@@ -140,28 +131,6 @@ public static class TransferInDataService
                                 ReceivedOn = ti.ReceivedOn,
                                 TotalQty = ti.TotalQty,
                                 Items = items
-                            };
-                        }
-                    }
-                    else
-                    {
-                        // Table doesn't exist, assign empty items list
-                        for (int i = 0; i < transferIns.Count; i++)
-                        {
-                            var ti = transferIns[i];
-                            transferIns[i] = new TransferIn
-                            {
-                                Title = ti.Title,
-                                Status = ti.Status,
-                                FromShowroom = ti.FromShowroom,
-                                ToWarehouse = ti.ToWarehouse,
-                                TransferDate = ti.TransferDate,
-                                ExpectedArrivalDate = ti.ExpectedArrivalDate,
-                                PreparedBy = ti.PreparedBy,
-                                ReceivedBy = ti.ReceivedBy,
-                                ReceivedOn = ti.ReceivedOn,
-                                TotalQty = ti.TotalQty,
-                                Items = new List<TransferInItem>()
                             };
                         }
                     }

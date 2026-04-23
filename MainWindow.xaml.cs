@@ -18,11 +18,10 @@ public partial class MainWindow : Window
         // Load and display logged-in user info
         LoadUserInfo();
         
-        // Default view
-        MainContent.Content = new SettingsView();
-        // Set Settings as default selected
-        _selectedButton = SettingsButton;
-        UpdateButtonSelection(SettingsButton);
+        // Default view: Home (Push & Pull) for easiest one-click sync
+        MainContent.Content = new HomeView();
+        _selectedButton = HomeButton;
+        UpdateButtonSelection(HomeButton);
         
         // Preserve selection when window regains focus (e.g., after dialog closes)
         this.Activated += (s, e) =>
@@ -66,20 +65,9 @@ public partial class MainWindow : Window
                 SettingsService.SaveSettings(settings);
             }
 
-            // Show login window
-            var loginWindow = new LoginWindow();
-            var loginResult = loginWindow.ShowDialog();
-
-            if (loginResult == true && loginWindow.LoginSuccessful)
-            {
-                // Reload user info after successful re-login
-                LoadUserInfo();
-            }
-            else
-            {
-                // User cancelled login - close application
-                Application.Current.Shutdown();
-            }
+            // Close the main window (this will trigger application shutdown)
+            // The application will restart and show login window if needed
+            this.Close();
         }
     }
 
@@ -91,18 +79,22 @@ public partial class MainWindow : Window
         var navigationGrid = (System.Windows.Controls.Grid)mainGrid.Children[0];
         var navigationPanel = (System.Windows.Controls.StackPanel)navigationGrid.Children[0];
         
+        var defaultBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // #111827
+        foreach (var button in navigationPanel.Children.OfType<Button>())
+        {
+            button.Background = defaultBrush;
+        }
         foreach (var expander in navigationPanel.Children.OfType<System.Windows.Controls.Expander>())
         {
             if (expander.Content is System.Windows.Controls.StackPanel panel)
             {
                 foreach (var button in panel.Children.OfType<Button>())
                 {
-                    button.Background = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(17, 24, 39)); // #111827
+                    button.Background = defaultBrush;
                 }
             }
         }
-        
+
         // Highlight selected button
         if (selectedButton != null)
         {
@@ -110,6 +102,15 @@ public partial class MainWindow : Window
                 System.Windows.Media.Color.FromRgb(59, 130, 246)); // #3B82F6 - Attractive blue
             _selectedButton = selectedButton;
         }
+    }
+
+    private void HomeButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            UpdateButtonSelection(button);
+        }
+        MainContent.Content = new HomeView();
     }
 
     private void SettingsButton_OnClick(object sender, RoutedEventArgs e)

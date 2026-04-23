@@ -264,6 +264,161 @@ public static class StockLedgerService
     }
 
     /// <summary>
+    /// Apply completed Putaway Task to local WMS DB (tabCartonStock / tabStockLedger and tabStockTransaction).
+    /// Call this after PutawayApiService.CompletePutawayAsync succeeds so that the next push_wms_snapshot
+    /// includes the new stock. Use when putaway is completed from the Putaway Task UI (no WmsTransaction save).
+    /// </summary>
+    public static async Task<bool> ApplyPutawayTaskToLocalStockAsync(
+        WmsSettings settings,
+        string putawayTaskTitle,
+        string warehouse)
+    {
+        try
+        {
+            ErrorLogService.LogInfo($"StockLedgerService: Applying Putaway Task '{putawayTaskTitle}' to local stock.");
+
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Idempotency: avoid applying the same putaway task twice (e.g. Complete Putaway then Run ASN sync test).
+            // Prevents double count in WMS Stock Balance (e.g. 15 pcs becoming 30).
+            var alreadyAppliedSql = @"
+                SELECT 1 FROM tabStockTransaction
+                WHERE transaction_type = 'Putaway'
+                  AND (reference_doc = @taskTitle OR wms_transaction_title = @taskTitle)
+                LIMIT 1";
+            await using (var checkCmd = new MySqlCommand(alreadyAppliedSql, connection))
+            {
+                checkCmd.Parameters.AddWithValue("@taskTitle", putawayTaskTitle);
+                var already = await checkCmd.ExecuteScalarAsync();
+                if (already != null && already != DBNull.Value)
+                {
+                    ErrorLogService.LogInfo($"StockLedgerService: Putaway Task '{putawayTaskTitle}' already applied (idempotent skip).");
+                    return true;
+                }
+            }
+
+            var hasTaskLocationId = await CheckColumnExistsAsync(connection, "tabPutawayTask", "location_id");
+            var locationIdCol = hasTaskLocationId ? "location_id" : "NULL as location_id";
+            var taskSql = $@"SELECT {locationIdCol} FROM tabPutawayTask WHERE title = @title LIMIT 1";
+            await using var taskCmd = new MySqlCommand(taskSql, connection);
+            taskCmd.Parameters.AddWithValue("@title", putawayTaskTitle);
+            var targetBin = (await taskCmd.ExecuteScalarAsync())?.ToString()?.Trim();
+            if (string.IsNullOrEmpty(targetBin))
+            {
+                ErrorLogService.LogInfo($"StockLedgerService: No location_id for Putaway Task '{putawayTaskTitle}'; trying rack+bin from lines.");
+            }
+
+            var hasLineLocationId = await CheckColumnExistsAsync(connection, "tabPutawayLine", "location_id");
+            var lineLocationCol = hasLineLocationId ? "pl.location_id" : "NULL as location_id";
+            var linesSql = $@"
+                SELECT pl.item_code, SUM(pl.qty) as qty, pl.carton_id, pl.rack, pl.bin, {lineLocationCol}
+                FROM tabPutawayLine pl
+                WHERE pl.parent_title = @title
+                GROUP BY pl.item_code, pl.carton_id, pl.rack, pl.bin{(hasLineLocationId ? ", pl.location_id" : "")}";
+            await using var linesCmd = new MySqlCommand(linesSql, connection);
+            linesCmd.Parameters.AddWithValue("@title", putawayTaskTitle);
+            await using var linesReader = await linesCmd.ExecuteReaderAsync();
+
+            var lines = new List<(string ItemCode, double Qty, string? CartonId, string? LineLocationId, string Rack, string Bin)>();
+            while (await linesReader.ReadAsync())
+            {
+                var itemCode = linesReader.GetString(0);
+                var qty = Convert.ToDouble(linesReader.GetDecimal(1));
+                var cartonId = linesReader.IsDBNull(2) ? null : linesReader.GetString(2);
+                var rack = linesReader.IsDBNull(3) ? "" : linesReader.GetString(3);
+                var bin = linesReader.IsDBNull(4) ? "" : linesReader.GetString(4);
+                var lineLoc = linesReader.IsDBNull(5) ? null : linesReader.GetString(5)?.Trim();
+                lines.Add((itemCode, qty, cartonId, lineLoc, rack ?? "", bin ?? ""));
+            }
+            await linesReader.CloseAsync();
+
+            if (lines.Count == 0)
+            {
+                ErrorLogService.LogInfo($"StockLedgerService: No putaway lines found for task '{putawayTaskTitle}'.");
+                return true;
+            }
+
+            foreach (var line in lines)
+            {
+                var lineTargetBin = !string.IsNullOrEmpty(line.LineLocationId) ? line.LineLocationId : targetBin;
+                if (string.IsNullOrEmpty(lineTargetBin) && !string.IsNullOrEmpty(line.Rack) && !string.IsNullOrEmpty(line.Bin))
+                    lineTargetBin = $"{line.Rack}-{line.Bin}";
+                if (string.IsNullOrEmpty(lineTargetBin))
+                    lineTargetBin = line.Bin ?? line.Rack ?? "DOCK-01";
+
+                // Decrease from dock/warehouse level (bin = null); skip in carton mode if dock has no bin
+                try
+                {
+                    await UpdateStockAsync(
+                        connection,
+                        line.ItemCode,
+                        warehouse,
+                        binLocation: null,
+                        qtyChange: -line.Qty,
+                        transactionType: "Putaway",
+                        referenceDocType: "Putaway Task",
+                        referenceDoc: putawayTaskTitle,
+                        wmsTransactionTitle: putawayTaskTitle,
+                        sourceBin: "DOCK-01",
+                        targetBin: lineTargetBin,
+                        performedBy: null,
+                        cartonId: line.CartonId,
+                        settings: settings);
+                }
+                catch (Exception dex)
+                {
+                    ErrorLogService.LogInfo($"StockLedgerService: Dock decrease skipped for {line.ItemCode} (may be carton-only): {dex.Message}");
+                }
+
+                // Increase at target bin (this populates tabCartonStock for snapshot).
+                // If line has no carton_id, use a synthetic id so carton path runs and tabCartonStock gets the row (snapshot reads only tabCartonStock).
+                var cartonIdForTarget = !string.IsNullOrEmpty(line.CartonId)
+                    ? line.CartonId
+                    : $"PUTAWAY-{lineTargetBin}-{line.ItemCode}";
+                await UpdateStockAsync(
+                    connection,
+                    line.ItemCode,
+                    warehouse,
+                    binLocation: lineTargetBin,
+                    qtyChange: line.Qty,
+                    transactionType: "Putaway",
+                    referenceDocType: "Putaway Task",
+                    referenceDoc: putawayTaskTitle,
+                    wmsTransactionTitle: putawayTaskTitle,
+                    sourceBin: "DOCK-01",
+                    targetBin: lineTargetBin,
+                    performedBy: null,
+                    cartonId: cartonIdForTarget,
+                    settings: settings);
+                // Bin-level mode: UpdateStockAsync only writes tabStockLedger; snapshot reads tabCartonStock. Ensure tabCartonStock has this row.
+                if (settings != null && !IsCartonLevelMode(settings))
+                {
+                    await CartonDataService.UpdateCartonStockAsync(
+                        settings,
+                        cartonIdForTarget,
+                        line.ItemCode,
+                        warehouse,
+                        lineTargetBin,
+                        line.Qty,
+                        uom: null,
+                        batchNo: null,
+                        status: "PUTAWAY");
+                }
+            }
+
+            ErrorLogService.LogInfo($"StockLedgerService: Applied Putaway Task '{putawayTaskTitle}' to local stock ({lines.Count} line groups).");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"StockLedgerService: Error applying Putaway Task '{putawayTaskTitle}' to local stock.", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Update stock after Picking Transaction completed
     /// Decreases stock from source bin (if dispatched) or moves to staging bin
     /// </summary>
@@ -401,6 +556,89 @@ public static class StockLedgerService
         catch (Exception ex)
         {
             ErrorLogService.LogError($"StockLedgerService: Error updating stock after Picking Transaction {wmsTransactionTitle}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Apply cycle count adjustments from a Cycle Count Task to the WMS DB (tabStockLedger / tabCartonStock and tabStockTransaction).
+    /// Call this before building and pushing the WMS snapshot so ERPNext receives the post-cycle-count state.
+    /// Idempotent: if this task was already applied (existing tabStockTransaction with same reference_doc), skip to avoid double ledger entries.
+    /// </summary>
+    public static async Task<bool> ApplyCycleCountFromTaskAsync(WmsSettings settings, CycleCountTask task)
+    {
+        if (task?.Lines == null || task.Lines.Count == 0)
+            return true;
+
+        var warehouseRaw = (task.Warehouse ?? "").Trim();
+        if (string.IsNullOrEmpty(warehouseRaw))
+        {
+            ErrorLogService.LogInfo("StockLedgerService: ApplyCycleCountFromTaskAsync - task has no warehouse.");
+            return false;
+        }
+
+        var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+        var warehouse = WarehouseDataService.ResolveToCode(warehouseRaw, warehouses);
+        if (string.IsNullOrEmpty(warehouse))
+            warehouse = warehouseRaw;
+
+        var toApply = task.Lines
+            .Where(l => Math.Abs(l.Discrepancy) > 1e-9)
+            .ToList();
+        if (toApply.Count == 0)
+        {
+            ErrorLogService.LogInfo($"StockLedgerService: No lines with discrepancy for task {task.Title}.");
+            return true;
+        }
+
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Idempotency: avoid applying the same task twice (prevents double WMS Stock Ledger entries on ERPNext)
+            var alreadyAppliedSql = @"
+                SELECT 1 FROM tabStockTransaction
+                WHERE transaction_type = 'CycleCount'
+                  AND (reference_doc = @taskTitle OR wms_transaction_title = @taskTitle)
+                LIMIT 1";
+            await using (var checkCmd = new MySqlCommand(alreadyAppliedSql, connection))
+            {
+                checkCmd.Parameters.AddWithValue("@taskTitle", task.Title ?? "");
+                var already = await checkCmd.ExecuteScalarAsync();
+                if (already != null && already != DBNull.Value)
+                {
+                    ErrorLogService.LogInfo($"StockLedgerService: Task {task.Title} already applied (idempotent skip).");
+                    return true;
+                }
+            }
+
+            foreach (var line in toApply)
+            {
+                await UpdateStockAsync(
+                    connection,
+                    line.ItemCode,
+                    warehouse,
+                    binLocation: line.BinLocation,
+                    qtyChange: line.Discrepancy,
+                    transactionType: "CycleCount",
+                    referenceDocType: "Cycle Count Task",
+                    referenceDoc: task.Title ?? "",
+                    wmsTransactionTitle: task.Title ?? "",
+                    sourceBin: line.BinLocation,
+                    targetBin: line.BinLocation,
+                    performedBy: null,
+                    cartonId: line.CartonId,
+                    settings: settings);
+            }
+
+            ErrorLogService.LogInfo($"StockLedgerService: Applied {toApply.Count} cycle count adjustment(s) from task {task.Title}.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"StockLedgerService: Error applying cycle count from task {task.Title}", ex);
             return false;
         }
     }
@@ -724,6 +962,8 @@ public static class StockLedgerService
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
+            var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+
             // Check if carton_id column exists in tabStockLedger
             var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
             var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
@@ -800,7 +1040,7 @@ public static class StockLedgerService
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
-                    Warehouse = reader.GetString(1),
+                    Warehouse = WarehouseDataService.ResolveToCode(reader.GetString(1), warehouses),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
                     Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
                     ReservedQty = reservedQty,
@@ -909,6 +1149,8 @@ public static class StockLedgerService
                 return stockList;
             }
 
+            var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+
             // Check if carton_id column exists
             var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
             var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
@@ -995,7 +1237,7 @@ public static class StockLedgerService
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
-                    Warehouse = reader.GetString(1),
+                    Warehouse = WarehouseDataService.ResolveToCode(reader.GetString(1), warehouses),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
                     CartonId = cartonId,
                     Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)
@@ -1103,6 +1345,8 @@ public static class StockLedgerService
             result.TotalCount = totalCount;
             result.TotalPages = (int)Math.Ceiling(totalCount / (double)result.PageSize);
 
+            var warehouses = await WarehouseDataService.GetWarehousesAsync(settings);
+
             // Check if carton_id column exists
             var hasCartonIdColumn = await CheckColumnExistsAsync(connection, "tabStockLedger", "carton_id");
             var cartonIdSelect = hasCartonIdColumn ? ", carton_id" : ", NULL as carton_id";
@@ -1180,7 +1424,7 @@ public static class StockLedgerService
                 stockList.Add(new StockLedger
                 {
                     ItemCode = reader.GetString(0),
-                    Warehouse = reader.GetString(1),
+                    Warehouse = WarehouseDataService.ResolveToCode(reader.GetString(1), warehouses),
                     BinLocation = reader.IsDBNull(2) ? null : reader.GetString(2),
                     CartonId = cartonId,
                     Qty = transactionQty, // Transaction Qty (the quantity involved in the transaction)

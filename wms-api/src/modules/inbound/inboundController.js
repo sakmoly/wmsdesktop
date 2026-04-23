@@ -5,42 +5,24 @@ import { getConnection } from '../../db/connection.js';
 
 /**
  * POST /api/inbound/receive-lines
- * Create or update multiple receive line records (batch)
- * 
- * Request Body (Mobile App Format - parent_title inside each line):
+ * Create or update multiple receive line records (batch).
+ *
+ * CRITICAL: parent_title = inbound session ID (e.g. SESSION-ASN0003-DEV4YSV108245-USER108245).
+ * All receive_lines are stored under this session so desktop can sum received_qty per ASN/item.
+ *
+ * Request Body (preferred - parent_title at root; mobile must send this):
  * {
+ *   "parent_title": "SESSION-ASN0003-DEV4YSV108245-USER108245",
  *   "receive_lines": [
- *     {
- *       "parent_title": "SESSION-001",  // Inside each line
- *       "carton_id": "CTN-0101",
- *       "item_code": "SKU-001",
- *       "expected_qty": 50.00,
- *       "received_qty": 50.00,
- *       "condition": "Good",
- *       "remarks": null
- *     }
+ *     { "carton_id": "CTN-01", "item_code": "SKU-001", "expected_qty": 50, "received_qty": 50, "condition": "Good", "remarks": null }
  *   ]
  * }
- * 
- * OR (Desktop App Format - parent_title at root):
- * {
- *   "parent_title": "SESSION-001",  // At root level
- *   "receive_lines": [
- *     {
- *       "carton_id": "CTN-0101",
- *       "item_code": "SKU-001",
- *       "expected_qty": 50.00,
- *       "received_qty": 50.00,
- *       "condition": "Good",
- *       "remarks": null
- *     }
- *   ]
- * }
+ *
+ * Fallback: parent_title in first receive_line (legacy).
  */
 export const receiveLines = async (req, res) => {
   const { parent_title: rootParentTitle, receive_lines } = req.body;
 
-  // Validation
   if (!receive_lines || !Array.isArray(receive_lines) || receive_lines.length === 0) {
     return res.status(400).json({
       ok: false,
@@ -51,30 +33,22 @@ export const receiveLines = async (req, res) => {
     });
   }
 
-  // Extract parent_title from first line if not at root (mobile app format)
-  // Or use root parent_title (desktop app format)
+  // Require parent_title: prefer root (so all lines use same session); fallback first line for legacy
   const firstLine = receive_lines[0];
   const parent_title = rootParentTitle || firstLine?.parent_title;
 
-  if (!parent_title) {
+  if (!parent_title || String(parent_title).trim() === '') {
     return res.status(400).json({
       ok: false,
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'parent_title is required (either at root level or in each receive_line)'
+        message: 'parent_title is required (inbound session ID). Send at root: { "parent_title": "<session_id>", "receive_lines": [...] }'
       }
     });
   }
 
-  if (!receive_lines || !Array.isArray(receive_lines) || receive_lines.length === 0) {
-    return res.status(400).json({
-      ok: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'receive_lines array is required and must not be empty'
-      }
-    });
-  }
+  // Use root parent_title for ALL lines so every carton is associated with the same session
+  const sessionId = String(parent_title).trim();
 
   const connection = await getConnection();
 
@@ -93,7 +67,7 @@ export const receiveLines = async (req, res) => {
     
     const [sessions] = await connection.execute(
       `SELECT ${sessionIdColumn} FROM tabInboundSession WHERE ${sessionIdColumn} = ?`,
-      [parent_title]
+      [sessionId]
     );
 
     if (sessions.length === 0) {
@@ -103,32 +77,31 @@ export const receiveLines = async (req, res) => {
         ok: false,
         error: {
           code: 'SESSION_NOT_FOUND',
-          message: `Inbound session ${parent_title} not found`
+          message: `Inbound session ${sessionId} not found`
         }
       });
     }
 
     let savedCount = 0;
 
-    // Insert or update each receive line
+    // Store all lines under the same session (sessionId) so desktop can sum received_qty per ASN/item
     for (const line of receive_lines) {
-      // Extract parent_title from line if present (mobile app format), otherwise use root parent_title
-      const lineParentTitle = line.parent_title || parent_title;
       const { carton_id, item_code, expected_qty, received_qty, condition = 'Good', remarks = null } = line;
 
-      // Validate line
       if (!carton_id || !item_code || expected_qty === undefined || received_qty === undefined) {
-        continue; // Skip invalid lines
+        continue;
       }
 
-      // Check if record exists
+      // Always use sessionId (root parent_title) so lines are linked to the correct ASN/session
+      const lineParentTitle = sessionId;
+
       const [existing] = await connection.execute(`
         SELECT id FROM tabInboundReceiveLine 
         WHERE parent_title = ? AND carton_id = ? AND item_code = ?
       `, [lineParentTitle, carton_id, item_code]);
 
       if (existing && existing.length > 0) {
-        // Update existing record
+        // Update: replace received_qty for this (session, carton, item). Idempotent if same payload sent twice.
         await connection.execute(`
           UPDATE tabInboundReceiveLine 
           SET expected_qty = ?,
@@ -139,7 +112,6 @@ export const receiveLines = async (req, res) => {
           WHERE parent_title = ? AND carton_id = ? AND item_code = ?
         `, [expected_qty, received_qty, condition, remarks, lineParentTitle, carton_id, item_code]);
       } else {
-        // Insert new record
         await connection.execute(`
           INSERT INTO tabInboundReceiveLine 
             (parent_title, carton_id, item_code, expected_qty, received_qty, \`condition\`, remarks)

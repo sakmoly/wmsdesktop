@@ -298,11 +298,21 @@ pause
 `;
   writeFileSync(join(deployDir, 'update.bat'), updateScript);
 
-  // Create version file
+  // Create version file (customer can compare VERSION.txt across sites)
   console.log('📋 Creating version file...');
-  const versionInfo = `WMS API Server
-Build Date: ${new Date().toISOString()}
-Version: 1.0.0
+  let pkgVersion = '1.0.0';
+  try {
+    const pkgPath = join(__dirname, 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    if (pkg.version) pkgVersion = String(pkg.version);
+  } catch {
+    /* keep default */
+  }
+  const builtAt = new Date().toISOString();
+  const versionInfo = `WMS API Server — deployment bundle
+package.json version: ${pkgVersion}
+build_timestamp_utc: ${builtAt}
+build_local: ${new Date().toString()}
 `;
   writeFileSync(join(deployDir, 'VERSION.txt'), versionInfo);
 

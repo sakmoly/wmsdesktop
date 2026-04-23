@@ -28,6 +28,16 @@
                        FontSize="20"
                        FontWeight="Bold" />
 
+            <Button x:Name="HomeButton"
+                    Content="Home"
+                    Margin="8,8,8,4"
+                    Padding="8"
+                    Foreground="White"
+                    Background="#3B82F6"
+                    BorderBrush="#4B5563"
+                    HorizontalAlignment="Stretch"
+                    Click="HomeButton_OnClick" />
+
             <!-- Masters group -->
             <Expander Header="Masters"
                       Margin="4,4,4,0"
@@ -41,7 +51,7 @@
                             Margin="8,4"
                             Padding="8"
                             Foreground="White"
-                            Background="#3B82F6"
+                            Background="#111827"
                             BorderBrush="#4B5563"
                             HorizontalAlignment="Stretch"
                             Click="SettingsButton_OnClick" />

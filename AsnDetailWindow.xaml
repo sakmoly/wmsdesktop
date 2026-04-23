@@ -43,6 +43,8 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Left column -->
@@ -96,9 +98,36 @@
                     <TextBlock Text="Shipment Type"
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />
-                    <TextBlock Text="{Binding Asn.ShipmentType}"
+                    <TextBlock Text="{Binding Asn.ShipmentType, TargetNullValue='—', FallbackValue='—'}"
                                FontSize="14"
                                Foreground="#111827" />
+                </StackPanel>
+
+                <!-- Row 3: WMS Export Status, Total Shipped Qty -->
+                <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,8,8,0">
+                    <TextBlock Text="WMS Export Status"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding Asn.WmsExportStatus, FallbackValue=Pending}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="8,8,0,0">
+                    <TextBlock Text="Total Shipped Qty"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding TotalQtyExpected, StringFormat=N2}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+                <!-- Purchase Receipt No (from API after Create PR) -->
+                <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <TextBlock Text="Purchase Receipt No"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding Asn.PurchaseReceiptNo, TargetNullValue='—', FallbackValue='—'}"
+                               FontSize="14"
+                               Foreground="#059669" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -215,6 +244,33 @@
                        FontWeight="Bold"
                        Foreground="#059669"
                        VerticalAlignment="Center" />
+            <TextBlock Text="{Binding LastSentToErpNextText, StringFormat=Last sent to ERPNext: {0}}"
+                       Margin="0,0,24,0"
+                       FontSize="12"
+                       Foreground="#6B7280"
+                       VerticalAlignment="Center"
+                       ToolTip="When this ASN&#x27;s received qty was last successfully sent to ERPNext. Confirm in ERPNext by checking the ASN document." />
+            <Button x:Name="MarkAsReceivedButton"
+                    Content="Mark as Received"
+                    Width="140"
+                    Margin="0,0,12,0"
+                    IsEnabled="{Binding CanMarkAsReceived}"
+                    Click="MarkAsReceivedButton_Click"
+                    ToolTip="Set ASN status to Received so you can send received qty to ERPNext. Also runs automatically when all items are fully received." />
+            <Button x:Name="UpdateReceivedQtyToErpNextButton"
+                    Content="{Binding PrimaryErpAsnActionButtonContent}"
+                    MinWidth="220"
+                    Width="Auto"
+                    Padding="12,4"
+                    Margin="0,0,12,0"
+                    IsEnabled="{Binding CanUsePrimaryErpAsnAction}"
+                    Click="PrimaryErpAsnActionButton_Click"
+                    ToolTip="{Binding PrimaryErpAsnActionButtonToolTip}" />
+            <Button x:Name="MarkAsExportedButton"
+                    Content="Mark as Exported"
+                    Width="140"
+                    Margin="0,0,12,0"
+                    Click="MarkAsExportedButton_Click" />
             <Button Content="Close"
                     Width="80"
                     IsCancel="True" />

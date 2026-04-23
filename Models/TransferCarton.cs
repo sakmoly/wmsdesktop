@@ -16,5 +16,13 @@ public sealed class TransferCarton
     public DateTime? DispatchedOn { get; init; }
     public DateTime? UpdatedOn { get; init; } // For sync operations
     public string? Remarks { get; init; }
+
+    // ERPNext PR and Stock Entry integration
+    public string? PurchaseReceiptNo { get; init; }
+    public int? PurchaseReceiptDocstatus { get; init; }
+    public bool? PurchaseReceiptCreated { get; init; }
+    public bool? PurchaseReceiptSubmitted { get; init; }
+    public string? WarehouseTransferNo { get; init; }
+    public bool? WarehouseTransferCreated { get; init; }
 }
 

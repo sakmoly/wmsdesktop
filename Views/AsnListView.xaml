@@ -56,6 +56,9 @@
                     <DataGridTextColumn Header="Status"
                                         Binding="{Binding Status}"
                                         Width="120" />
+                    <DataGridTextColumn Header="WMS Export Status"
+                                        Binding="{Binding WmsExportStatus, FallbackValue=Pending}"
+                                        Width="130" />
                     <DataGridTextColumn Header="Total CTN"
                                         Binding="{Binding TotalCartonCount}"
                                         Width="100" />

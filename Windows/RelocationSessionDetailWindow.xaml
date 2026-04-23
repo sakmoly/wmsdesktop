@@ -3,16 +3,21 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Wms.Desktop.Converters"
         mc:Ignorable="d"
         Title="Relocation Session"
         Height="700" Width="1000"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter" />
+    </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -31,55 +36,82 @@
         <Border Grid.Row="1"
                 Background="White"
                 CornerRadius="8"
-                Padding="12"
+                Padding="16"
                 BorderBrush="#E5E7EB"
                 BorderThickness="1"
                 Margin="0,0,0,8">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" MinWidth="200" />
+                    <ColumnDefinition Width="*" MinWidth="200" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
+                <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,12">
                     <TextBlock Text="Mode"
                                FontWeight="SemiBold"
-                               Foreground="#6B7280" />
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,2" />
                     <TextBlock Text="{Binding Mode}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,4">
+                <StackPanel Grid.Row="0" Grid.Column="1" Margin="12,0,0,12">
                     <TextBlock Text="Policy"
                                FontWeight="SemiBold"
-                               Foreground="#6B7280" />
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,2" />
                     <TextBlock Text="{Binding Policy}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,0">
+                <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,12">
                     <TextBlock Text="Warehouse"
                                FontWeight="SemiBold"
-                               Foreground="#6B7280" />
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,2" />
                     <TextBlock Text="{Binding WarehouseId}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
+                <StackPanel Grid.Row="1" Grid.Column="1" Margin="12,0,0,12">
                     <TextBlock Text="Status"
                                FontWeight="SemiBold"
-                               Foreground="#6B7280" />
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,2" />
                     <TextBlock Text="{Binding Status}"
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
+
+                <Border Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                        Margin="0,8,0,0"
+                        Padding="0,12,0,0"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,1,0,0"
+                        Visibility="{Binding ErpTransactionNo, Converter={StaticResource StringToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="ERP Transaction"
+                                   FontWeight="SemiBold"
+                                   FontSize="12"
+                                   Foreground="#6B7280"
+                                   Margin="0,0,0,2" />
+                        <TextBlock Text="{Binding ErpTransactionNo}"
+                                   FontSize="14"
+                                   Foreground="#059669" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
 
@@ -334,8 +366,49 @@
             </Grid>
         </Border>
 
+        <!-- Items to push to ERPNext (full details, always shown when COMPLETED) -->
+        <Border Grid.Row="4"
+                Background="White"
+                CornerRadius="8"
+                Padding="12"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                Margin="0,0,0,8"
+                Visibility="{Binding CanPushToErpNext, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" MinHeight="80" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="Items to push to ERPNext"
+                           FontWeight="Bold"
+                           FontSize="14"
+                           Foreground="#7C3AED"
+                           Margin="0,0,0,8" />
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding ItemsToPush}"
+                          AutoGenerateColumns="False"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          CanUserResizeRows="False"
+                          IsReadOnly="True"
+                          MinHeight="60">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Item Code" Binding="{Binding ItemCode}" Width="120" />
+                        <DataGridTextColumn Header="Qty" Binding="{Binding Qty, StringFormat=N2}" Width="80" />
+                        <DataGridTextColumn Header="From Bin" Binding="{Binding FromBin}" Width="120" />
+                        <DataGridTextColumn Header="To Bin" Binding="{Binding ToBin}" Width="120" />
+                        <DataGridTextColumn Header="From Carton" Binding="{Binding FromCarton}" Width="*" />
+                        <DataGridTextColumn Header="To Carton" Binding="{Binding ToCarton}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
         <!-- Action Buttons -->
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,8,0,0">
@@ -404,6 +477,33 @@
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter Property="Background" Value="#047857" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button Content="Push to ERPNext"
+                    Width="140"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Padding="12,6"
+                    Background="#7C3AED"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    IsEnabled="{Binding CanPushToErpNext}"
+                    Click="PushToErpNext_Click"
+                    Visibility="{Binding CanPushToErpNext, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#7C3AED" />
+                        <Style.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#9CA3AF" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#6D28D9" />
                             </Trigger>
                         </Style.Triggers>
                     </Style>

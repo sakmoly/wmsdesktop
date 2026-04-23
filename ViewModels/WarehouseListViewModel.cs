@@ -11,6 +11,20 @@ public sealed class WarehouseListViewModel : BaseViewModel
 {
     public ObservableCollection<Warehouse> Warehouses { get; } = new();
 
+    /// <summary>True only when the grid shows design-time / fallback mock rows (not tabWarehouse).</summary>
+    public bool IsUsingMockData
+    {
+        get => _isUsingMockData;
+        private set
+        {
+            if (_isUsingMockData == value) return;
+            _isUsingMockData = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private bool _isUsingMockData;
+
     public WarehouseListViewModel()
     {
         _ = LoadDataAsync();
@@ -33,6 +47,8 @@ public sealed class WarehouseListViewModel : BaseViewModel
             {
                 Warehouses.Add(warehouse);
             }
+
+            IsUsingMockData = false;
         }
         catch (Exception ex)
         {
@@ -44,6 +60,7 @@ public sealed class WarehouseListViewModel : BaseViewModel
 
     private void LoadMockWarehouses()
     {
+        IsUsingMockData = true;
         // Mock data for design and testing
         Warehouses.Add(new Warehouse { Code = "WH-MAIN", Name = "Main Distribution Center", IsStore = false });
         Warehouses.Add(new Warehouse { Code = "ST-RYD-01", Name = "Riyadh Flagship Store", IsStore = true });

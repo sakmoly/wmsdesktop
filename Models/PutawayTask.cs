@@ -14,6 +14,9 @@ public sealed class PutawayTask
     
     // For Transfer In-based putaway
     public string? TransferIn { get; init; }
+
+    /// <summary>Stock Entry name created by end_transit_create_receipt (e.g. MAT-REC-2026-00001). Null until End Transit is sent.</summary>
+    public string? ReceiptStockEntryNo { get; init; }
     
     public string InboundSession { get; init; } = string.Empty;
     public string CreatedBy { get; init; } = string.Empty;

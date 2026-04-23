@@ -1,5 +1,7 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -20,19 +22,27 @@ public static class SettingsService
     }
 
     /// <summary>
-    /// Load settings from file
+    /// Load settings from the default app directory (wms_settings.json next to the executable).
     /// </summary>
-    public static WmsSettings? LoadSettings()
+    public static WmsSettings? LoadSettings() => LoadSettingsFromFile(SettingsFilePath);
+
+    /// <summary>
+    /// Load settings from an explicit file path (e.g. for CLI test runners).
+    /// </summary>
+    public static WmsSettings? LoadSettingsFromFile(string filePath)
     {
         try
         {
-            if (!File.Exists(SettingsFilePath))
+            if (!File.Exists(filePath))
             {
                 return null;
             }
 
-            var json = File.ReadAllText(SettingsFilePath);
-            var settings = JsonSerializer.Deserialize<WmsSettingsDto>(json);
+            var json = File.ReadAllText(filePath);
+            var settings = JsonSerializer.Deserialize<WmsSettingsDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
 
             if (settings == null)
                 return null;
@@ -69,10 +79,17 @@ public static class SettingsService
             {
                 Company = settings.Company ?? string.Empty,
                 ApiEndpointUrl = settings.ApiEndpointUrl ?? string.Empty,
+                ErpNextApiUrl = settings.ErpNextApiUrl ?? string.Empty,
                 ApiKey = settings.ApiKey ?? string.Empty,
+                ErpNextApiKey = settings.ErpNextApiKey ?? string.Empty,
                 SyncFrequencyMinutes = settings.SyncFrequencyMinutes,
                 DefaultPickingWarehouse = settings.DefaultPickingWarehouse,
+                DefaultReceivingWarehouseForPr = settings.DefaultReceivingWarehouseForPr,
+                IntransitWarehouseName = settings.IntransitWarehouseName,
+                MaterialRequestForTransferCarton = settings.MaterialRequestForTransferCarton,
+                SendCartonIdWithCycleCountPush = settings.SendCartonIdWithCycleCountPush,
                 LastSyncTimestamp = settings.LastSyncTimestamp,
+                LastItemSyncTimestamp = settings.LastItemSyncTimestamp,
                 DatabaseType = settings.DatabaseType ?? "MySQL",
                 DatabaseHost = settings.DatabaseHost ?? "localhost",
                 DatabaseName = settings.DatabaseName ?? "wms_desktop",
@@ -81,7 +98,33 @@ public static class SettingsService
                 DatabasePort = settings.DatabasePort > 0 ? settings.DatabasePort : 3306,
                 DatabaseExists = settings.DatabaseExists,
                 TablesExist = settings.TablesExist,
-                InventoryTrackingMode = settings.InventoryTrackingMode ?? "BinLevel"
+                InventoryTrackingMode = settings.InventoryTrackingMode ?? "BinLevel",
+                ItemSyncFilters = settings.ItemSyncFilters ?? "{\"custom_dcs\":\"MENFOTSLP\"}",
+                ItemSyncAttributeFilters = settings.ItemSyncAttributeFilters ?? "{\"year\":[\"=\",2026]}",
+                ItemSyncFields = settings.ItemSyncFields ?? "[\"item_code\",\"item_name\",\"year\",\"season\",\"brand\",\"stock_uom\",\"is_stock\",\"barcode\",\"custom_wms_modified\",\"disabled\"]",
+                ItemSyncFlattenAttributes = settings.ItemSyncFlattenAttributes,
+                SyncEndpoints = settings.SyncEndpoints != null && settings.SyncEndpoints.Count > 0
+                    ? new ObservableCollection<SyncEndpointConfig>(settings.SyncEndpoints.Select(d => new SyncEndpointConfig
+                    {
+                        Name = d.Name ?? "Endpoint",
+                        BaseUrl = d.BaseUrl ?? string.Empty,
+                        ApiKey = d.ApiKey ?? string.Empty,
+                        Enabled = d.Enabled,
+                        SyncType = string.IsNullOrWhiteSpace(d.SyncType) ? SyncTypeNames.All : d.SyncType
+                    }))
+                    : new ObservableCollection<SyncEndpointConfig>(),
+                PushEndpoints = settings.PushEndpoints != null && settings.PushEndpoints.Count > 0
+                    ? new ObservableCollection<PushEndpointConfig>(settings.PushEndpoints.Select(p => new PushEndpointConfig
+                    {
+                        Name = p.Name ?? "Push 1",
+                        EndpointType = string.IsNullOrWhiteSpace(p.EndpointType) ? PushEndpointTypeNames.Custom : p.EndpointType,
+                        BaseUrl = p.BaseUrl ?? string.Empty,
+                        Method = string.IsNullOrWhiteSpace(p.Method) ? PushEndpointMethodNames.Post : p.Method,
+                        ApiKey = p.ApiKey ?? string.Empty,
+                        Enabled = p.Enabled
+                    }))
+                    : new ObservableCollection<PushEndpointConfig>(),
+                ItemSyncPushUrl = settings.ItemSyncPushUrl ?? string.Empty
             };
         }
         catch (Exception ex)
@@ -109,10 +152,17 @@ public static class SettingsService
             {
                 Company = settings.Company,
                 ApiEndpointUrl = settings.ApiEndpointUrl,
+                ErpNextApiUrl = settings.ErpNextApiUrl,
                 ApiKey = settings.ApiKey,
+                ErpNextApiKey = settings.ErpNextApiKey,
                 SyncFrequencyMinutes = settings.SyncFrequencyMinutes,
                 DefaultPickingWarehouse = settings.DefaultPickingWarehouse,
+                DefaultReceivingWarehouseForPr = settings.DefaultReceivingWarehouseForPr,
+                IntransitWarehouseName = settings.IntransitWarehouseName,
+                MaterialRequestForTransferCarton = settings.MaterialRequestForTransferCarton,
+                SendCartonIdWithCycleCountPush = settings.SendCartonIdWithCycleCountPush,
                 LastSyncTimestamp = settings.LastSyncTimestamp,
+                LastItemSyncTimestamp = settings.LastItemSyncTimestamp,
                 DatabaseType = settings.DatabaseType,
                 DatabaseHost = settings.DatabaseHost,
                 DatabaseName = settings.DatabaseName,
@@ -121,7 +171,29 @@ public static class SettingsService
                 DatabasePort = settings.DatabasePort,
                 DatabaseExists = settings.DatabaseExists,
                 TablesExist = settings.TablesExist,
-                InventoryTrackingMode = settings.InventoryTrackingMode
+                InventoryTrackingMode = settings.InventoryTrackingMode,
+                ItemSyncFilters = settings.ItemSyncFilters,
+                ItemSyncAttributeFilters = settings.ItemSyncAttributeFilters,
+                ItemSyncFields = settings.ItemSyncFields,
+                ItemSyncFlattenAttributes = settings.ItemSyncFlattenAttributes,
+                SyncEndpoints = settings.SyncEndpoints?.Select(e => new SyncEndpointConfigDto
+                {
+                    Name = e.Name,
+                    BaseUrl = e.BaseUrl,
+                    ApiKey = e.ApiKey,
+                    Enabled = e.Enabled,
+                    SyncType = e.SyncType ?? SyncTypeNames.All
+                }).ToList() ?? new System.Collections.Generic.List<SyncEndpointConfigDto>(),
+                PushEndpoints = settings.PushEndpoints?.Select(p => new PushEndpointConfigDto
+                {
+                    Name = p.Name,
+                    EndpointType = p.EndpointType ?? PushEndpointTypeNames.Custom,
+                    BaseUrl = p.BaseUrl,
+                    Method = p.Method ?? PushEndpointMethodNames.Post,
+                    ApiKey = p.ApiKey,
+                    Enabled = p.Enabled
+                }).ToList() ?? new System.Collections.Generic.List<PushEndpointConfigDto>(),
+                ItemSyncPushUrl = settings.ItemSyncPushUrl ?? string.Empty
             };
 
             var options = new JsonSerializerOptions
@@ -244,10 +316,17 @@ public static class SettingsService
     {
         public string Company { get; set; } = string.Empty;
         public string ApiEndpointUrl { get; set; } = string.Empty;
+        public string ErpNextApiUrl { get; set; } = string.Empty;
         public string ApiKey { get; set; } = string.Empty;
+        public string ErpNextApiKey { get; set; } = string.Empty;
         public int SyncFrequencyMinutes { get; set; } = 15;
         public string? DefaultPickingWarehouse { get; set; }
+        public string? DefaultReceivingWarehouseForPr { get; set; }
+        public string? IntransitWarehouseName { get; set; }
+        public string? MaterialRequestForTransferCarton { get; set; }
+        public bool SendCartonIdWithCycleCountPush { get; set; }
         public DateTime? LastSyncTimestamp { get; set; }
+        public DateTime? LastItemSyncTimestamp { get; set; }
         public string DatabaseType { get; set; } = "MySQL";
         public string DatabaseHost { get; set; } = "localhost";
         public string DatabaseName { get; set; } = "wms_desktop";
@@ -261,6 +340,32 @@ public static class SettingsService
         public bool DatabaseExists { get; set; }
         public bool TablesExist { get; set; }
         public string InventoryTrackingMode { get; set; } = "BinLevel";
+        public string ItemSyncFilters { get; set; } = "{\"custom_dcs\":\"MENFOTSLP\"}";
+        public string ItemSyncAttributeFilters { get; set; } = "{\"year\":[\"=\",2026]}";
+        public string ItemSyncFields { get; set; } = "[\"item_code\",\"item_name\",\"year\",\"season\",\"brand\",\"stock_uom\",\"is_stock\",\"barcode\",\"custom_wms_modified\",\"disabled\"]";
+        public bool ItemSyncFlattenAttributes { get; set; } = true;
+        public System.Collections.Generic.List<SyncEndpointConfigDto>? SyncEndpoints { get; set; }
+        public System.Collections.Generic.List<PushEndpointConfigDto>? PushEndpoints { get; set; }
+        public string ItemSyncPushUrl { get; set; } = string.Empty;
+    }
+
+    private class SyncEndpointConfigDto
+    {
+        public string Name { get; set; } = "ERPNext 1";
+        public string BaseUrl { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+        public bool Enabled { get; set; } = true;
+        public string SyncType { get; set; } = SyncTypeNames.All;
+    }
+
+    private class PushEndpointConfigDto
+    {
+        public string Name { get; set; } = "Push 1";
+        public string EndpointType { get; set; } = PushEndpointTypeNames.Custom;
+        public string BaseUrl { get; set; } = string.Empty;
+        public string Method { get; set; } = PushEndpointMethodNames.Post;
+        public string ApiKey { get; set; } = string.Empty;
+        public bool Enabled { get; set; } = true;
     }
 }
 

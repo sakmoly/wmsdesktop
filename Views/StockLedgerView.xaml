@@ -134,15 +134,18 @@
                     <DataGridTextColumn Header="Bin Location"
                                         Binding="{Binding BinLocation}"
                                         Width="150" />
-                    <DataGridTextColumn Header="Quantity"
-                                        Binding="{Binding Qty, StringFormat=N2}"
-                                        Width="100" />
-                    <DataGridTextColumn Header="Reserved Qty"
-                                        Binding="{Binding ReservedQty, StringFormat=N2}"
+                    <DataGridTextColumn Header="Stock (Balance)"
+                                        Binding="{Binding RemainingStock, StringFormat=N2}"
                                         Width="120" />
                     <DataGridTextColumn Header="Available Qty"
                                         Binding="{Binding AvailableQty, StringFormat=N2}"
                                         Width="120" />
+                    <DataGridTextColumn Header="Reserved Qty"
+                                        Binding="{Binding ReservedQty, StringFormat=N2}"
+                                        Width="100" />
+                    <DataGridTextColumn Header="Txn Qty"
+                                        Binding="{Binding Qty, StringFormat=N2}"
+                                        Width="90" />
                     <DataGridTextColumn Header="Qty Before"
                                         Binding="{Binding QtyBefore, StringFormat=N2}"
                                         Width="100" />

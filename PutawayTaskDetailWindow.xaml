@@ -86,38 +86,27 @@
                                Foreground="#111827" />
                 </StackPanel>
                 
-                <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,0,4" Grid.RowSpan="2">
-                    <TextBlock Text="Location ID"
+                <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,0,4" Grid.RowSpan="2"
+                            Visibility="{Binding IsTransferInPutaway, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="Transfer In (End Transit)"
                                FontWeight="SemiBold"
                                Foreground="#6B7280"
                                Margin="0,0,0,4" />
-                    <TextBox x:Name="LocationIdTextBox"
-                             Text="{Binding ScannedLocationId, UpdateSourceTrigger=PropertyChanged}"
-                             FontSize="14"
-                             Padding="8,4"
-                             Margin="0,0,0,4"
-                             KeyDown="LocationIdTextBox_KeyDown"
-                             GotFocus="LocationIdTextBox_GotFocus">
-                        <TextBox.Style>
-                            <Style TargetType="TextBox">
-                                <Setter Property="ToolTip" Value="Scan or enter Location ID (e.g., A1-R02-L2-B2)" />
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                    <Button Content="Update Location"
-                            Command="{Binding UpdateLocationCommand}"
-                            Padding="8,4"
-                            Background="#3B82F6"
+                    <TextBlock Text="{Binding PutawayTask.TransferIn}"
+                               FontSize="14"
+                               Foreground="#111827"
+                               Margin="0,0,0,8"
+                               TextWrapping="Wrap" />
+                    <Button Content="End Transit"
+                            Command="{Binding EndTransitCommand}"
+                            Padding="12,8"
+                            Background="#8B5CF6"
                             Foreground="White"
                             BorderThickness="0"
                             Cursor="Hand"
                             FontWeight="SemiBold"
-                            IsEnabled="{Binding CanUpdateLocation}" />
-                    <TextBlock Text="{Binding PutawayTask.LocationId, StringFormat='Current: {0}'}"
-                               FontSize="12"
-                               Foreground="#6B7280"
-                               Margin="0,4,0,0"
-                               Visibility="{Binding PutawayTask.LocationId, Converter={StaticResource StringToVisibilityConverter}}" />
+                            ToolTip="Call ERPNext end_transit_create_receipt API for this Transfer In (only when status is Completed)."
+                            IsEnabled="{Binding CanEndTransit}" />
                 </StackPanel>
             </Grid>
         </Border>

@@ -32,13 +32,33 @@
                            Foreground="#6B7280" />
             </StackPanel>
 
-            <Button Grid.Column="1"
-                    x:Name="ShowLocationsButton"
-                    Content="Show Location Breakdown"
-                    Margin="8,0,0,0"
-                    Padding="12,6"
-                    VerticalAlignment="Bottom"
-                    Click="ShowLocationsButton_OnClick" />
+            <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Bottom">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="TestSyncButton"
+                            Content="Test Sync"
+                            Margin="8,0,8,0"
+                            Padding="12,6"
+                            Command="{Binding TestSyncCommand}"
+                            IsEnabled="{Binding IsNotSyncing}"
+                            ToolTip="Test ERPNext connection and sync process" />
+                    <Button x:Name="SyncItemsButton"
+                            Content="Sync"
+                            Margin="0,0,8,0"
+                            Padding="12,6"
+                            Command="{Binding SyncItemsCommand}"
+                            IsEnabled="{Binding IsNotSyncing}" />
+                    <Button x:Name="ShowLocationsButton"
+                            Content="Show Location Breakdown"
+                            Padding="12,6"
+                            Click="ShowLocationsButton_OnClick" />
+                </StackPanel>
+                <TextBlock Text="{Binding SyncStatusMessage}"
+                           Foreground="#059669"
+                           FontSize="12"
+                           Margin="8,4,8,0"
+                           Visibility="{Binding IsSyncing, Converter={StaticResource BooleanToVisibilityConverter}}"
+                           FontWeight="SemiBold" />
+            </StackPanel>
         </Grid>
 
         <!-- Filter Bar -->
@@ -141,10 +161,22 @@
                                         Width="250" />
                     <DataGridTextColumn Header="Item Group"
                                         Binding="{Binding ItemGroup}"
-                                        Width="200" />
+                                        Width="120" />
+                    <DataGridTextColumn Header="Color"
+                                        Binding="{Binding Color}"
+                                        Width="80" />
+                    <DataGridTextColumn Header="Size"
+                                        Binding="{Binding Size}"
+                                        Width="80" />
+                    <DataGridTextColumn Header="Year"
+                                        Binding="{Binding Year}"
+                                        Width="60" />
+                    <DataGridTextColumn Header="Season"
+                                        Binding="{Binding Season}"
+                                        Width="80" />
                     <DataGridTextColumn Header="Brand"
                                         Binding="{Binding Brand}"
-                                        Width="150" />
+                                        Width="120" />
                     <DataGridTextColumn Header="Barcode"
                                         Binding="{Binding Barcode}"
                                         Width="160" />

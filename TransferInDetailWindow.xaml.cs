@@ -20,6 +20,56 @@ public partial class TransferInDetailWindow : Window
         DataContext = _viewModel;
     }
 
+    private async void BtnCreatePutawayTask_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = SettingsService.LoadSettings();
+            if (settings == null)
+            {
+                MessageBox.Show("Settings not found. Please configure API settings first.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Create a Putaway Task for Transfer In '{_transferIn.Title}'?\n\nThis will add a new putaway task so warehouse staff can put away the items. If a putaway task already exists for this Transfer In, nothing will be duplicated.",
+                "Create Putaway Task",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            var success = await PutawayTaskDataService.CreatePutawayTaskFromTransferInAsync(
+                settings,
+                _transferIn.Title,
+                inboundSessionTitle: _transferIn.Title,
+                createdBy: "SYSTEM");
+
+            if (success)
+            {
+                MessageBox.Show(
+                    "Putaway task created successfully (or one already existed for this Transfer In).\n\nOpen Putaway Tasks to see and complete it.",
+                    "Create Putaway Task",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(
+                    "Could not create putaway task.\n\nPossible reasons:\n- No items in this Transfer In (check tabTransferInItem)\n- Database error (check ErrorLogs folder)\n- transfer_in column missing on tabPutawayTask",
+                    "Create Putaway Task",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("Error creating Putaway Task from Transfer In", ex);
+            MessageBox.Show($"Error: {ex.Message}", "Create Putaway Task", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private async void BtnSubmit_Click(object sender, RoutedEventArgs e)
     {
         try

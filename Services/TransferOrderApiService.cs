@@ -32,7 +32,9 @@ public static class TransferOrderApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
             
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
-            var apiUrl = $"{baseUrl}/api/master/transfer-orders";
+            var apiUrl = baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase)
+                ? $"{baseUrl}/master/transfer-orders"
+                : $"{baseUrl}/api/master/transfer-orders";
             
             ErrorLogService.LogInfo($"TransferOrderApiService: Fetching transfer orders from {apiUrl}");
 

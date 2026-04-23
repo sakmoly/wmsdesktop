@@ -24,7 +24,7 @@ public static class TransferOrderDataService
             await connection.OpenAsync();
 
             // Get all Transfer Orders
-            var toSql = @"SELECT title, status, advance_shipping_notice, from_warehouse, 
+            var toSql = @"SELECT title, status, advance_shipping_notice, from_warehouse, COALESCE(wms_export_status, 'Pending') as wms_export_status,
                                  prepared_by, required_date, total_allocated_qty
                           FROM tabTransferOrder
                           ORDER BY required_date DESC, title";
@@ -44,9 +44,10 @@ public static class TransferOrderDataService
                     Status = toReader.GetString(1),
                     AdvanceShippingNotice = toReader.GetString(2),
                     FromWarehouse = toReader.GetString(3),
-                    PreparedBy = toReader.GetString(4),
-                    RequiredDate = toReader.IsDBNull(5) ? null : toReader.GetDateTime(5),
-                    TotalAllocatedQty = Convert.ToDouble(toReader.GetDecimal(6))
+                    WmsExportStatus = toReader.IsDBNull(4) ? "Pending" : toReader.GetString(4),
+                    PreparedBy = toReader.GetString(5),
+                    RequiredDate = toReader.IsDBNull(6) ? null : toReader.GetDateTime(6),
+                    TotalAllocatedQty = Convert.ToDouble(toReader.GetDecimal(7))
                 });
             }
 
@@ -104,6 +105,7 @@ public static class TransferOrderDataService
                         Status = to.Status,
                         AdvanceShippingNotice = to.AdvanceShippingNotice,
                         FromWarehouse = to.FromWarehouse,
+                        WmsExportStatus = to.WmsExportStatus,
                         PreparedBy = to.PreparedBy,
                         RequiredDate = to.RequiredDate,
                         TotalAllocatedQty = to.TotalAllocatedQty,
@@ -136,6 +138,30 @@ public static class TransferOrderDataService
     {
         var tos = await GetTransferOrdersAsync(settings);
         return tos.FirstOrDefault(to => to.AdvanceShippingNotice == asnTitle);
+    }
+
+    /// <summary>
+    /// Update WMS Export Status for a Transfer Order (e.g. after pushing status to ERPNext).
+    /// </summary>
+    public static async Task<bool> SetTransferOrderWmsExportStatusAsync(WmsSettings settings, string toTitle, string status)
+    {
+        if (string.IsNullOrWhiteSpace(toTitle)) return false;
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand("UPDATE tabTransferOrder SET wms_export_status = @status, updated_at = CURRENT_TIMESTAMP WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@status", (status ?? "Pending").Trim());
+            cmd.Parameters.AddWithValue("@title", toTitle.Trim());
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"TransferOrderDataService: SetTransferOrderWmsExportStatus failed for {toTitle}", ex);
+            return false;
+        }
     }
 }
 

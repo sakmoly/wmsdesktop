@@ -154,7 +154,7 @@
                                         Binding="{Binding Policy}"
                                         Width="100" />
                     <DataGridTextColumn Header="Warehouse"
-                                        Binding="{Binding WarehouseId}"
+                                        Binding="{Binding WarehouseCode}"
                                         Width="120" />
                     <DataGridTextColumn Header="From Bin"
                                         Binding="{Binding FromBin}"

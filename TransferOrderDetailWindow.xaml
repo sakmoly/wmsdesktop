@@ -43,6 +43,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,4">
@@ -82,6 +83,15 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,4">
+                    <TextBlock Text="WMS Export Status"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding TransferOrder.WmsExportStatus, FallbackValue=Pending}"
+                               FontSize="14"
+                               Foreground="#111827" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,4">
                     <TextBlock Text="Required Date"
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />
@@ -90,7 +100,7 @@
                                Foreground="#111827" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,0">
+                <StackPanel Grid.Row="3" Grid.Column="1" Margin="8,0,0,0">
                     <TextBlock Text="Total Allocated Qty"
                                FontWeight="SemiBold"
                                Foreground="#6B7280" />

@@ -61,21 +61,18 @@ public partial class RelocationListView : UserControl
         }
     }
 
-    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            // Reload data
             var viewModel = DataContext as ViewModels.RelocationListViewModel;
             if (viewModel != null)
-            {
-                // Note: Currently no list endpoint, so this is a placeholder
-                // In a real implementation, you'd call an API to get all sessions
-            }
+                await viewModel.RefreshAsync();
         }
         catch (Exception ex)
         {
             Services.ErrorLogService.LogError("Error refreshing relocation sessions", ex);
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -83,9 +80,9 @@ public partial class RelocationListView : UserControl
     {
         try
         {
-            if (sender is DataGrid grid && grid.SelectedItem is RelocationSession session)
+            if (sender is DataGrid grid && grid.SelectedItem is ViewModels.RelocationSessionDisplayItem display)
             {
-                var window = new RelocationSessionDetailWindow(session, null);
+                var window = new RelocationSessionDetailWindow(display.Session, null);
                 window.ShowDialog();
                 // Refresh list after window closes
                 RefreshButton_Click(sender, e);

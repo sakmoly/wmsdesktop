@@ -14,7 +14,9 @@ public sealed class MaterialRequest
     public string RequestedBy { get; init; } = string.Empty;
     public double TotalRequestedQty { get; init; }
     public double TotalPickedQty { get; init; }
-    
+    /// <summary>Stock Entry created in ERPNext by Push to ERP (add to transit).</summary>
+    public string? StockEntryNo { get; init; }
+
     public IReadOnlyList<MaterialRequestItem> Items { get; init; } = Array.Empty<MaterialRequestItem>();
 }
 

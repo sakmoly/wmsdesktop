@@ -14,6 +14,8 @@ public sealed class RelocationSession
     public string? ToBin { get; init; }
     public string? ToCarton { get; init; }
     public string Status { get; init; } = "IN_PROGRESS"; // IN_PROGRESS | COMPLETED | CANCELLED
+    /// <summary>ERPNext document name returned after pushing to ERPNext (e.g. Stock Entry or Relocation doc).</summary>
+    public string? ErpTransactionNo { get; init; }
     public string? CreatedBy { get; init; }
     public string? DeviceId { get; init; }
     public DateTime? CreatedAt { get; init; }

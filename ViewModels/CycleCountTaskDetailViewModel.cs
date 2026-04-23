@@ -31,6 +31,8 @@ public partial class CycleCountTaskDetailViewModel : ObservableObject
     public bool CanStart => CycleCountTask.Status == "Draft" || CycleCountTask.Status == "Scheduled";
     public bool CanSubmit => CycleCountTask.Status == "In Progress";
     public bool CanComplete => CycleCountTask.Status == "Review";
+    /// <summary>Can push to ERP when task is submitted or completed and has counted lines.</summary>
+    public bool CanPushToErp => (CycleCountTask.Status == "Review" || CycleCountTask.Status == "Completed") && CycleCountTask.Lines.Count > 0;
 
     private bool _isCartonLevelMode;
     public bool IsCartonLevelMode
@@ -190,14 +192,14 @@ public partial class CycleCountTaskDetailViewModel : ObservableObject
             }
 
             var result = await CycleCountApiService.CompleteCycleCountAsync(settings, CycleCountTask.Title);
-            
+
             if (result.Success)
             {
                 MessageBox.Show(result.Message, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                
+
                 // Reload task data
                 await RefreshTaskAsync();
-                
+
                 TaskUpdated?.Invoke(this, EventArgs.Empty);
             }
             else
@@ -243,6 +245,7 @@ public partial class CycleCountTaskDetailViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanStart));
                 OnPropertyChanged(nameof(CanSubmit));
                 OnPropertyChanged(nameof(CanComplete));
+                OnPropertyChanged(nameof(CanPushToErp));
                 
                 // Log for debugging
                 ErrorLogService.LogInfo($"CycleCountTaskDetailViewModel: Refreshed task {CycleCountTask.Title} - " +
@@ -273,6 +276,75 @@ public partial class CycleCountTaskDetailViewModel : ObservableObject
     private async Task RefreshAsync()
     {
         await RefreshTaskAsync();
+    }
+
+    [RelayCommand]
+    private async Task PushToErpAsync()
+    {
+        try
+        {
+            var settings = SettingsService.LoadSettings();
+            if (settings == null)
+            {
+                MessageBox.Show("Settings not configured", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var (success, error, erpReference) = await ErpNextWmsSyncApiService.PushCycleCountToErpNextAsync(settings, CycleCountTask);
+
+            if (success)
+            {
+                if (!string.IsNullOrWhiteSpace(erpReference))
+                {
+                    await CycleCountTaskDataService.UpdateCycleCountTaskErpReferenceAsync(settings, CycleCountTask.Title, erpReference);
+                }
+                await RefreshTaskAsync();
+                TaskUpdated?.Invoke(this, EventArgs.Empty);
+
+                // Apply cycle count to WMS DB first so the snapshot reflects post-cycle-count state (fixes WMS Stock Balance not updating)
+                await StockLedgerService.ApplyCycleCountFromTaskAsync(settings, CycleCountTask);
+
+                // Push WMS snapshot so ERPNext WMS Stock Balance / Ledger stay in sync.
+                // Limit to this task's transactions only so we don't send last 5000 (avoids multiple ledger entries).
+                var (snapshotSuccess, snapshotError, snapshotResponse) = await WmsSnapshotDataService.BuildAndPushSnapshotWithResponseAsync(settings, stockTransactionReferenceDoc: CycleCountTask.Title);
+
+                var msg = string.IsNullOrWhiteSpace(erpReference)
+                    ? "Cycle count pushed to ERPNext successfully."
+                    : $"Cycle count pushed to ERPNext. Reference: {erpReference}";
+                if (snapshotSuccess)
+                {
+                    msg += "\n\nWMS snapshot pushed to ERPNext.";
+                    if (snapshotResponse?.Processed != null)
+                        msg += $"\nStock Balance rows: {snapshotResponse.Processed.CartonStock}, Ledger: {snapshotResponse.Processed.Ledger}, Cartons: {snapshotResponse.Processed.Cartons}.";
+                    if (snapshotResponse?.Errors != null && snapshotResponse.Errors.Count > 0)
+                    {
+                        var errors = snapshotResponse.Errors;
+                        var fullLog = string.Join("\n---\n", errors.Select(e => e ?? ""));
+                        ErrorLogService.LogError($"ERPNext push_wms_snapshot reported {errors.Count} error(s). Full log:\n{fullLog}", null);
+
+                        msg += $"\n\nERPNext reported {errors.Count} error(s) (full log written to app log):";
+                        foreach (var err in errors)
+                        {
+                            var line = (err ?? "").Replace("\n", " ").Replace("\r", " ").Trim();
+                            if (line.Length > 0)
+                                msg += "\n• " + (line.Length > 250 ? line.Substring(0, 247) + "..." : line);
+                        }
+                    }
+                }
+                else
+                    msg += $"\n\nWMS snapshot push failed: {snapshotError ?? "Unknown error"} — you can push manually from Settings.";
+                MessageBox.Show(msg, "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show(error ?? "Push failed.", "Push to ERPNext", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError("Error pushing cycle count to ERPNext", ex);
+            MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 }
 

@@ -20,7 +20,11 @@ public sealed class CycleCountTask
     public int TotalItems { get; init; }
     public int CountedItems { get; init; }
     public int ItemsWithDiscrepancy { get; init; }
-    
+    /// <summary>ERPNext document reference (e.g. Stock Reconciliation name) after push to sync_task_capture_only.</summary>
+    public string? ErpReference { get; init; }
+    /// <summary>When the task was last successfully pushed to ERPNext.</summary>
+    public DateTime? ErpSyncedAt { get; init; }
+
     public IReadOnlyList<CycleCountLine> Lines { get; init; } = Array.Empty<CycleCountLine>();
 }
 

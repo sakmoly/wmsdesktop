@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <!-- CS8892: RunMigration/TestCartonData/UpdateCartonIdsForStock have Main() but WPF App is the entry point -->
+    <NoWarn>$(NoWarn);CS8892</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />

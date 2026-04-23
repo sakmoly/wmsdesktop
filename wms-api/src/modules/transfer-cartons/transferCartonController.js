@@ -1331,6 +1331,15 @@ export const getTransferCartonById = async (req, res) => {
       if (columnCheck[0].count === 0) {
         console.warn(`Column 'tc_id' does not exist in tabWmsScanEvent table`);
       } else {
+        const [boxColCheck] = await connection.execute(`
+          SELECT COUNT(*) as count
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tabWmsScanEvent'
+          AND COLUMN_NAME = 'box_id'
+        `);
+        const hasBoxIdCol = boxColCheck[0].count > 0;
+
         // Count total events for this tc_id (for debugging)
         const [countResult] = await connection.execute(
           `
@@ -1363,8 +1372,25 @@ export const getTransferCartonById = async (req, res) => {
         // we need to SUM all the qty values from all events, not just use the latest value
         // Query matches user requirement: GROUP BY item_code, carton_id (without tc_id)
         // Include both PACK_BOX_TO_TC and PACK_ITEM_TO_TC event types for backward compatibility
-        const [sortEvents] = await connection.execute(
-          `
+        const sortEventsSql = hasBoxIdCol
+          ? `
+          SELECT 
+            item_code,
+            carton_id AS source_carton,
+            MAX(NULLIF(TRIM(box_id), '')) AS sort_box_id,
+            SUM(qty) AS quantity,
+            MAX(user_id) AS packed_by,
+            MAX(event_time) AS packed_on
+          FROM tabWmsScanEvent
+          WHERE tc_id = ?
+            AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC')
+            AND item_code IS NOT NULL
+            AND item_code != ''
+            AND qty > 0
+          GROUP BY item_code, carton_id
+          ORDER BY packed_on DESC
+        `
+          : `
           SELECT 
             item_code,
             carton_id AS source_carton,
@@ -1379,9 +1405,8 @@ export const getTransferCartonById = async (req, res) => {
             AND qty > 0
           GROUP BY item_code, carton_id
           ORDER BY packed_on DESC
-        `,
-          [tc_id]
-        );
+        `;
+        const [sortEvents] = await connection.execute(sortEventsSql, [tc_id]);
 
         // Debug: Log all events to identify duplicates
         const [allEvents] = await connection.execute(
@@ -1421,6 +1446,7 @@ export const getTransferCartonById = async (req, res) => {
           .map((event) => ({
             item_code: event.item_code,
             source_carton: event.source_carton || null,
+            box_id: hasBoxIdCol ? event.sort_box_id || null : null,
             qty: parseFloat(event.quantity) || 0,
             packed_by: event.packed_by || null,
             packed_on: event.packed_on

@@ -14,9 +14,10 @@
  * 
  * @param {string} raw - Raw carton ID or box ID from scan/input
  * @param {boolean} allowAsnBoxId - If true, allow PAW-ASN-* and BOX-* formats (for ASN putaway)
+ * @param {boolean} allowTaskAsnPawBox - If true, allow any PAW-* as sort box_id when putaway_task is an Open ASN task (e.g. PAW-WMS* from WMS-ASN-* titles)
  * @returns {Object} { ok: boolean, reason?: string, carton_id?: string, box_id?: string }
  */
-export function normalizeCartonId(raw, allowAsnBoxId = false) {
+export function normalizeCartonId(raw, allowAsnBoxId = false, allowTaskAsnPawBox = false) {
   if (!raw) {
     return { ok: false, reason: "EMPTY" };
   }
@@ -29,6 +30,15 @@ export function normalizeCartonId(raw, allowAsnBoxId = false) {
       ok: false, 
       reason: "PUTAWAY_REQUIRES_CARTON_ID",
       message: "Putaway requires carton ID (CTN-* format). Old format (TI-PUT-* or PUT-*) is no longer supported."
+    };
+  }
+
+  // ASN putaway with PUT-* task: sort box IDs may be PAW-WMS*, PAW-ASN*, etc. (not only PAW-ASN*)
+  if (allowTaskAsnPawBox && v.startsWith("PAW-")) {
+    return {
+      ok: true,
+      carton_id: null,
+      box_id: v,
     };
   }
 
@@ -64,7 +74,7 @@ export function normalizeCartonId(raw, allowAsnBoxId = false) {
     return { 
       ok: false, 
       reason: "INVALID_CARTON_FORMAT",
-      message: `Carton ID must start with "CTN-". Received: ${v}. For ASN putaway, use box_id (BOX-* or PAW-ASN-* format) instead of carton_id.`
+      message: `Carton ID must start with "CTN-". Received: ${v}. For ASN putaway, use box_id (BOX-* or PAW-* sort box) and include putaway_task for non-PAW-ASN-* box IDs.`
     };
   }
 
@@ -110,10 +120,11 @@ export function stripItemCodeFromCartonId(cartonId) {
  * @param {string} raw - Raw input from scan
  * @param {string} operation - Operation type: "putaway", "receiving", "relocation"
  * @param {boolean} allowAsnBoxId - If true, allow PAW-ASN-* format (for ASN putaway)
+ * @param {boolean} allowTaskAsnPawBox - If true, allow PAW-* as box_id when linked to an ASN putaway task
  * @returns {Object} { ok: boolean, reason?: string, carton_id?: string, box_id?: string }
  */
-export function validateForPutaway(raw, allowAsnBoxId = false) {
-  const normalized = normalizeCartonId(raw, allowAsnBoxId);
+export function validateForPutaway(raw, allowAsnBoxId = false, allowTaskAsnPawBox = false) {
+  const normalized = normalizeCartonId(raw, allowAsnBoxId, allowTaskAsnPawBox);
   
   if (!normalized.ok) {
     return normalized;
@@ -132,7 +143,7 @@ export function validateForPutaway(raw, allowAsnBoxId = false) {
     };
   }
   
-  // For PAW-ASN-* format: check minimum length
+  // For sort box ids (PAW-*, BOX-*): check minimum length
   if (!cartonId && boxId && boxId.length < 8) {
     return {
       ok: false,

@@ -3,10 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:Wms.Desktop.Converters"
         mc:Ignorable="d"
         Title="Transfer Carton Details"
-        Height="650" Width="900"
+        Height="700" Width="960"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -40,6 +44,8 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -98,6 +104,23 @@
                                FontSize="14"
                                Foreground="#111827" />
                 </StackPanel>
+                <!-- Purchase Receipt and Stock Entry (ERPNext) -->
+                <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <TextBlock Text="Purchase Receipt"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding PurchaseReceiptDisplay, TargetNullValue='—'}"
+                               FontSize="14"
+                               Foreground="#059669" />
+                </StackPanel>
+                <StackPanel Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,4,0,0">
+                    <TextBlock Text="Stock Entry"
+                               FontWeight="SemiBold"
+                               Foreground="#6B7280" />
+                    <TextBlock Text="{Binding WarehouseTransferDisplay, TargetNullValue='—'}"
+                               FontSize="14"
+                               Foreground="#1D4ED8" />
+                </StackPanel>
             </Grid>
         </Border>
 
@@ -131,9 +154,9 @@
                         <DataGridTextColumn Header="Item Code"
                                             Binding="{Binding ItemCode}"
                                             Width="200" />
-                        <DataGridTextColumn Header="Source Carton"
-                                            Binding="{Binding SourceCartonId}"
-                                            Width="160" />
+                        <DataGridTextColumn Header="Sort box (Box ID)"
+                                            Binding="{Binding BoxIdForDisplay}"
+                                            Width="200" />
                         <DataGridTextColumn Header="Quantity"
                                             Binding="{Binding Qty}"
                                             Width="100">
@@ -154,14 +177,17 @@
             </Grid>
         </Border>
 
-        <!-- Summary + Actions -->
+        <!-- Summary + Actions (two rows: stats never overlap action buttons) -->
         <Grid Grid.Row="3" Margin="0,8,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            
-            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        Margin="0,0,0,10">
                 <TextBlock Text="{Binding TotalItems, StringFormat=Items: {0}}"
                            Margin="0,0,16,0"
                            FontSize="14"
@@ -182,35 +208,67 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal">
+            <WrapPanel Grid.Row="1"
+                       Orientation="Horizontal"
+                       HorizontalAlignment="Right">
+                <Button Content="Generate Stock Entry"
+                        Command="{Binding GenerateStockEntryCommand}"
+                        IsEnabled="{Binding CanGenerateStockEntry}"
+                        Padding="12,6"
+                        Margin="0,0,8,8"
+                        Background="#059669"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Create Warehouse Transfer (Stock Entry) in ERPNext. Enabled when PR is submitted." />
                 <Button Content="Print Label"
                         Command="{Binding PrintLabelCommand}"
                         IsEnabled="{Binding CanPrintLabel}"
                         Padding="12,6"
-                        Margin="0,0,8,0"
+                        Margin="0,0,8,8"
                         Background="#3B82F6"
                         Foreground="White"
                         BorderThickness="0" />
+                <Button Content="Get Purchase Receipt"
+                        Command="{Binding GetPurchaseReceiptCommand}"
+                        IsEnabled="{Binding CanGetPurchaseReceipt}"
+                        Padding="12,6"
+                        Margin="0,0,8,8"
+                        Background="#8B5CF6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Fetch PR status from ERPNext and update this transfer carton. Disabled after a Stock Entry is linked (workflow is past PR refresh)." />
                 <Button Content="Print Out Slip"
                         Command="{Binding PrintOutSlipCommand}"
-                        IsEnabled="{Binding CanPrintLabel}"
+                        IsEnabled="{Binding CanPrintOutSlip}"
+                        Visibility="{Binding CanPrintOutSlip, Converter={StaticResource BooleanToVisibilityConverter}}"
                         Padding="12,6"
-                        Margin="0,0,8,0"
+                        Margin="0,0,8,8"
                         Background="#10B981"
                         Foreground="White"
-                        BorderThickness="0" />
+                        BorderThickness="0"
+                        ToolTip="Available after Stock Entry is created for this transfer carton" />
+                <Button Content="Print packing list"
+                        Command="{Binding PrintPackingListCommand}"
+                        IsEnabled="{Binding CanPrintPackingList}"
+                        Padding="12,6"
+                        Margin="0,0,8,8"
+                        Background="#1D4ED8"
+                        Foreground="White"
+                        BorderThickness="0"
+                        ToolTip="Print this transfer carton only — same lines as Carton Contents below (not the multi-carton sort-box list)." />
                 <Button Content="Dispatch"
                         Command="{Binding DispatchTransferCartonCommand}"
                         IsEnabled="{Binding CanDispatch}"
                         Padding="12,6"
-                        Margin="0,0,8,0"
+                        Margin="0,0,8,8"
                         Background="#F59E0B"
                         Foreground="White"
                         BorderThickness="0" />
                 <Button Content="Close"
                         Width="80"
+                        Margin="0,0,0,8"
                         IsCancel="True" />
-            </StackPanel>
+            </WrapPanel>
         </Grid>
     </Grid>
 </Window>

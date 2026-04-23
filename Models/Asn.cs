@@ -15,12 +15,17 @@ public sealed class Asn
     public int TotalCartonCount { get; init; } // Total number of distinct cartons
     public string? AirwayBillNo { get; init; }
     public string? ShipmentType { get; init; } // Air, Sea, Road
+    public string? WmsExportStatus { get; init; } // Pending, Exported (from ERPNext wms_export_status)
+    /// <summary>Purchase Receipt number created in ERPNext (e.g. from receive_asn_and_create_purchase_receipt).</summary>
+    public string? PurchaseReceiptNo { get; init; }
     public DateTime? UpdatedOn { get; init; } // For sync operations
     public string? PayloadJson { get; init; } // Serialized ASN data for sync
 
+    /// <summary>ASN line rows from <c>tabAsnItemDetails</c>. The same <see cref="AsnItemDetails.ItemCode"/> may appear more than once when each line has a different <see cref="AsnItemDetails.CartonId"/> (or differs by PO ref / shipped qty).</summary>
     public IReadOnlyList<AsnItemDetails> Details { get; init; } = Array.Empty<AsnItemDetails>();
 }
 
+/// <summary>One ASN item line. Repeating <see cref="ItemCode"/> is valid when <see cref="CartonId"/> (and/or PO reference / shipped quantity) distinguishes ERP lines.</summary>
 public sealed class AsnItemDetails
 {
     public string ItemCode { get; init; } = string.Empty;

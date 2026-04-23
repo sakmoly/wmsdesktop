@@ -47,6 +47,15 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
@@ -63,63 +72,141 @@
                 <TextBox Grid.Row="0" Grid.Column="1"
                          Text="{Binding Settings.Company}"
                          Margin="0,4"
-                         Padding="4" />
+                         Padding="4"
+                         ToolTip="Exact company name as in ERPNext (e.g. for printechs_wms.api.location.list_locations when syncing locations to tabLocation)." />
 
-                <!-- API Endpoint URL -->
+                <!-- API Endpoint URL (WMS API Server) -->
                 <TextBlock Grid.Row="1" Grid.Column="0"
-                           Text="API Endpoint URL"
+                           Text="WMS API Endpoint URL"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
                 <TextBox Grid.Row="1" Grid.Column="1"
-                         Text="{Binding Settings.ApiEndpointUrl}"
+                         Text="{Binding Settings.ApiEndpointUrl, UpdateSourceTrigger=PropertyChanged}"
+                         IsReadOnly="False"
+                         IsEnabled="True"
                          Margin="0,4"
-                         Padding="4" />
+                         Padding="4"
+                         ToolTip="WMS API server URL (e.g., http://localhost:3000/api)" />
 
-                <!-- API Key (masked) -->
+                <!-- ERPNext API URL -->
                 <TextBlock Grid.Row="2" Grid.Column="0"
-                           Text="API Key"
+                           Text="ERPNext API URL"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <PasswordBox Grid.Row="2" Grid.Column="1"
+                <TextBox Grid.Row="2" Grid.Column="1"
+                         Text="{Binding Settings.ErpNextApiUrl, UpdateSourceTrigger=PropertyChanged}"
+                         IsReadOnly="False"
+                         IsEnabled="True"
+                         Margin="0,4"
+                         Padding="4"
+                         ToolTip="ERPNext server base URL (e.g., http://192.168.103.187:88)" />
+
+                <!-- WMS API Key (JWT Token) -->
+                <TextBlock Grid.Row="3" Grid.Column="0"
+                           Text="WMS API Key"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <PasswordBox x:Name="ApiKeyPasswordBox"
+                             Grid.Row="3" Grid.Column="1"
                              Margin="0,4"
                              Padding="4"
-                             IsEnabled="False">
-                    <PasswordBox.Password>
-                        ****** MOCK ONLY ******
-                    </PasswordBox.Password>
-                </PasswordBox>
+                             IsEnabled="True"
+                             PasswordChanged="ApiKeyPasswordBox_OnPasswordChanged"
+                             ToolTip="WMS API authentication token (JWT)" />
+
+                <!-- ERPNext API Key -->
+                <TextBlock Grid.Row="4" Grid.Column="0"
+                           Text="ERPNext API Key"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563" />
+                <PasswordBox x:Name="ErpNextApiKeyPasswordBox"
+                             Grid.Row="4" Grid.Column="1"
+                             Margin="0,4"
+                             Padding="4"
+                             IsEnabled="True"
+                             PasswordChanged="ErpNextApiKeyPasswordBox_OnPasswordChanged"
+                             ToolTip="ERPNext API Key in format: api-key:api-secret" />
 
                 <!-- Sync Frequency -->
-                <TextBlock Grid.Row="3" Grid.Column="0"
+                <TextBlock Grid.Row="5" Grid.Column="0"
                            Text="Sync Frequency (Minutes)"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <TextBox Grid.Row="3" Grid.Column="1"
+                <TextBox Grid.Row="5" Grid.Column="1"
                          Text="{Binding Settings.SyncFrequencyMinutes}"
                          Margin="0,4"
                          Padding="4" />
 
                 <!-- Default Picking Warehouse -->
-                <TextBlock Grid.Row="4" Grid.Column="0"
+                <TextBlock Grid.Row="6" Grid.Column="0"
                            Text="Default Picking Warehouse"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <TextBox Grid.Row="4" Grid.Column="1"
+                <TextBox Grid.Row="6" Grid.Column="1"
                          Text="{Binding Settings.DefaultPickingWarehouse}"
                          Margin="0,4"
                          Padding="4" />
 
+                <!-- Default Receiving Warehouse (PR + Cycle Count push to ERPNext) -->
+                <TextBlock Grid.Row="7" Grid.Column="0"
+                           Text="Default Receiving Warehouse (PR / Cycle Count)"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563"
+                           ToolTip="ERPNext warehouse name (exact as in ERPNext). Used for Purchase Receipt from ASN and for Cycle Count push to ERPNext. Example: Main Warehouse - MAATC (Code in ERPNext: WH-MAIN)." />
+                <TextBox Grid.Row="7" Grid.Column="1"
+                         Text="{Binding Settings.DefaultReceivingWarehouseForPr, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,4"
+                         Padding="4"
+                         ToolTip="Enter exact ERPNext warehouse name, e.g. Main Warehouse - MAATC" />
+
+                <!-- Intransit Warehouse (Transfer Carton Stock Entry) -->
+                <TextBlock Grid.Row="8" Grid.Column="0"
+                           Text="Intransit Warehouse Name"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563"
+                           ToolTip="Warehouse name for Goods In Transit. Used as to_warehouse when generating Stock Entry from Transfer Carton. Example: Goods In Transit - MAATC" />
+                <TextBox Grid.Row="8" Grid.Column="1"
+                         Text="{Binding Settings.IntransitWarehouseName, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,4"
+                         Padding="4"
+                         ToolTip="e.g. Goods In Transit - MAATC" />
+
+                <!-- Material Request for Transfer Carton (optional) -->
+                <TextBlock Grid.Row="9" Grid.Column="0"
+                           Text="Material Request (Transfer Carton Stock Entry)"
+                           VerticalAlignment="Center"
+                           Margin="0,4"
+                           Foreground="#4B5563"
+                           ToolTip="Optional. Material Request name sent when generating Stock Entry from Transfer Carton. Example: MAT-MR-2026-00001" />
+                <TextBox Grid.Row="9" Grid.Column="1"
+                         Text="{Binding Settings.MaterialRequestForTransferCarton, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,4"
+                         Padding="4"
+                         ToolTip="e.g. MAT-MR-2026-00001 (leave blank if not used)" />
+
+                <!-- Send Carton ID with Cycle Count push -->
+                <CheckBox Grid.Row="10" Grid.Column="0" Grid.ColumnSpan="2"
+                          IsChecked="{Binding Settings.SendCartonIdWithCycleCountPush}"
+                          Content="Send Carton ID with Cycle Count push to ERPNext"
+                          Margin="0,4"
+                          VerticalAlignment="Center"
+                          ToolTip="Only enable after ERPNext Carton ID field is Data (not Link). When off, carton_id is omitted so push succeeds." />
+
                 <!-- Inventory Tracking Mode -->
-                <TextBlock Grid.Row="5" Grid.Column="0"
+                <TextBlock Grid.Row="11" Grid.Column="0"
                            Text="Inventory Tracking Mode"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <ComboBox Grid.Row="5" Grid.Column="1"
+                <ComboBox Grid.Row="11" Grid.Column="1"
                           SelectedValue="{Binding Settings.InventoryTrackingMode}"
                           SelectedValuePath="Tag"
                           Margin="0,4"
@@ -129,19 +216,19 @@
                 </ComboBox>
 
                 <!-- Last Sync Timestamp -->
-                <TextBlock Grid.Row="6" Grid.Column="0"
+                <TextBlock Grid.Row="12" Grid.Column="0"
                            Text="Last Sync Timestamp"
                            VerticalAlignment="Center"
                            Margin="0,4"
                            Foreground="#4B5563" />
-                <TextBlock Grid.Row="6" Grid.Column="1"
+                <TextBlock Grid.Row="12" Grid.Column="1"
                            Text="{Binding Settings.LastSyncTimestamp, StringFormat=G}"
                            Margin="0,4"
                            VerticalAlignment="Center"
                            Foreground="#111827" />
 
                 <!-- Database Configuration Section -->
-                <Border Grid.Row="7" Grid.ColumnSpan="2"
+                <Border Grid.Row="13" Grid.ColumnSpan="2"
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,1,0,0"
                         Margin="0,16,0,0"
@@ -317,33 +404,372 @@
                                 IsEnabled="{Binding CanCreateDatabase}"
                                 Margin="0,0,8,0"
                                 Padding="12,6" />
-                        <Button Content="Run Migration 005"
-                                Command="{Binding RunMigration005Command}"
-                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
-                                Margin="0,0,8,0"
-                                Padding="12,6"
-                                ToolTip="Run Migration 005: Bin + Carton Level Inventory Support" />
-                        <Button Content="Run Full Carton Test"
-                                Command="{Binding RunFullCartonTestCommand}"
-                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
-                                Margin="0,0,8,0"
-                                Padding="12,6"
-                                ToolTip="Automated test: Run Migration 005 + Insert Test Data + Verify" />
-                        <Button Content="Insert Test Carton Data"
-                                Command="{Binding InsertTestCartonDataCommand}"
-                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
-                                Margin="0,0,8,0"
-                                Padding="12,6"
-                                ToolTip="Insert test carton-level inventory data for testing" />
-                        <Button Content="Import Mock Data"
-                                Command="{Binding ImportMockDataCommand}"
-                                IsEnabled="{Binding IsTestingConnection, Converter={StaticResource InverseBoolConverter}}"
-                                Padding="12,6" />
                     </StackPanel>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
+            </TabItem>
+
+            <!-- Sync Tab -->
+            <TabItem Header="Sync">
+                <Border Background="White"
+                        CornerRadius="8"
+                        Padding="16"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="1">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="Sync"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       Foreground="#111827"
+                                       Margin="0,0,0,8" />
+                            <TextBlock Text="Filters and fields sent to get_items_compact (GET query: fields, filters, limit, offset). Use valid JSON."
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,20" />
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Filters (optional)"
+                                           VerticalAlignment="Top"
+                                           Margin="0,4"
+                                           Foreground="#4B5563" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBox Text="{Binding Settings.ItemSyncFilters, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,4,0,2"
+                                             Padding="4"
+                                             MinHeight="24" />
+                                    <TextBlock Text="Example: {&quot;custom_dcs&quot;:&quot;MENFOTSLP&quot;} or {&quot;item_name&quot;:&quot;COLN WMN WST&quot;}"
+                                               FontSize="11"
+                                               Foreground="#9CA3AF"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,4" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Attribute Filters"
+                                           VerticalAlignment="Top"
+                                           Margin="0,4"
+                                           Foreground="#4B5563" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBox Text="{Binding Settings.ItemSyncAttributeFilters, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,4,0,2"
+                                             Padding="4"
+                                             MinHeight="24" />
+                                    <TextBlock TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="#9CA3AF"
+                                               Margin="0,0,0,4"
+                                               Text="JSON object (e.g. {&quot;custom_dcs&quot;:[&quot;like&quot;,&quot;%BAG%&quot;]}) or a Frappe filter list array (e.g. [[&quot;custom_dcs&quot;,&quot;like&quot;,&quot;%BAG%&quot;]]). Both are merged with Filters and sent as the compact API filters parameter." />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Fields"
+                                           VerticalAlignment="Top"
+                                           Margin="0,4"
+                                           Foreground="#4B5563" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBox Text="{Binding Settings.ItemSyncFields, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,4,0,2"
+                                             Padding="4"
+                                             MinHeight="48"
+                                             AcceptsReturn="False" />
+                                    <TextBlock TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="#9CA3AF"
+                                               Margin="0,0,0,4"
+                                               Text="Only a JSON array of field names — nothing else. Example: [&quot;item_code&quot;,&quot;item_name&quot;,&quot;year&quot;,&quot;season&quot;,&quot;brand&quot;,&quot;stock_uom&quot;,&quot;is_stock&quot;,&quot;barcode&quot;,&quot;custom_wms_modified&quot;,&quot;disabled&quot;]. Do not add limit or other keys here (sync uses paging internally)." />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Flatten Attributes"
+                                           VerticalAlignment="Center"
+                                           Margin="0,4"
+                                           Foreground="#4B5563" />
+                                <StackPanel Grid.Column="1" Orientation="Vertical">
+                                    <CheckBox IsChecked="{Binding Settings.ItemSyncFlattenAttributes}"
+                                              Margin="0,4"
+                                              VerticalAlignment="Center"
+                                              Content="Send flatten_attributes=1 to ERPNext API" />
+                                    <TextBlock Text="When checked, the API request includes flatten_attributes=1 so attribute fields (e.g. year, season) are returned as top-level columns."
+                                               FontSize="11"
+                                               Foreground="#9CA3AF"
+                                               TextWrapping="Wrap"
+                                               Margin="0,2,0,4" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Sync Endpoints (multiple pull URLs) -->
+                            <TextBlock Text="Sync Endpoints (Pull URLs)"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,20,0,8" />
+                            <TextBlock Text="Add multiple ERPNext URLs. Set Sync type per row: All (items + warehouses), Item, or Warehouse. New URLs with a matching type are used automatically when you run sync."
+                                       FontSize="11"
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="Add endpoint"
+                                        Command="{Binding AddSyncEndpointCommand}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Remove selected"
+                                        Command="{Binding RemoveSyncEndpointCommand}"
+                                        CommandParameter="{Binding SelectedSyncEndpoint}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Settings.SyncEndpoints}"
+                                      SelectedItem="{Binding SelectedSyncEndpoint}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      Margin="0,0,0,8"
+                                      MinHeight="120"
+                                      GridLinesVisibility="Horizontal">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="100" />
+                                    <DataGridComboBoxColumn Header="Sync type"
+                                                           SelectedValueBinding="{Binding SyncType}"
+                                                           Width="90">
+                                        <DataGridComboBoxColumn.ElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.SyncTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                <Setter Property="IsReadOnly" Value="True" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.ElementStyle>
+                                        <DataGridComboBoxColumn.EditingElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.SyncTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.EditingElementStyle>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridTextColumn Header="Base URL" Binding="{Binding BaseUrl}" Width="*" />
+                                    <DataGridTextColumn Header="API Key" Binding="{Binding ApiKey}" Width="160" />
+                                    <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="60" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Push URL (optional webhook) -->
+                            <TextBlock Text="Push URL (optional)"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,20,0,8" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           Text="Webhook / Push URL"
+                                           VerticalAlignment="Top"
+                                           Margin="0,4"
+                                           Foreground="#4B5563" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBox Text="{Binding Settings.ItemSyncPushUrl, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,4,0,2"
+                                             Padding="4"
+                                             MinHeight="24" />
+                                    <TextBlock Text="Optional. Not required for saving to the table — data is saved from pull. If set, a POST with sync summary (event, inserted, updated) is sent after each successful sync."
+                                               FontSize="11"
+                                               Foreground="#9CA3AF"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,4" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Push Endpoints (Send to ERPNext) -->
+                            <TextBlock Text="Push Endpoints (Send to ERPNext)"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,20,0,8" />
+                            <TextBlock Text="Configure URLs to send data TO ERPNext. Set Type (e.g. ASN Status, TO Status) and Method (GET or POST). Use when posting status updates or other data to ERPNext."
+                                       FontSize="11"
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="Add endpoint"
+                                        Command="{Binding AddPushEndpointCommand}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Remove selected"
+                                        Command="{Binding RemovePushEndpointCommand}"
+                                        CommandParameter="{Binding SelectedPushEndpoint}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Settings.PushEndpoints}"
+                                      SelectedItem="{Binding SelectedPushEndpoint}"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      Margin="0,0,0,8"
+                                      MinHeight="100"
+                                      GridLinesVisibility="Horizontal">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="80" />
+                                    <DataGridComboBoxColumn Header="Type"
+                                                           SelectedValueBinding="{Binding EndpointType}"
+                                                           Width="100">
+                                        <DataGridComboBoxColumn.ElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.PushEndpointTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                <Setter Property="IsReadOnly" Value="True" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.ElementStyle>
+                                        <DataGridComboBoxColumn.EditingElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.PushEndpointTypeOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.EditingElementStyle>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridTextColumn Header="Base URL" Binding="{Binding BaseUrl}" Width="*" />
+                                    <DataGridComboBoxColumn Header="Method"
+                                                           SelectedValueBinding="{Binding Method}"
+                                                           Width="70">
+                                        <DataGridComboBoxColumn.ElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.PushEndpointMethodOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                <Setter Property="IsReadOnly" Value="True" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.ElementStyle>
+                                        <DataGridComboBoxColumn.EditingElementStyle>
+                                            <Style TargetType="ComboBox">
+                                                <Setter Property="ItemsSource" Value="{Binding DataContext.PushEndpointMethodOptions, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                            </Style>
+                                        </DataGridComboBoxColumn.EditingElementStyle>
+                                    </DataGridComboBoxColumn>
+                                    <DataGridTextColumn Header="API Key" Binding="{Binding ApiKey}" Width="140" />
+                                    <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding Enabled}" Width="55" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Run sync -->
+                            <TextBlock Text="Run sync"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
+                                       Margin="0,20,0,8" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <Button Content="Sync all (items + warehouses + item groups)"
+                                        Command="{Binding SyncAllCommand}"
+                                        IsEnabled="{Binding IsNotSyncingAll}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Sync warehouses"
+                                        Command="{Binding SyncWarehousesCommand}"
+                                        IsEnabled="{Binding IsNotSyncingWarehouses}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="Pulls Warehouse and locations from ERPNext into tabWarehouse and tabLocation (same endpoints as item sync; Sync type All or Warehouse)." />
+                                <Button Content="Sync Item Groups"
+                                        Command="{Binding SyncItemGroupsCommand}"
+                                        IsEnabled="{Binding IsNotSyncingItemGroups}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Sync ASNs (ERPNext)"
+                                        Command="{Binding SyncAsnsFromErpNextCommand}"
+                                        IsEnabled="{Binding IsNotSyncingAsns}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="get_asns_for_wms?export_pending=1&amp;include_items=1" />
+                                <Button Content="Sync TOs (ERPNext)"
+                                        Command="{Binding SyncTransferOrdersFromErpNextCommand}"
+                                        IsEnabled="{Binding IsNotSyncingTransferOrders}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="get_tos_for_wms?include_items=1&amp;docstatus=1" />
+                                <Button Content="Sync Material Requests (ERPNext)"
+                                        Command="{Binding SyncMaterialRequestsFromErpNextCommand}"
+                                        IsEnabled="{Binding IsNotSyncingMaterialRequests}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="get_material_transfer_requests?from_warehouse=...&amp;state=Pending&amp;include_items=1" />
+                                <Button Content="Sync Transfer In (ERPNext)"
+                                        Command="{Binding SyncTransferInFromErpNextCommand}"
+                                        IsEnabled="{Binding IsNotSyncingTransferIn}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="get_material_transfer_stock_entries?to_warehouse=...&amp;docstatus=1 (store codes only)" />
+                                <Button Content="Run ASN sync test"
+                                        Command="{Binding RunAsnSyncTestCommand}"
+                                        IsEnabled="{Binding IsNotRunningAsnSyncTest}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="Run full ASN pull + status push test and show steps" />
+                                <Button Content="Push WMS Snapshot"
+                                        Command="{Binding PushWmsSnapshotCommand}"
+                                        IsEnabled="{Binding IsNotPushingWmsSnapshot}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="Build and push stock_transactions, carton_stock, cartons to ERPNext (Offline Sync endpoint)" />
+                                <Button Content="Test Push WMS Snapshot"
+                                        Command="{Binding TestPushWmsSnapshotCommand}"
+                                        IsEnabled="{Binding IsNotRunningPushWmsSnapshotTest}"
+                                        Padding="10,6"
+                                        Margin="0,0,8,0"
+                                        ToolTip="Build snapshot, push to ERPNext, and show processed counts (ledger, carton_stock, cartons) and any errors" />
+                            </StackPanel>
+                            <TextBlock Text="Set Sync type per endpoint: All, Item, Warehouse, Item Group, ASN, Transfer Order, Material Request, or Transfer In. ASN/TO/MR/Transfer In sync use endpoints with type All or the specific type (or default ERPNext URL). No fallback when you have endpoints but disable them."
+                                       FontSize="11"
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"
+                                       Margin="0,0,0,8" />
+
+                            <!-- Activity Log -->
+                            <Border BorderBrush="#E5E7EB" BorderThickness="0,1,0,0" Margin="0,16,0,0" Padding="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="Activity Log"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="#111827"
+                                               Margin="0,0,0,8" />
+                                    <TextBlock Text="View sync and application logs (started, completed, errors)."
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               TextWrapping="Wrap"
+                                               Margin="0,0,0,8" />
+                                    <Button Content="View activity log"
+                                            Command="{Binding OpenActivityLogCommand}"
+                                            Padding="12,8"
+                                            HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
             </TabItem>
 
             <!-- Import Tab -->

@@ -105,7 +105,7 @@ export const batchEvents = async (req, res) => {
     const errors = [];
 
     for (const event of events) {
-      const {
+      let {
         offline_uuid,
         event_type,
         event_time,
@@ -1920,11 +1920,9 @@ async function processPutawayEvent(connection, event) {
   const [existingTasks] = await connection.execute(
     `SELECT title, status FROM tabPutawayTask 
      WHERE advance_shipping_notice = ? 
+       AND status NOT IN ('Completed','Cancelled','Closed')
      ORDER BY 
-       CASE 
-         WHEN status IN ('Draft', 'Open', 'In Progress') THEN 1
-         ELSE 2
-       END,
+       CASE status WHEN 'Open' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Draft' THEN 2 ELSE 3 END,
        created_at DESC 
      LIMIT 1`,
     [asnNo]

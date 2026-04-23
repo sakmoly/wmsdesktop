@@ -2331,6 +2331,120 @@ export const updateCountLines = async (req, res) => {
 };
 
 /**
+ * Optional: Push cycle count to ERPNext sync_task_capture_only after submit.
+ * Set env CYCLE_COUNT_ERP_URL and CYCLE_COUNT_ERP_API_KEY to enable. Runs fire-and-forget after commit.
+ */
+async function pushCycleCountToErpSyncTaskCaptureOnly(title) {
+  const baseUrl = process.env.CYCLE_COUNT_ERP_URL || process.env.ERP_CYCLE_COUNT_PUSH_URL;
+  const apiKey = process.env.CYCLE_COUNT_ERP_API_KEY || process.env.ERP_CYCLE_COUNT_PUSH_API_KEY;
+  if (!baseUrl || !apiKey) {
+    console.log('[Cycle Count] ERP push skipped: CYCLE_COUNT_ERP_URL or CYCLE_COUNT_ERP_API_KEY not set');
+    return;
+  }
+  let connection;
+  try {
+    connection = await getConnection();
+    const [taskRows] = await connection.execute(`
+      SELECT title, warehouse, zone, count_date, created_by, assigned_to
+      FROM tabCycleCountTask WHERE title = ?
+    `, [title]);
+    if (taskRows.length === 0) return;
+    const task = taskRows[0];
+
+    const hasCartonId = await connection.execute(`
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabCycleCountLine' AND COLUMN_NAME = 'carton_id'
+    `).then(([r]) => r.length > 0);
+
+    const linesSql = hasCartonId
+      ? `SELECT item_code, bin_location, carton_id, expected_qty, actual_qty, counted_by, counted_on
+         FROM tabCycleCountLine WHERE parent_title = ? AND actual_qty IS NOT NULL ORDER BY item_code`
+      : `SELECT item_code, bin_location, NULL as carton_id, expected_qty, actual_qty, counted_by, counted_on
+         FROM tabCycleCountLine WHERE parent_title = ? AND actual_qty IS NOT NULL ORDER BY item_code`;
+    const [lines] = await connection.execute(linesSql, [title]);
+    if (lines.length === 0) {
+      console.log(`[Cycle Count] ERP push skipped for ${title}: no counted lines`);
+      return;
+    }
+
+    const openingStock = lines.some(l => (parseFloat(l.expected_qty) || 0) === 0 && (parseFloat(l.actual_qty) || 0) > 0) ? 1 : 0;
+    const firstLine = lines[0];
+    const countedBy = firstLine.counted_by || task.assigned_to || task.created_by || '';
+    const countedOn = firstLine.counted_on
+      ? new Date(firstLine.counted_on).toISOString().replace('T', ' ').slice(0, 19)
+      : new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    const company = process.env.CYCLE_COUNT_ERP_COMPANY || process.env.ERP_COMPANY || 'Mohammed Abdullah Almousa Trading Company';
+    const warehouseName = task.warehouse || '';
+    const warehouseCode = task.warehouse || 'WH-MAIN';
+    const binLocation = (task.zone || '').trim();
+
+    // Match desktop final format: no bin_location at header; each line has item_code, bin_location, carton_id, counted_qty, uom
+    const payload = {
+      payload: {
+        company,
+        warehouse: warehouseName,
+        warehouse_code: warehouseCode,
+        posting_date: task.count_date ? new Date(task.count_date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+        external_ref: title,
+        opening_stock: openingStock,
+        counted_by: countedBy,
+        counted_on: countedOn,
+        lines: lines.map(l => ({
+          item_code: String(l.item_code || '').trim(),
+          bin_location: String(l.bin_location || binLocation).trim(),
+          carton_id: l.carton_id ? String(l.carton_id).trim() : null,
+          counted_qty: parseFloat(l.actual_qty) || 0,
+          uom: 'Nos'
+        }))
+      }
+    };
+
+    const url = baseUrl.replace(/\/$/, '');
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `token ${apiKey.trim()}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const body = await res.text();
+    if (!res.ok) {
+      console.error(`[Cycle Count] ERP push failed for ${title}: ${res.status} ${body}`);
+      return;
+    }
+    let erpRef = null;
+    try {
+      const data = JSON.parse(body);
+      const msg = data?.message;
+      if (msg != null) {
+        if (typeof msg === 'string') erpRef = msg;
+        else if (msg.task) erpRef = msg.task;   // sync_task_capture_only returns "task" (ERP doc name)
+        else if (msg.name) erpRef = msg.name;
+        else if (msg.reference) erpRef = msg.reference;
+      }
+    } catch (_) {}
+    console.log(`[Cycle Count] ERP push success for ${title}${erpRef ? `, reference: ${erpRef}` : ''}`);
+
+    const [colRows] = await connection.execute(`
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabCycleCountTask' AND COLUMN_NAME = 'erp_reference'
+    `);
+    if (colRows.length > 0) {
+      await connection.execute(
+        'UPDATE tabCycleCountTask SET erp_reference = ?, erp_synced_at = NOW() WHERE title = ?',
+        [erpRef || null, title]
+      );
+    }
+  } catch (err) {
+    console.error('[Cycle Count] ERP push error:', err);
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+/**
  * POST /api/cycle-count/:title/submit
  * Submit a Cycle Count Task (change status to "Review" if there are discrepancies, or "Completed" if none)
  */
@@ -2471,7 +2585,10 @@ export const submitCycleCount = async (req, res) => {
         console.log(`[Cycle Count] ⚠️ WARNING: Status mismatch! Expected "${newStatus}" but got "${finalStatus}"`);
       }
     }
-    
+
+    // Optional: push to ERPNext sync_task_capture_only (fire-and-forget; set CYCLE_COUNT_ERP_URL + CYCLE_COUNT_ERP_API_KEY to enable)
+    pushCycleCountToErpSyncTaskCaptureOnly(title).catch(err => console.error('[Cycle Count] ERP push after submit failed', err));
+
     res.json({
       ok: true,
       message: `Cycle Count Task submitted successfully. Status: ${newStatus}`,
@@ -2949,7 +3066,7 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
       });
     }
     
-    // Group adjustments by task for ERP payload
+    // Group adjustments by task (for audit/reference)
     const taskGroups = {};
     for (const line of lines) {
       if (!taskGroups[line.parent_title]) {
@@ -2961,7 +3078,6 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
           adjustments: []
         };
       }
-      
       taskGroups[line.parent_title].adjustments.push({
         item_code: line.item_code,
         bin_location: line.bin_location || null,
@@ -2972,7 +3088,7 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
         counted_on: line.counted_on ? line.counted_on.toISOString() : null
       });
     }
-    
+
     // Format consolidated payload for ERP
     const erpPayload = {
       transaction_type: 'CYCLE_COUNT_BATCH_ADJUSTMENT',
@@ -2984,7 +3100,7 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
         warehouses: [...new Set(tasks.map(t => t.warehouse))]
       }
     };
-    
+
     // TODO: Implement actual ERP API call here
     // Example structure:
     // const erpResponse = await fetch(ERP_API_URL + '/stock-adjustments/batch', {
@@ -2996,7 +3112,7 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
     
     // For now, just log the payload and return success
     console.log(`[Cycle Count] 📤 Consolidated ERP Sync Payload for ${tasks.length} task(s):`, JSON.stringify(erpPayload, null, 2));
-    
+
     // Optional: Mark all tasks as synced (if you have a sync_status field)
     // const taskPlaceholders = taskTitles.map(() => '?').join(',');
     // await connection.execute(`
@@ -3004,7 +3120,7 @@ export const syncMultipleCycleCountsToErp = async (req, res) => {
     //   SET sync_status = 'Synced', synced_at = NOW(), updated_at = NOW()
     //   WHERE title IN (${taskPlaceholders})
     // `, taskTitles);
-    
+
     res.json({
       ok: true,
       message: `Successfully synced ${tasks.length} Cycle Count Task(s) to ERP in a consolidated transaction`,

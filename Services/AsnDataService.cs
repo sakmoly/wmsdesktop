@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using MySql.Data.MySqlClient;
@@ -30,24 +32,53 @@ public static class AsnDataService
                                   a.expected_arrival_date, 
                                   COALESCE(SUM(d.shipped_qty), 0) as total_shipped_qty, 
                                   a.airway_bill_no, 
-                                  a.shipment_type, a.updated_on,
+                                  a.shipment_type, COALESCE(a.wms_export_status, 'Pending') as wms_export_status,
+                                  a.purchase_receipt_no, a.updated_on,
                                   COALESCE(COUNT(DISTINCT CASE WHEN d.carton_id IS NOT NULL THEN d.carton_id END), 0) as total_carton_count
                            FROM tabAdvanceShippingNotice a
                            LEFT JOIN tabAsnItemDetails d ON a.title = d.parent_title
                            GROUP BY a.title, a.status, a.purchase_order, a.supplier, a.shipment_date, 
                                     a.expected_arrival_date, a.airway_bill_no, 
-                                    a.shipment_type, a.updated_on
+                                    a.shipment_type, a.wms_export_status, a.purchase_receipt_no, a.updated_on
                            ORDER BY a.shipment_date DESC, a.title";
             
             await using var asnCmd = new MySqlCommand(asnSql, connection);
             await using var asnReader = await asnCmd.ExecuteReaderAsync();
 
+            // Column order in SELECT: 0 title, 1 status, 2 purchase_order, 3 supplier, 4 shipment_date, 5 expected_arrival_date,
+            // 6 total_shipped_qty, 7 airway_bill_no, 8 shipment_type, 9 wms_export_status, 10 purchase_receipt_no, 11 updated_on, 12 total_carton_count
+            const int idxShipmentType = 8;
+            const int idxPurchaseReceiptNoByOrder = 10;
+            int idxPurchaseReceiptNo = idxPurchaseReceiptNoByOrder;
+            try
+            {
+                idxPurchaseReceiptNo = asnReader.GetOrdinal("purchase_receipt_no");
+            }
+            catch
+            {
+                idxPurchaseReceiptNo = idxPurchaseReceiptNoByOrder;
+            }
+            var fieldCount = asnReader.FieldCount;
+            if (fieldCount != 13)
+                ErrorLogService.LogInfo($"AsnDataService: GetAsns FieldCount={fieldCount} (expected 13), purchase_receipt_no ordinal={idxPurchaseReceiptNo}.");
             var asnTitles = new List<string>();
             while (await asnReader.ReadAsync())
             {
                 var title = asnReader.GetString(0);
                 asnTitles.Add(title);
-                
+                var shipmentType = ReadString(asnReader, idxShipmentType);
+                string? purchaseReceiptNo = null;
+                try
+                {
+                    if (idxPurchaseReceiptNo >= 0 && idxPurchaseReceiptNo < fieldCount && !asnReader.IsDBNull(idxPurchaseReceiptNo))
+                        purchaseReceiptNo = (asnReader.GetString(idxPurchaseReceiptNo) ?? "").Trim();
+                }
+                catch (Exception ex)
+                {
+                    ErrorLogService.LogError($"AsnDataService: ASN {title} read purchase_receipt_no at {idxPurchaseReceiptNo}: {ex.Message}", ex);
+                }
+                if (string.IsNullOrEmpty(purchaseReceiptNo))
+                    purchaseReceiptNo = null;
                 asns.Add(new Asn
                 {
                     Title = title,
@@ -58,9 +89,11 @@ public static class AsnDataService
                     ExpectedArrivalDate = asnReader.GetDateTime(5),
                     TotalShippedQty = Convert.ToDouble(asnReader.GetDecimal(6)),
                     AirwayBillNo = asnReader.IsDBNull(7) ? null : asnReader.GetString(7),
-                    ShipmentType = asnReader.IsDBNull(8) ? null : asnReader.GetString(8),
-                    UpdatedOn = asnReader.IsDBNull(9) ? null : asnReader.GetDateTime(9),
-                    TotalCartonCount = Convert.ToInt32(asnReader.GetInt64(10))
+                    ShipmentType = shipmentType,
+                    WmsExportStatus = asnReader.IsDBNull(9) ? "Pending" : asnReader.GetString(9),
+                    PurchaseReceiptNo = purchaseReceiptNo,
+                    UpdatedOn = asnReader.IsDBNull(11) ? null : asnReader.GetDateTime(11),
+                    TotalCartonCount = Convert.ToInt32(asnReader.GetInt64(12))
                 });
             }
 
@@ -123,7 +156,7 @@ public static class AsnDataService
                                              rc_latest.locked_by, rc_latest.locked_on, rc_latest.received_by, rc_latest.received_on,
                                              rc_latest.verified_by, rc_latest.verified_on, rc_latest.updated_on, rc_latest.remarks,
                                              rc_latest.created_at
-                                    ORDER BY d.parent_title, d.item_code";
+                                    ORDER BY d.parent_title, d.item_code, d.carton_id, d.po_item_reference, d.shipped_qty";
                 
                 await using var detailsCmd = new MySqlCommand(detailsSql, connection);
                 for (int i = 0; i < asnTitles.Count; i++)
@@ -134,17 +167,18 @@ public static class AsnDataService
                 await using var detailsReader = await detailsCmd.ExecuteReaderAsync();
 
                 var detailsDict = new Dictionary<string, List<AsnItemDetails>>();
-                // Track processed items to prevent duplicates (key: parentTitle + itemCode + cartonId)
+                // De-dupe reader rows only when every identifying field matches (same item on different cartons must stay separate).
                 var processedItems = new HashSet<string>();
                 
                 while (await detailsReader.ReadAsync())
                 {
                     var parentTitle = detailsReader.GetString(0);
                     var itemCode = detailsReader.GetString(1);
+                    var poKey = detailsReader.IsDBNull(2) ? "NULL" : (detailsReader.GetString(2) ?? "").Trim();
+                    var shippedKey = detailsReader.GetDecimal(3).ToString(CultureInfo.InvariantCulture);
                     var cartonId = detailsReader.IsDBNull(4) ? null : detailsReader.GetString(4);
                     
-                    // Create unique key to prevent duplicates
-                    var itemKey = $"{parentTitle}|{itemCode}|{cartonId ?? "NULL"}";
+                    var itemKey = $"{parentTitle}|{itemCode}|{cartonId ?? "NULL"}|{poKey}|{shippedKey}";
                     
                     // Skip if we've already processed this item
                     if (processedItems.Contains(itemKey))
@@ -218,8 +252,7 @@ public static class AsnDataService
                 {
                     var asn = asns[i];
                     var details = detailsDict.ContainsKey(asn.Title) ? detailsDict[asn.Title] : new List<AsnItemDetails>();
-                    
-                    // Create new ASN with details (preserve TotalCartonCount and TotalShippedQty from database)
+                    // Create new ASN with details (preserve TotalCartonCount, TotalShippedQty, PurchaseReceiptNo from database)
                     asns[i] = new Asn
                     {
                         Title = asn.Title,
@@ -232,6 +265,8 @@ public static class AsnDataService
                         TotalCartonCount = asn.TotalCartonCount,
                         AirwayBillNo = asn.AirwayBillNo,
                         ShipmentType = asn.ShipmentType,
+                        WmsExportStatus = asn.WmsExportStatus,
+                        PurchaseReceiptNo = asn.PurchaseReceiptNo,
                         UpdatedOn = asn.UpdatedOn,
                         Details = details
                     };
@@ -248,12 +283,196 @@ public static class AsnDataService
     }
 
     /// <summary>
-    /// Get ASN by title from database
+    /// Get ASN by title from database. Tries exact match then alternate format (ASN-0003 / ASN-00003).
     /// </summary>
     public static async Task<Asn?> GetAsnByTitleAsync(WmsSettings settings, string title)
     {
+        if (string.IsNullOrWhiteSpace(title)) return null;
         var asns = await GetAsnsAsync(settings);
-        return asns.FirstOrDefault(a => a.Title == title);
+        var exact = asns.FirstOrDefault(a => string.Equals(a.Title, title, StringComparison.Ordinal));
+        if (exact != null) return exact;
+        var altTitle = NormalizeAsnTitleAlternate(title);
+        return altTitle != null ? asns.FirstOrDefault(a => string.Equals(a.Title, altTitle, StringComparison.Ordinal)) : null;
+    }
+
+    /// <summary>
+    /// Update Purchase Receipt number for an ASN (after creating PR in ERPNext).
+    /// Ensures purchase_receipt_no column exists, then tries exact title and alternate format (ASN-0003 / ASN-00003).
+    /// </summary>
+    public static async Task<bool> SetAsnPurchaseReceiptNoAsync(WmsSettings settings, string asnTitle, string purchaseReceiptNo)
+    {
+        if (string.IsNullOrWhiteSpace(asnTitle)) return false;
+        try
+        {
+            await DatabaseService.EnsureTabAdvanceShippingNoticePurchaseReceiptNoColumnAsync(settings);
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            var prNo = (purchaseReceiptNo ?? "").Trim();
+            var title = asnTitle.Trim();
+            await using var cmd = new MySqlCommand("UPDATE tabAdvanceShippingNotice SET purchase_receipt_no = @prNo, updated_at = NOW() WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@prNo", prNo);
+            cmd.Parameters.AddWithValue("@title", title);
+            var rows = await cmd.ExecuteNonQueryAsync();
+            if (rows > 0)
+            {
+                ErrorLogService.LogInfo($"AsnDataService: SetAsnPurchaseReceiptNo saved {prNo} for ASN {title}.");
+                return true;
+            }
+            // Try alternate title format (ASN-0003 vs ASN-00003)
+            var altTitle = NormalizeAsnTitleAlternate(title);
+            if (altTitle != null)
+            {
+                cmd.Parameters["@title"].Value = altTitle;
+                rows = await cmd.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    ErrorLogService.LogInfo($"AsnDataService: SetAsnPurchaseReceiptNo saved {prNo} for ASN {altTitle} (alternate title).");
+                    return true;
+                }
+            }
+            ErrorLogService.LogError($"AsnDataService: SetAsnPurchaseReceiptNo affected 0 rows for title '{title}'. No ASN row found.", null);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"AsnDataService: SetAsnPurchaseReceiptNo failed for {asnTitle}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>Read string from reader at given column index (0-based); return trimmed or null.</summary>
+    private static string? ReadString(DbDataReader reader, int columnIndex)
+    {
+        if (columnIndex < 0 || columnIndex >= reader.FieldCount) return null;
+        try
+        {
+            if (reader.IsDBNull(columnIndex)) return null;
+            var s = reader.GetString(columnIndex);
+            return string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Returns the other common format for ASN title (e.g. ASN-0003 -> ASN-00003, ASN-00003 -> ASN-0003).</summary>
+    private static string? NormalizeAsnTitleAlternate(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return null;
+        var parts = title.Split('-', 2, StringSplitOptions.None);
+        if (parts.Length != 2) return null;
+        var prefix = parts[0].Trim();
+        var numPart = parts[1].Trim();
+        if (numPart.Length == 0 || !numPart.All(char.IsDigit)) return null;
+        var num = int.TryParse(numPart, out var n) ? n : (int?)null;
+        if (num == null) return null;
+        return numPart.Length == 4
+            ? $"{prefix}-{num:D5}"
+            : $"{prefix}-{num:D4}";
+    }
+
+    /// <summary>
+    /// Update default receiving warehouse code for an ASN (e.g. after pushing received qty or creating PR).
+    /// Ensures warehouse column exists, then tries exact title and alternate format (ASN-0003 / ASN-00003).
+    /// </summary>
+    public static async Task<bool> SetAsnWarehouseAsync(WmsSettings settings, string asnTitle, string warehouseCode)
+    {
+        if (string.IsNullOrWhiteSpace(asnTitle)) return false;
+        try
+        {
+            await DatabaseService.EnsureTabAdvanceShippingNoticeWarehouseColumnAsync(settings);
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            var wh = (warehouseCode ?? "").Trim();
+            var title = asnTitle.Trim();
+            await using var cmd = new MySqlCommand("UPDATE tabAdvanceShippingNotice SET warehouse = @wh, updated_at = NOW() WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@wh", string.IsNullOrEmpty(wh) ? (object)DBNull.Value : wh);
+            cmd.Parameters.AddWithValue("@title", title);
+            var rows = await cmd.ExecuteNonQueryAsync();
+            if (rows > 0) return true;
+            var altTitle = NormalizeAsnTitleAlternate(title);
+            if (altTitle != null)
+            {
+                cmd.Parameters["@title"].Value = altTitle;
+                rows = await cmd.ExecuteNonQueryAsync();
+                if (rows > 0) return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"AsnDataService: SetAsnWarehouse failed for {asnTitle}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Update ASN status (e.g. Draft, Received). Used to mark ASN as Received so "Update Received Qty to ERPNext" is enabled.
+    /// </summary>
+    public static async Task<bool> SetAsnStatusAsync(WmsSettings settings, string asnTitle, string status)
+    {
+        if (string.IsNullOrWhiteSpace(asnTitle) || string.IsNullOrWhiteSpace(status)) return false;
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand("UPDATE tabAdvanceShippingNotice SET status = @status, updated_at = NOW() WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@status", status.Trim());
+            cmd.Parameters.AddWithValue("@title", asnTitle.Trim());
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"AsnDataService: SetAsnStatus failed for {asnTitle}", ex);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// If ASN is fully received (every detail has ReceivedQty >= ShippedQty) and status is not already "Received",
+    /// sets status to "Received" so the user can use "Update Received Qty to ERPNext". Returns true if status was updated.
+    /// </summary>
+    public static async Task<bool> TrySetAsnStatusToReceivedWhenFullyReceivedAsync(WmsSettings settings, Asn asn)
+    {
+        if (asn == null || string.IsNullOrWhiteSpace(asn.Title)) return false;
+        if (string.Equals(asn.Status, "Received", StringComparison.OrdinalIgnoreCase)) return false;
+        if (asn.Details == null || asn.Details.Count == 0) return false;
+        const double tolerance = 0.0001;
+        bool fullyReceived = asn.Details.All(d => d.ReceivedQty >= d.ShippedQty - tolerance);
+        if (!fullyReceived) return false;
+        var updated = await SetAsnStatusAsync(settings, asn.Title, "Received");
+        if (updated)
+            ErrorLogService.LogInfo($"AsnDataService: ASN {asn.Title} marked as Received (fully received: {asn.Details.Count} lines).");
+        return updated;
+    }
+
+    /// <summary>
+    /// Update WMS Export Status for an ASN (e.g. after pushing status to ERPNext).
+    /// </summary>
+    public static async Task<bool> SetAsnWmsExportStatusAsync(WmsSettings settings, string asnTitle, string status)
+    {
+        if (string.IsNullOrWhiteSpace(asnTitle)) return false;
+        try
+        {
+            var connectionString = DatabaseService.BuildConnectionString(settings);
+            await using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var cmd = new MySqlCommand("UPDATE tabAdvanceShippingNotice SET wms_export_status = @status, updated_at = NOW() WHERE title = @title", connection);
+            cmd.Parameters.AddWithValue("@status", (status ?? "Pending").Trim());
+            cmd.Parameters.AddWithValue("@title", asnTitle.Trim());
+            var rows = await cmd.ExecuteNonQueryAsync();
+            return rows > 0;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"AsnDataService: SetAsnWmsExportStatus failed for {asnTitle}", ex);
+            return false;
+        }
     }
 
     /// <summary>

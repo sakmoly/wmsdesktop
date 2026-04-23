@@ -1,10 +1,15 @@
 {
-  "Company": "Printechs Advanced Printing Trading Co.",
+  "Company": "Mohammed Abdullah Almousa Trading Company",
   "ApiEndpointUrl": "http://localhost:3000/api",
-  "ApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2NvZGUiOiJzeXNhZG1pbiIsInVzZXJfaWQiOiJzeXNhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2OTM2Mjc3MiwiZXhwIjoxNzY5OTY3NTcyfQ.t8VUi6NnVZetG9tsX3hLdKZnuJv4miecrnXcnJ4jcRM",
+  "ErpNextApiUrl": "http://printechsdammam.dyndns.org:88",
+  "ApiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2NvZGUiOiJzeXNhZG1pbiIsInVzZXJfaWQiOiJzeXNhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc3Njk1MTE0NSwiZXhwIjoxNzc3NTU1OTQ1fQ.Dj7HFM1Jck3TJCaH-btE2FjNOkJRkPbUmK8wVbA_ktw",
+  "ErpNextApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
   "SyncFrequencyMinutes": 15,
   "DefaultPickingWarehouse": "WH-MAIN",
+  "DefaultReceivingWarehouseForPr": "Main Warehouse - MAATC",
+  "SendCartonIdWithCycleCountPush": false,
   "LastSyncTimestamp": "2025-12-25T11:24:29.4058388+03:00",
+  "LastItemSyncTimestamp": "2026-04-16T14:01:56.7889646+03:00",
   "DatabaseType": "MySQL",
   "DatabaseHost": "localhost",
   "DatabaseName": "wms_desktop",
@@ -13,5 +18,169 @@
   "DatabasePort": 3306,
   "DatabaseExists": true,
   "TablesExist": true,
-  "InventoryTrackingMode": "BinLevel"
+  "InventoryTrackingMode": "BinLevel",
+  "ItemSyncFilters": "",
+  "ItemSyncAttributeFilters": "{\u0022custom_dcs\u0022:[\u0022like\u0022,\u0022%BAG%\u0022]}",
+  "ItemSyncFields": "[\u0022item_code\u0022,\u0022item_name\u0022,\u0022item_group\u0022,\u0022year\u0022,\u0022season\u0022,\u0022brand\u0022,\u0022stock_uom\u0022,\u0022is_stock\u0022,\u0022barcode\u0022,\u0022custom_wms_modified\u0022,\u0022disabled\u0022,\u0022custom_dcs\u0022]",
+  "ItemSyncFlattenAttributes": true,
+  "SyncEndpoints": [
+    {
+      "Name": "Item Pull ",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.item.get_items_compact",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "Item"
+    },
+    {
+      "Name": "Pull Warehouse",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/resource/Warehouse?fields=[ \u0022code\u0022,\u0022warehouse_name\u0022,\u0022warehouse_type\u0022]\u0026filters=[[\u0022is_group\u0022,\u0022=\u0022,0],[\u0022warehouse_type\u0022,\u0022in\u0022,[\u0022store\u0022,\u0022warehouse\u0022]]",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "Warehouse"
+    },
+    {
+      "Name": "Item Group",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/resource/Item%20Group?fields=[\u0022name\u0022,\u0022parent_item_group\u0022,\u0022is_group\u0022]\u0026filters=[[\u0022Item Group\u0022,\u0022name\u0022,\u0022like\u0022,\u0022SALEABLE.%\u0022],[\u0022Item Group\u0022,\u0022is_group\u0022,\u0022=\u0022,0]]\u0026order_by=lft asc\u0026limit_page_length=1000",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "ASN",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.wms_sync.get_asns_for_wms?export_pending=1\u0026include_items=1",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "ASN"
+    },
+    {
+      "Name": "TO",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.wms_sync.get_tos_for_wms?export_pending=1\u0026include_items=1",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "Transfer Order"
+    },
+    {
+      "Name": "TO Status",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.wms_sync.update_transfer_order_wms_status",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "Transfer Order"
+    },
+    {
+      "Name": "ASN Status",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "ASN"
+    },
+    {
+      "Name": "MR",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.material_request.get_material_transfer_requests?from_warehouse=Main%20Warehouse%20-%20MAATC\u0026state=Pending\u0026docstatus=1\u0026include_items=1\u0026limit=200",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "ERPNext 9",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.transfer_in_sync.get_material_transfer_stock_entries?to_warehouse=Main%20Warehouse%20-%20MAATC\u0026docstatus=1",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "Stock Entry",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.desktop_stock_entry.create_stock_entry_from_transfer_carton",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "ERPNext 11",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.transfer_in_sync.get_material_transfer_stock_entries?add_to_transit=1\u0026custom_receiving_warehouse=Main%20Warehouse%20-%20MAATC\u0026docstatus=1",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "ERPNext 12",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.intransit_transfer.end_transit_create_receipt",
+      "ApiKey": "",
+      "Enabled": true,
+      "SyncType": "All"
+    },
+    {
+      "Name": "ERPNext 13",
+      "BaseUrl": "/api/method/printechs_wms.api.asn_to_purchase_receipt.get_pr_status_for_asn?asn_no=\u003Clinked ASN\u003E",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true,
+      "SyncType": "All"
+    }
+  ],
+  "PushEndpoints": [
+    {
+      "Name": "Purchase \u0027Receipt",
+      "EndpointType": "Purchase Receipt",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.asn_to_purchase_receipt.receive_asn_and_create_purchase_receipt",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "WTR",
+      "EndpointType": "Custom",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.desktop_stock_entry.create_stock_entry_from_transfer_carton",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "Snapshot",
+      "EndpointType": "Offline Sync",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.offline_sync.push_wms_snapshot",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "Cycle Count",
+      "EndpointType": "Cycle Count",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.cycle_count_batch.sync_task_capture_only",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "ASN Received",
+      "EndpointType": "ASN Status",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.asn_receiving.update_asn_received_qty",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "Push 6",
+      "EndpointType": "Custom",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.intransit_transfer.end_transit_create_receipt",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "Rebuild Stock Balance",
+      "EndpointType": "Custom",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.rebuild_stock_balance.rebuild_wms_stock_balance",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    },
+    {
+      "Name": "Bin Transfer",
+      "EndpointType": "Relocation",
+      "BaseUrl": "http://printechsdammam.dyndns.org:88/api/method/printechs_wms.api.relocation.upsert_relocation_session",
+      "Method": "POST",
+      "ApiKey": "9c9cddef8b35474:8c32cc7ca4afbec",
+      "Enabled": true
+    }
+  ],
+  "ItemSyncPushUrl": ""
 }

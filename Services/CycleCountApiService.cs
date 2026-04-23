@@ -29,6 +29,8 @@ public static class CycleCountApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
             
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
+            if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+                baseUrl = baseUrl.Substring(0, baseUrl.Length - 4).TrimEnd('/');
             var apiUrl = $"{baseUrl}/api/cycle-count/{Uri.EscapeDataString(title)}/start";
             
             HttpContent? content = null;
@@ -113,6 +115,8 @@ public static class CycleCountApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
             
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
+            if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+                baseUrl = baseUrl.Substring(0, baseUrl.Length - 4).TrimEnd('/');
             var apiUrl = $"{baseUrl}/api/cycle-count/{Uri.EscapeDataString(title)}/submit";
             
             var response = await httpClient.PostAsync(apiUrl, null);
@@ -190,6 +194,8 @@ public static class CycleCountApiService
                 new AuthenticationHeaderValue("Bearer", settings.ApiKey);
             
             var baseUrl = settings.ApiEndpointUrl.TrimEnd('/');
+            if (baseUrl.EndsWith("/api", StringComparison.OrdinalIgnoreCase))
+                baseUrl = baseUrl.Substring(0, baseUrl.Length - 4).TrimEnd('/');
             var apiUrl = $"{baseUrl}/api/cycle-count/{Uri.EscapeDataString(title)}/complete";
             
             var response = await httpClient.PostAsync(apiUrl, null);
