@@ -1,0 +1,47 @@
+# --- .NET / Visual Studio ---
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.rsuser
+project.lock.json
+*.cache
+*_wpftmp.*
+
+# --- Logs & local runtime data ---
+**/ErrorLogs/
+**/*.log
+log/
+**/log/
+
+# --- Archives & ad-hoc files ---
+*.rar
+*.zip
+Desktop Rar.rar
+
+# --- Node (wms-api) ---
+wms-api/node_modules/
+wms-api/dist/
+
+# --- Built API package (regenerate with: cd wms-api && npm run package) ---
+wms-api/deployment/wms-api.exe
+wms-api/deployment/VERSION.txt
+wms-api/deployment/deployment.rar
+
+# --- Secrets: never commit real env (use .env.template) ---
+wms-api/deployment/.env
+wms-api/deployment/.env.backup
+wms-api/.env
+.env
+.env.local
+.env.*.local
+
+# --- OS ---
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
