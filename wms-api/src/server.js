@@ -8,6 +8,7 @@ import os from "os";
 import http from "http";
 import routes from "./routes/index.js";
 import { logger } from "./utils/logger.js";
+import { ensureMobileSessionSchema } from "./services/mobileSessionService.js";
 
 // Load environment variables
 dotenv.config();
@@ -234,7 +235,13 @@ const server = http.createServer((req, res) => {
   app(req, res);
 });
 
-server.listen(PORT, HOST, () => {
+server.listen(PORT, HOST, async () => {
+  try {
+    await ensureMobileSessionSchema();
+  } catch (e) {
+    logger.error("Mobile session / device tables could not be created", e);
+  }
+
   const networkIPs = getNetworkIPs();
 
   // Debug: Show detected network interfaces

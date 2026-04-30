@@ -67,6 +67,7 @@ public static class TransferOrderSyncFromErpNextService
             result.TotalFetched = byTitle.Count;
             ErrorLogService.LogInfo($"TransferOrderSyncFromErpNextService: Syncing {result.TotalFetched} TO(s) with items.");
 
+            var tosUpsertedWithItems = new List<string>();
             foreach (var kv in byTitle)
             {
                 var to = kv.Value;
@@ -78,6 +79,13 @@ public static class TransferOrderSyncFromErpNextService
                     var items = to.Items ?? to.ItemDetails ?? new List<ErpNextToItemDto>();
                     if (totalAllocated == 0 && items.Count > 0)
                         totalAllocated = items.Sum(i => i.AllocatedQty);
+
+                    if (!items.Any(i => !string.IsNullOrWhiteSpace((i.ItemCode ?? "").Trim())))
+                    {
+                        ErrorLogService.LogInfo(
+                            $"TransferOrderSyncFromErpNextService: Skipping TO {title}: ERP payload has no item lines (include_items missing or empty). Desktop DB not updated.");
+                        continue;
+                    }
 
                     var wmsExportStatus = to.WmsExportStatus ?? "Pending";
                     var toSql = @"INSERT INTO tabTransferOrder 
@@ -93,10 +101,12 @@ public static class TransferOrderSyncFromErpNextService
                             total_allocated_qty = VALUES(total_allocated_qty),
                             updated_at = CURRENT_TIMESTAMP";
 
+                    var existingToStatus = await ErpSyncPullHeaderStatus.ReadStatusAsync(connection, "tabTransferOrder", title);
+                    var headerStatus = ErpSyncPullHeaderStatus.MergeTransferOrderStatus(existingToStatus, to.Status ?? "Draft", title);
                     await using (var cmd = new MySqlCommand(toSql, connection))
                     {
                         cmd.Parameters.AddWithValue("@title", title);
-                        cmd.Parameters.AddWithValue("@status", to.Status ?? "Draft");
+                        cmd.Parameters.AddWithValue("@status", headerStatus);
                         cmd.Parameters.AddWithValue("@asn", to.AsnNo ?? to.Asn ?? "");
                         cmd.Parameters.AddWithValue("@fromWh", (to.FromWarehouseCode ?? to.FromWarehouse ?? "").Trim());
                         cmd.Parameters.AddWithValue("@wmsExportStatus", wmsExportStatus);
@@ -140,6 +150,8 @@ public static class TransferOrderSyncFromErpNextService
                         await itemCmd.ExecuteNonQueryAsync();
                         result.ItemsInserted++;
                     }
+
+                    tosUpsertedWithItems.Add(title);
                 }
                 catch (Exception ex)
                 {
@@ -152,7 +164,7 @@ public static class TransferOrderSyncFromErpNextService
             result.Success = true;
             ErrorLogService.LogInfo($"Transfer Order sync from ERPNext completed. Fetched: {result.TotalFetched}, TOs inserted: {result.TosInserted}, updated: {result.TosUpdated}, items: {result.ItemsInserted}, errors: {result.Errors.Count}");
 
-            var toNamesJustSynced = byTitle.Keys.ToList();
+            var toNamesJustSynced = tosUpsertedWithItems;
             if (toNamesJustSynced.Count > 0 && endpoints.Count > 0)
             {
                 var (_, pushBaseUrl, pushApiKey) = endpoints[0];

@@ -430,6 +430,13 @@ async function updateStockFromCycleCount(connection, title, warehouse) {
     console.log(`[Cycle Count] ℹ️ No lines need stock update for task ${title} - all items match expected quantities`);
     return { stockUpdated: false, stockUpdateCount: 0 };
   }
+
+  const { assertItemsInMasterOrThrow } = await import('../../utils/itemMasterValidate.js');
+  await assertItemsInMasterOrThrow(
+    connection,
+    linesWithDiscrepancy.map((l) => l.item_code),
+    'cycle count stock posting'
+  );
   
   for (const line of linesWithDiscrepancy) {
     const itemCode = line.item_code;
@@ -1162,6 +1169,21 @@ export const createCycleCountTask = async (req, res) => {
     // Don't accept expected_qty from user input - only set it from actual stock data lookup
     // Use 0 instead of NULL for expected_qty (no previous history)
     if (lines && Array.isArray(lines) && lines.length > 0) {
+      const { findMissingItemCodesInMaster } = await import('../../utils/itemMasterValidate.js');
+      const missCcCreate = await findMissingItemCodesInMaster(
+        connection,
+        lines.map((l) => l.item_code)
+      );
+      if (missCcCreate.length > 0) {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: 'ITEM_NOT_IN_MASTER',
+            message: `Item code(s) not in Item master (tabItem): ${missCcCreate.join(', ')}`,
+            missing_item_codes: missCcCreate,
+          },
+        });
+      }
       for (const line of lines) {
         await connection.execute(`
           INSERT INTO tabCycleCountLine 
@@ -1645,10 +1667,10 @@ export const updateCountLines = async (req, res) => {
         
         console.log(`[Cycle Count] ✅ Using item_code from master data: scanned="${normalizedScannedValue}" -> item_code="${normalizedItemCode}"`);
       } else {
-        // Item not found in master data - allow ad-hoc counting but log warning
-        console.warn(`[Cycle Count] ⚠️ Item not found in master data: scanned="${normalizedScannedValue}" (allowing ad-hoc count)`);
-        // For ad-hoc counts, use scanned value as item_code
-        normalizedItemCode = normalizedScannedValue;
+        const errorMsg = `Item not found in Item master (tabItem): "${normalizedScannedValue}"`;
+        console.error(`[Cycle Count] ❌ ${errorMsg}`);
+        errors.push(errorMsg);
+        continue;
       }
       
       // Accept expected_qty from mobile app request if provided (mobile app already looked it up from stock ledger)
@@ -2604,6 +2626,16 @@ export const submitCycleCount = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Failed to submit Cycle Count Task:', error);
+    if (error?.code === 'ITEM_NOT_IN_MASTER') {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'ITEM_NOT_IN_MASTER',
+          message: error.message,
+          missing_item_codes: error.missing_item_codes || [],
+        },
+      });
+    }
     res.status(500).json({
       ok: false,
       error: {
@@ -2701,6 +2733,16 @@ export const completeCycleCount = async (req, res) => {
   } catch (error) {
     await connection.rollback();
     console.error('Failed to complete Cycle Count Task:', error);
+    if (error?.code === 'ITEM_NOT_IN_MASTER') {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'ITEM_NOT_IN_MASTER',
+          message: error.message,
+          missing_item_codes: error.missing_item_codes || [],
+        },
+      });
+    }
     res.status(500).json({
       ok: false,
       error: {

@@ -2,6 +2,12 @@
 // Carton status update operations (batch)
 
 import { getConnection } from '../../db/connection.js';
+import { findCrossSessionUnloadDuplicate } from '../../services/inboundUnloadCrossSession.js';
+import {
+  ensureUnloadLineUniqueIndex,
+  ensureUnloadLineDeviceIdColumn,
+  getUnloadLineOptionalMeta,
+} from '../../services/inboundUnloadLineSchema.js';
 
 /**
  * POST /api/cartons/update-status
@@ -93,6 +99,12 @@ export const updateCartonStatus = async (req, res) => {
   try {
     await connection.beginTransaction();
 
+    await ensureUnloadLineUniqueIndex(connection);
+    await ensureUnloadLineDeviceIdColumn(connection);
+    const ulUnloadMeta = await getUnloadLineOptionalMeta(connection);
+    const requestDeviceId =
+      device_id != null && String(device_id).trim() !== '' ? String(device_id).trim() : null;
+
     // Detect schema for ASN column (once, outside loop)
     const [asnColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
@@ -102,6 +114,52 @@ export const updateCartonStatus = async (req, res) => {
       AND COLUMN_NAME IN ('asn_no', 'advance_shipping_notice')
     `);
     const asnColumn = asnColumns.some(r => r.COLUMN_NAME === 'asn_no') ? 'asn_no' : 'advance_shipping_notice';
+
+    const [sessionColumns] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabInboundSession'
+        AND COLUMN_NAME IN ('title', 'inbound_session')
+    `);
+    const sessionIdColumn = sessionColumns.some((r) => r.COLUMN_NAME === 'inbound_session')
+      ? 'inbound_session'
+      : 'title';
+
+    const [sessionDetailCols] = await connection.execute(`
+      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabInboundSession'
+        AND COLUMN_NAME IN ('device_id', 'started_by', 'user_id')
+    `);
+    const sessHave = new Set(sessionDetailCols.map((r) => r.COLUMN_NAME));
+    const sessSel = [];
+    if (sessHave.has('device_id')) sessSel.push('device_id');
+    if (sessHave.has('started_by')) sessSel.push('started_by');
+    if (sessHave.has('user_id')) sessSel.push('user_id');
+    let sessionSnap = {};
+    if (sessSel.length > 0) {
+      const [sRows] = await connection.execute(
+        `SELECT ${sessSel.join(', ')} FROM tabInboundSession WHERE ${sessionIdColumn} = ? LIMIT 1`,
+        [inbound_session]
+      );
+      if (sRows.length) sessionSnap = sRows[0];
+    }
+    const sessionDeviceId =
+      sessionSnap.device_id != null && String(sessionSnap.device_id).trim() !== ''
+        ? String(sessionSnap.device_id).trim()
+        : null;
+    const sessionStartedBy =
+      sessionSnap.started_by != null && String(sessionSnap.started_by).trim() !== ''
+        ? String(sessionSnap.started_by).trim()
+        : sessionSnap.user_id != null && String(sessionSnap.user_id).trim() !== ''
+          ? String(sessionSnap.user_id).trim()
+          : null;
+    // Prefer inbound session row (truth in DB); Postman often sends a dummy device_id.
+    const effectiveDeviceId = sessionDeviceId || requestDeviceId;
+    const effectiveScannedBy =
+      sessionStartedBy ||
+      (user_id != null && String(user_id).trim() !== '' ? String(user_id).trim() : null) ||
+      'SYSTEM';
 
     // Detect available columns in tabReceivingCarton (once, outside loop)
     const [cartonColumns] = await connection.execute(`
@@ -122,6 +180,8 @@ export const updateCartonStatus = async (req, res) => {
     const hasCreatedAt = cartonColumns.some(r => r.COLUMN_NAME === 'created_at');
 
     let updatedCount = 0;
+    /** Per-carton unload-line outcome when status is Unloaded (tabReceivingCarton can still "update" every time due to updated_on = NOW()). */
+    const unloadLineResults = [];
     const cartonsToUpdate = isBatch ? cartons : [{ carton_id, status }];
 
     for (const carton of cartonsToUpdate) {
@@ -257,19 +317,81 @@ export const updateCartonStatus = async (req, res) => {
         }
       }
 
-      // If status is "Unloaded", create unload line
+      // If status is "Unloaded", create unload line (respect ASN / Transfer In cross-session dedupe)
       if (currentStatus === 'Unloaded') {
         try {
-          await connection.execute(`
+          const cross = await findCrossSessionUnloadDuplicate(
+            connection,
+            sessionIdColumn,
+            inbound_session,
+            'Carton',
+            currentCartonId
+          );
+          if (cross) {
+            console.warn(
+              `Skipping tabInboundUnloadLine for carton ${currentCartonId}: already unloaded in session ${cross.row.parent_title} (${cross.sourceKind} ${cross.sourceDoc})`
+            );
+            unloadLineResults.push({
+              carton_id: currentCartonId,
+              result: 'skipped_cross_session',
+              code: 'ASN_CARTON_ALREADY_UNLOADED',
+              message: `Unload line not written: carton already unloaded for this ${cross.sourceKind} in another session.`,
+              existing_session: cross.row.parent_title,
+              source_kind: cross.sourceKind,
+              source_doc: cross.sourceDoc,
+              scanned_by: effectiveScannedBy,
+              user_id: effectiveScannedBy === 'SYSTEM' ? null : effectiveScannedBy,
+              device_id: effectiveDeviceId,
+              request_body: { user_id: user_id ?? null, device_id: requestDeviceId },
+            });
+          } else {
+            const [insRes] = ulUnloadMeta.hasDeviceId
+              ? await connection.execute(
+                  `
+            INSERT INTO tabInboundUnloadLine 
+              (parent_title, unit_type, unit_id, scanned_by, scanned_on, device_id)
+            VALUES (?, 'Carton', ?, ?, NOW(), ?)
+            ON DUPLICATE KEY UPDATE
+              scanned_on = NOW(),
+              scanned_by = VALUES(scanned_by),
+              device_id = COALESCE(device_id, VALUES(device_id))
+          `,
+                  [inbound_session, currentCartonId, effectiveScannedBy, effectiveDeviceId]
+                )
+              : await connection.execute(
+                  `
             INSERT INTO tabInboundUnloadLine 
               (parent_title, unit_type, unit_id, scanned_by, scanned_on)
             VALUES (?, 'Carton', ?, ?, NOW())
             ON DUPLICATE KEY UPDATE
               scanned_on = NOW(),
               scanned_by = VALUES(scanned_by)
-          `, [inbound_session, currentCartonId, user_id || 'SYSTEM']);
+          `,
+                  [inbound_session, currentCartonId, effectiveScannedBy]
+                );
+            // MySQL: 1 = new row, 2 = duplicate key path (same session carton already on unload line)
+            const ar = insRes?.affectedRows ?? 0;
+            unloadLineResults.push({
+              carton_id: currentCartonId,
+              result: ar === 2 ? 'same_session_already_recorded' : 'inserted_or_updated',
+              affected_rows: ar,
+              scanned_by: effectiveScannedBy,
+              user_id: effectiveScannedBy === 'SYSTEM' ? null : effectiveScannedBy,
+              device_id: effectiveDeviceId,
+              request_body: { user_id: user_id ?? null, device_id: requestDeviceId },
+            });
+          }
         } catch (unloadLineError) {
           console.warn(`Failed to create unload line for carton ${currentCartonId}:`, unloadLineError.message);
+          unloadLineResults.push({
+            carton_id: currentCartonId,
+            result: 'error',
+            message: unloadLineError.message,
+            scanned_by: effectiveScannedBy,
+            user_id: effectiveScannedBy === 'SYSTEM' ? null : effectiveScannedBy,
+            device_id: effectiveDeviceId,
+            request_body: { user_id: user_id ?? null, device_id: requestDeviceId },
+          });
         }
       }
 
@@ -333,11 +455,55 @@ export const updateCartonStatus = async (req, res) => {
 
     await connection.commit();
 
+    const requestedBy = {
+      user_id: user_id ?? null,
+      device_id: device_id != null && String(device_id).trim() !== '' ? String(device_id).trim() : null,
+    };
+    const inboundSessionSnapshot = {
+      inbound_session,
+      device_id: sessionSnap.device_id != null ? String(sessionSnap.device_id) : null,
+      started_by:
+        sessionSnap.started_by != null
+          ? String(sessionSnap.started_by)
+          : sessionSnap.user_id != null
+            ? String(sessionSnap.user_id)
+            : null,
+    };
+    const asAppliedToUnloadLine =
+      unloadLineResults.length > 0
+        ? {
+            scanned_by: effectiveScannedBy,
+            device_id: effectiveDeviceId,
+            rule: 'Uses tabInboundSession.device_id / started_by when set; otherwise JSON body user_id / device_id.',
+          }
+        : undefined;
+
+    let responseMessage = 'Carton status updated successfully';
+    if (unloadLineResults.length) {
+      const allSameSessionDup = unloadLineResults.every(
+        (r) => r.result === 'same_session_already_recorded'
+      );
+      const anyCrossSkip = unloadLineResults.some((r) => r.result === 'skipped_cross_session');
+      if (allSameSessionDup) {
+        responseMessage =
+          'Carton status updated successfully. Unload line(s) for this inbound session were already present (unload timestamps refreshed for this request).';
+      } else if (anyCrossSkip) {
+        responseMessage =
+          'Carton status updated successfully. See unload_line_results: unload line not written for at least one carton (already unloaded in another session for this ASN / transfer).';
+      }
+    }
+
     res.json({
       success: true,
       ok: true,
-      message: 'Carton status updated successfully',
-      updated_count: updatedCount
+      message: responseMessage,
+      updated_count: updatedCount,
+      requested_by: requestedBy,
+      inbound_session_snapshot: inboundSessionSnapshot,
+      as_applied_to_unload_line: asAppliedToUnloadLine,
+      note:
+        'updated_count reflects tabReceivingCarton (re-sending Unloaded still bumps updated_on). unload_line_results / as_applied_to_unload_line use session device_id & started_by when present (see inbound_session_snapshot).',
+      unload_line_results: unloadLineResults.length ? unloadLineResults : undefined,
     });
 
   } catch (error) {

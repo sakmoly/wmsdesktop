@@ -384,17 +384,21 @@ export const getStockLedger = async (req, res) => {
     const pageSize = Math.min(500, Math.max(1, parseInt(page_size) || 100));
     const offset = (pageNum - 1) * pageSize;
 
-    // Build WHERE clause
+    // Build WHERE clause (bare names for single-table subqueries / count)
+    // and sl.-qualified copy for the outer query (joins th which also has item_code, warehouse, bin_location).
     const conditions = ["1=1"];
+    const conditionsSl = ["1=1"];
     const params = [];
 
     if (warehouse) {
       conditions.push("warehouse = ?");
+      conditionsSl.push("sl.warehouse = ?");
       params.push(warehouse);
     }
 
     if (item_code) {
       conditions.push("item_code LIKE ?");
+      conditionsSl.push("sl.item_code LIKE ?");
       params.push(`%${item_code}%`);
     }
 
@@ -405,19 +409,23 @@ export const getStockLedger = async (req, res) => {
         bin_location === ""
       ) {
         conditions.push("bin_location IS NULL");
+        conditionsSl.push("sl.bin_location IS NULL");
       } else {
         conditions.push("bin_location = ?");
+        conditionsSl.push("sl.bin_location = ?");
         params.push(bin_location);
       }
     }
 
     if (reference_id) {
       conditions.push("last_transaction_ref = ?");
+      conditionsSl.push("sl.last_transaction_ref = ?");
       params.push(reference_id);
     }
     
     if (reference_doctype) {
       conditions.push("last_transaction_type = ?");
+      conditionsSl.push("sl.last_transaction_type = ?");
       params.push(reference_doctype);
     }
     
@@ -434,21 +442,25 @@ export const getStockLedger = async (req, res) => {
       
       if (hasCartonIdColumn) {
         conditions.push("carton_id = ?");
+        conditionsSl.push("sl.carton_id = ?");
         params.push(carton_id);
       }
     }
 
     if (from_date) {
       conditions.push("DATE(last_transaction_date) >= ?");
+      conditionsSl.push("DATE(sl.last_transaction_date) >= ?");
       params.push(from_date);
     }
 
     if (to_date) {
       conditions.push("DATE(last_transaction_date) <= ?");
+      conditionsSl.push("DATE(sl.last_transaction_date) <= ?");
       params.push(to_date);
     }
 
     const whereClause = conditions.join(" AND ");
+    const whereClauseSl = conditionsSl.join(" AND ");
 
     // Check if qty_before and qty_reduced columns exist
     const [columns] = await connection.execute(`
@@ -469,12 +481,13 @@ export const getStockLedger = async (req, res) => {
     // ✅ FIX: Join with tabTransactionHistory to get aggregated values
     // This ensures Stock Ledger matches Transaction History (aggregated values)
     // IMPORTANT: Aggregate by item+location+reference to handle multiple cartons
+    // ANY_VALUE(sl.*) satisfies ONLY_FULL_GROUP_BY when th join produces multiple rows per sl group.
     const qtyBeforeSelect = hasQtyBefore 
-      ? "COALESCE(MAX(th.qty_before), sl.qty_before) as qty_before" 
+      ? "COALESCE(MAX(th.qty_before), ANY_VALUE(sl.qty_before)) as qty_before" 
       : "COALESCE(MAX(th.qty_before), NULL) as qty_before";
     
     const qtyReducedSelect = hasQtyReduced
-      ? "COALESCE(SUM(th.qty_change), sl.qty_reduced) as qty_reduced"
+      ? "COALESCE(SUM(th.qty_change), ANY_VALUE(sl.qty_reduced)) as qty_reduced"
       : "COALESCE(SUM(th.qty_change), NULL) as qty_reduced";
 
     // Get total count (use DISTINCT to count unique item+warehouse+bin combinations)
@@ -535,13 +548,14 @@ export const getStockLedger = async (req, res) => {
         AND th.transaction_type = sl.last_transaction_type
         AND th.transaction_date = DATE(sl.last_transaction_date)
         AND th.warehouse = sl.warehouse
-      WHERE ${whereClause}
+      WHERE ${whereClauseSl}
       GROUP BY sl.item_code, sl.warehouse, sl.bin_location, sl.qty, sl.reserved_qty, sl.last_transaction_date, sl.last_transaction_type, sl.last_transaction_ref, sl.updated_at, sl.created_at
       ORDER BY sl.last_transaction_date DESC, sl.warehouse, sl.item_code, sl.bin_location IS NULL, sl.bin_location
       LIMIT ? OFFSET ?
     `;
 
-    const dataParams = [...params, pageSize, offset];
+    // Inner subquery uses whereClause; outer WHERE uses whereClauseSl — same ? count twice.
+    const dataParams = [...params, ...params, pageSize, offset];
     const [rows] = await connection.execute(dataQuery, dataParams);
 
     // Resolve full location_id for all rows (batch lookup for performance)

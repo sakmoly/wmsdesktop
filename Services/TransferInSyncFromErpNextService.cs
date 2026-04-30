@@ -110,7 +110,7 @@ public static class TransferInSyncFromErpNextService
                         : (entry.ToWarehouseCode ?? "").Trim();
                     if (string.IsNullOrWhiteSpace(toWarehouse)) toWarehouse = "Unknown";
 
-                    var status = entry.Docstatus == 1 ? "Submitted" : "Draft";
+                    var erpMappedStatus = entry.Docstatus == 1 ? "Submitted" : "Draft";
                     var owner = (entry.Owner ?? "SYSTEM").Trim();
                     if (string.IsNullOrWhiteSpace(owner)) owner = "SYSTEM";
 
@@ -131,10 +131,13 @@ public static class TransferInSyncFromErpNextService
                             total_qty = VALUES(total_qty),
                             updated_at = NOW()";
 
+                    var existingTiStatus = await ErpSyncPullHeaderStatus.ReadStatusAsync(connection, "tabTransferIn", stockEntryNo, transaction);
+                    var headerStatus = ErpSyncPullHeaderStatus.MergeTransferInStatus(existingTiStatus, erpMappedStatus, stockEntryNo);
+
                     await using (var cmd = new MySqlCommand(headerSql, connection, transaction))
                     {
                         cmd.Parameters.AddWithValue("@title", stockEntryNo);
-                        cmd.Parameters.AddWithValue("@status", status);
+                        cmd.Parameters.AddWithValue("@status", headerStatus);
                         cmd.Parameters.AddWithValue("@fromShowroom", fromShowroom);
                         cmd.Parameters.AddWithValue("@toWarehouse", toWarehouse);
                         cmd.Parameters.AddWithValue("@transferDate", postingDate.Value);

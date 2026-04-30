@@ -2994,6 +2994,26 @@ export const completePutaway = async (req, res) => {
       });
     }
 
+    const { findMissingItemCodesInMaster: findMissingForComplete } = await import(
+      "../../utils/itemMasterValidate.js"
+    );
+    const completeMissingItems = await findMissingForComplete(
+      connection,
+      linesToProcess.map((l) => l.item_code)
+    );
+    if (completeMissingItems.length > 0) {
+      await connection.rollback();
+      connection.release();
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "ITEM_NOT_IN_MASTER",
+          message: `Cannot complete putaway: item code(s) not in Item master (tabItem): ${completeMissingItems.join(", ")}. Sync or create items before posting stock.`,
+          missing_item_codes: completeMissingItems,
+        },
+      });
+    }
+
     // Check if qty_before, qty_reduced, and carton_id columns exist (check once, outside loop)
     const [stockLedgerColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
@@ -4283,7 +4303,7 @@ async function resolveDeclaredBoxIdFromPutawayTask(connection, taskTitle, scanne
   const sourceRaw =
     colSet.has("source_type") && row.source_type != null ? String(row.source_type) : "";
   const sourceNorm = sourceRaw.replace(/[\s_-]/g, "").toLowerCase();
-  if (transferInVal || sourceNorm === "transferin") return null;
+  // Transfer In putaway may use custom shelf/box ids (e.g. SAKEER) on tabPutawayTask.box_id or lines — same resolution as ASN task-declared ids.
 
   const scanLc = scan.toLowerCase();
 
@@ -4694,8 +4714,10 @@ export const scanTransferCarton = async (req, res) => {
         },
       });
     } else {
-      // If no tc_id, assume ASN putaway (box_id only scenario)
-      isAsnPutaway = true;
+      // Box-only path: do not overwrite TI vs ASN when putaway_task already resolved task type above.
+      if (!taskTitleToCheck) {
+        isAsnPutaway = true;
+      }
     }
 
     // Ensure validatedBoxId is set (should already be set above, but ensure it's available)
@@ -4938,20 +4960,46 @@ export const scanTransferCarton = async (req, res) => {
           const warehouse = box.store || 'WH-MAIN';
           
           // Create putaway task synchronously (uses same connection)
-          await createPutawayTaskFromTransferIn(connection, documentTitle, warehouse);
-          
-          // Wait a bit and re-query (max 2 seconds, 4 attempts)
+          const createResult = await createPutawayTaskFromTransferIn(
+            connection,
+            documentTitle,
+            warehouse
+          );
+          if (createResult?.ok && createResult.putaway_task) {
+            const [immediateRows] = await connection.execute(
+              putawayTaskQuery,
+              taskParams
+            );
+            foundPutawayTask =
+              immediateRows.length > 0
+                ? immediateRows[0]
+                : { title: createResult.putaway_task };
+            if (foundPutawayTask) {
+              logger.info(
+                `[Putaway Validation] ✅ Putaway task ${createResult.created ? "created" : "resolved"}: ${foundPutawayTask.title}`
+              );
+            }
+          }
+
+          // Re-query with short backoff if still missing (e.g. rare visibility edge)
           let attempts = 0;
           const maxAttempts = 4;
           const delayMs = 500;
-          
+
           while (attempts < maxAttempts && !foundPutawayTask) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-            
-            const [retryTaskRows] = await connection.execute(putawayTaskQuery, taskParams);
+            if (attempts > 0) {
+              await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+
+            const [retryTaskRows] = await connection.execute(
+              putawayTaskQuery,
+              taskParams
+            );
             if (retryTaskRows.length > 0) {
               foundPutawayTask = retryTaskRows[0];
-              logger.info(`[Putaway Validation] ✅ Putaway task created: ${foundPutawayTask.title}`);
+              logger.info(
+                `[Putaway Validation] ✅ Putaway task found: ${foundPutawayTask.title}`
+              );
               break;
             }
             attempts++;
@@ -5094,11 +5142,34 @@ export const scanTransferCarton = async (req, res) => {
       try {
         await connection.beginTransaction();
         
-        // Get all putaway lines for this task
-        const [putawayLines] = await connection.execute(
-          `SELECT id, item_code, carton_id, qty FROM tabPutawayLine WHERE parent_title = ?`,
-          [taskTitleToCheck]
+        // Get all putaway lines for this task (include box_id when column exists — sort / TI shelf ids)
+        const [plBoxMeta] = await connection.execute(
+          `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+           WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tabPutawayLine' AND COLUMN_NAME = 'box_id'`
         );
+        const plHasBoxId = plBoxMeta.length > 0;
+        const lineSelectSql = plHasBoxId
+          ? `SELECT id, item_code, carton_id, box_id, qty FROM tabPutawayLine WHERE parent_title = ?`
+          : `SELECT id, item_code, carton_id, qty FROM tabPutawayLine WHERE parent_title = ?`;
+        const [putawayLines] = await connection.execute(lineSelectSql, [taskTitleToCheck]);
+
+        const { findMissingItemCodesInMaster } = await import("../../utils/itemMasterValidate.js");
+        const scanMissingItems = await findMissingItemCodesInMaster(
+          connection,
+          putawayLines.map((l) => l.item_code)
+        );
+        if (scanMissingItems.length > 0) {
+          await connection.rollback();
+          connection.release();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "ITEM_NOT_IN_MASTER",
+              message: `Cannot assign location: item code(s) not in Item master (tabItem): ${scanMissingItems.join(", ")}. Sync items from ERPNext before putaway.`,
+              missing_item_codes: scanMissingItems,
+            },
+          });
+        }
 
         if (putawayLines.length === 0) {
           await connection.rollback();
@@ -5257,7 +5328,11 @@ export const scanTransferCarton = async (req, res) => {
             // Trigger stock update for each putaway line
             // Use the first carton_id from lines (for Transfer In, all lines share the same carton_id)
             const firstLine = putawayLines[0];
-            const cartonIdForStock = firstLine?.carton_id || validatedBoxId;
+            const cartonIdForStock =
+              (validatedBoxId && String(validatedBoxId).trim()) ||
+              (firstLine?.box_id && String(firstLine.box_id).trim()) ||
+              (firstLine?.carton_id && String(firstLine.carton_id).trim()) ||
+              null;
             
             // Create a synthetic PUTAWAY_TO_RACK event to trigger stock updates
             // This will process all lines in the putaway task
@@ -5295,7 +5370,7 @@ export const scanTransferCarton = async (req, res) => {
             stockConnection.release();
           }
         } catch (stockUpdateError) {
-          // Log error but don't fail the location update
+          // Log error but don't fail the location update (except item master — data quality)
           logger.error(`[Putaway] ❌❌❌ CRITICAL ERROR: Failed to trigger stock updates for putaway task ${taskTitleToCheck}`, {
             errorType: stockUpdateError?.constructor?.name || 'Unknown',
             message: stockUpdateError?.message || 'No error message',
@@ -5304,11 +5379,8 @@ export const scanTransferCarton = async (req, res) => {
             sqlMessage: stockUpdateError?.sqlMessage || 'No SQL message',
             putaway_task: taskTitleToCheck,
             location_id: location_id || 'NULL',
-            warehouse: warehouse || 'NULL'
-          });(`[Putaway] ⚠️ Failed to trigger stock updates after location assignment:`, {
-            error: stockUpdateError.message,
-            stack: stockUpdateError.stack,
-            putaway_task: taskTitleToCheck
+            warehouse: warehouse || 'NULL',
+            missing_item_codes: stockUpdateError?.missing_item_codes,
           });
           // Continue - location is still updated, stock can be updated later via PUTAWAY_TO_RACK event
         }
@@ -6159,22 +6231,110 @@ export const triggerStockUpdate = async (req, res) => {
 
 /**
  * POST /api/putaway/create-tasks
- * Legacy endpoint - Putaway Tasks are now auto-created
- * This endpoint exists for backward compatibility but returns success immediately
- * 
- * Note: For Transfer In, Putaway Tasks are automatically created when all items are received.
- * For ASN, Putaway Tasks are created during the receiving process.
- * This endpoint is kept for mobile app compatibility but does nothing.
+ * Idempotent Transfer In putaway bootstrap: ensures tabPutawayTask exists for a TI
+ * after receiving (mobile calls with { transfer_in }).
  */
 export const createTasks = async (req, res) => {
-  // Putaway Tasks are now auto-created, so this endpoint is a no-op
-  // Return success to maintain backward compatibility with mobile app
-  res.json({
-    ok: true,
-    message: "Putaway Tasks are automatically created. No manual creation needed.",
-    data: {
-      note: "Putaway Tasks are created automatically when items are received. This endpoint is kept for backward compatibility.",
-      auto_created: true
+  const transfer_in = (
+    req.body?.transfer_in ??
+    req.body?.transferIn ??
+    ""
+  )
+    .toString()
+    .trim();
+
+  if (!transfer_in) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "transfer_in is required",
+      },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [tiRows] = await connection.execute(
+      `SELECT title, to_warehouse FROM tabTransferIn WHERE title = ? LIMIT 1`,
+      [transfer_in]
+    );
+
+    if (!tiRows.length) {
+      await connection.rollback();
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Transfer In ${transfer_in} not found`,
+        },
+      });
     }
-  });
+
+    const tiTitle = tiRows[0].title || transfer_in;
+    const warehouse = tiRows[0].to_warehouse || "WH-MAIN";
+
+    const { createPutawayTaskFromTransferIn } = await import(
+      "../transfer-in/transferInController.js"
+    );
+    const result = await createPutawayTaskFromTransferIn(
+      connection,
+      tiTitle,
+      warehouse
+    );
+
+    if (!result.ok) {
+      await connection.rollback();
+      if (result.code === "NO_RECEIVED_QTY") {
+        return res.status(422).json({
+          ok: false,
+          error: {
+            code: result.code,
+            message: result.message,
+            transfer_in: tiTitle,
+          },
+        });
+      }
+      return res.status(500).json({
+        ok: false,
+        error: {
+          code: result.code || "ERROR",
+          message: result.message || "Putaway task creation failed",
+          transfer_in: tiTitle,
+        },
+      });
+    }
+
+    await connection.commit();
+
+    return res.json({
+      ok: true,
+      message: result.created
+        ? "Putaway task created for Transfer In."
+        : "Putaway task already exists for Transfer In.",
+      data: {
+        transfer_in: tiTitle,
+        putaway_task: result.putaway_task,
+        created: result.created,
+      },
+    });
+  } catch (err) {
+    try {
+      await connection.rollback();
+    } catch (_) {
+      /* ignore */
+    }
+    logger.error("[Putaway create-tasks] Failed:", err);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: err.message,
+      },
+    });
+  } finally {
+    connection.release();
+  }
 };

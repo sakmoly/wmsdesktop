@@ -271,6 +271,10 @@ public static class PutawayTaskDataService
                     var lines = linesDict.ContainsKey(task.Title) ? linesDict[task.Title] : new List<PutawayLine>();
                     
                     ErrorLogService.LogInfo($"PutawayTaskDataService: Task {task.Title} has {lines.Count} line(s)");
+
+                    // List grid binds LocationId on the task; Transfer In / box putaway often leaves tabPutawayTask.location_id null
+                    // while lines already have rack/bin/location_id — surface shelf location on the list.
+                    var listLocationId = ResolvePutawayTaskListLocationId(task.LocationId, lines);
                     
                     tasks[i] = new PutawayTask
                     {
@@ -281,7 +285,7 @@ public static class PutawayTaskDataService
                         TransferIn = task.TransferIn,
                         InboundSession = task.InboundSession,
                         CreatedBy = task.CreatedBy,
-                        LocationId = task.LocationId,
+                        LocationId = listLocationId,
                         Lines = lines
                     };
                 }
@@ -294,6 +298,38 @@ public static class PutawayTaskDataService
 
         ErrorLogService.LogInfo($"PutawayTaskDataService: Total tasks loaded: {tasks.Count}");
         return tasks;
+    }
+
+    /// <summary>
+    /// <see cref="tabPutawayTask.location_id"/> is often null for Transfer In / sort-box putaway while lines already hold shelf data.
+    /// Derive a single string for the task list grid (first distinct line location, or rack-bin).
+    /// </summary>
+    private static string? ResolvePutawayTaskListLocationId(string? taskLocationId, List<PutawayLine> lines)
+    {
+        if (!string.IsNullOrWhiteSpace(taskLocationId))
+            return taskLocationId.Trim();
+        if (lines == null || lines.Count == 0)
+            return null;
+
+        var distinct = lines
+            .Select(l => (l.LocationId ?? "").Trim())
+            .Where(s => s.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (distinct.Count == 1)
+            return distinct[0];
+        if (distinct.Count > 1)
+            return string.Join(", ", distinct);
+
+        var first = lines[0];
+        if (!string.IsNullOrWhiteSpace(first.Rack) && !string.IsNullOrWhiteSpace(first.Bin))
+            return $"{first.Rack.Trim()}-{first.Bin.Trim()}";
+        if (!string.IsNullOrWhiteSpace(first.Bin))
+            return first.Bin.Trim();
+        if (!string.IsNullOrWhiteSpace(first.Rack))
+            return first.Rack.Trim();
+        return null;
     }
 
     /// <summary>

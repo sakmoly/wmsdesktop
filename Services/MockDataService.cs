@@ -418,7 +418,8 @@ public static class MockDataService
                 TransferOrder = "TO-0001",
                 Store = "STORE-001",
                 CreatedBy = "sorter1",
-                CreatedOn = DateTime.Today.AddHours(-2)
+                CreatedOn = DateTime.Today.AddHours(-2),
+                TotalScannedQty = 12
             },
             // Filling Box - Currently being filled
             new SortBox
@@ -429,7 +430,8 @@ public static class MockDataService
                 TransferOrder = "TO-0001",
                 Store = "STORE-002",
                 CreatedBy = "sorter2",
-                CreatedOn = DateTime.Today.AddHours(-1.5)
+                CreatedOn = DateTime.Today.AddHours(-1.5),
+                TotalScannedQty = 48
             },
             // Another Filling Box
             new SortBox
@@ -440,7 +442,8 @@ public static class MockDataService
                 TransferOrder = "TO-0003",
                 Store = "STORE-001",
                 CreatedBy = "sorter1",
-                CreatedOn = DateTime.Today.AddHours(-3)
+                CreatedOn = DateTime.Today.AddHours(-3),
+                TotalScannedQty = 120
             },
             // Closed Box - Ready for packing
             new SortBox
@@ -453,7 +456,8 @@ public static class MockDataService
                 CreatedBy = "sorter2",
                 CreatedOn = DateTime.Today.AddHours(-4),
                 ClosedBy = "operator1",
-                ClosedOn = DateTime.Today.AddHours(-2)
+                ClosedOn = DateTime.Today.AddHours(-2),
+                TotalScannedQty = 200
             },
             // Packed Box - Ready for dispatch
             new SortBox
@@ -466,7 +470,8 @@ public static class MockDataService
                 CreatedBy = "sorter1",
                 CreatedOn = DateTime.Today.AddDays(-1),
                 ClosedBy = "operator2",
-                ClosedOn = DateTime.Today.AddDays(-1).AddHours(6)
+                ClosedOn = DateTime.Today.AddDays(-1).AddHours(6),
+                TotalScannedQty = 96
             },
             // Another Closed Box
             new SortBox
@@ -479,7 +484,8 @@ public static class MockDataService
                 CreatedBy = "sorter3",
                 CreatedOn = DateTime.Today.AddDays(-1),
                 ClosedBy = "operator3",
-                ClosedOn = DateTime.Today.AddDays(-1).AddHours(5)
+                ClosedOn = DateTime.Today.AddDays(-1).AddHours(5),
+                TotalScannedQty = 64
             },
             // Cancelled Box
             new SortBox
@@ -491,7 +497,8 @@ public static class MockDataService
                 Store = "STORE-001",
                 CreatedBy = "sorter1",
                 CreatedOn = DateTime.Today.AddHours(-5),
-                Remarks = "Order cancelled by store"
+                Remarks = "Order cancelled by store",
+                TotalScannedQty = 0
             },
             // More Filling Boxes
             new SortBox
@@ -502,7 +509,8 @@ public static class MockDataService
                 TransferOrder = "TO-0003",
                 Store = "STORE-002",
                 CreatedBy = "sorter2",
-                CreatedOn = DateTime.Today.AddHours(-2)
+                CreatedOn = DateTime.Today.AddHours(-2),
+                TotalScannedQty = 24
             },
             new SortBox
             {
@@ -512,7 +520,8 @@ public static class MockDataService
                 TransferOrder = "TO-0003",
                 Store = "STORE-003",
                 CreatedBy = "sorter3",
-                CreatedOn = DateTime.Today.AddHours(-1)
+                CreatedOn = DateTime.Today.AddHours(-1),
+                TotalScannedQty = 8
             }
         };
     }

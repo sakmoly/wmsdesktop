@@ -9,6 +9,8 @@ public sealed class TransferOrderDetailViewModel : BaseViewModel
 
     public int TotalLines => TransferOrder.Items.Count;
     public double TotalQty => TransferOrder.Items.Sum(i => i.AllocatedQty);
+    public double TotalSortedQty => TransferOrder.Items.Sum(i => i.SortedQty);
+    public double TotalPackedQty => TransferOrder.Items.Sum(i => i.PackedQty);
 
     public TransferOrderDetailViewModel(TransferOrder transferOrder)
     {

@@ -411,6 +411,230 @@
         </Border>
             </TabItem>
 
+            <!-- Mobile devices (approve handhelds pending WMS API device registry) -->
+            <TabItem Header="Mobile devices">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <Border Background="White"
+                                CornerRadius="8"
+                                Padding="16"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="120" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0"
+                                           Text="Approve mobile devices"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="#111827"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="1"
+                                           TextWrapping="Wrap"
+                                           Foreground="#6B7280"
+                                           FontSize="12"
+                                           Margin="0,0,0,12"
+                                           Text="Devices appear here after a phone logs in with client_type mobile and device_id. Use an admin WMS token in Settings → WMS API Key (log in on this desktop first). Approve: pending or disabled (re-enable). Disable: only when approved (ends sessions on that device). Delete: removes the device row from the server (sessions ended); the phone can register again on next login." />
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="Status filter"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               Foreground="#4B5563" />
+                                    <ComboBox Width="140"
+                                              Margin="0,0,12,0"
+                                              SelectedValuePath="Content"
+                                              SelectedValue="{Binding RegisteredDeviceStatusFilter, UpdateSourceTrigger=PropertyChanged}">
+                                        <ComboBoxItem Content="all" />
+                                        <ComboBoxItem Content="pending" />
+                                        <ComboBoxItem Content="approved" />
+                                        <ComboBoxItem Content="disabled" />
+                                    </ComboBox>
+                                    <Button Content="Refresh list"
+                                            Command="{Binding RefreshRegisteredDevicesCommand}"
+                                            IsEnabled="{Binding IsLoadingRegisteredDevices, Converter={StaticResource InverseBoolConverter}}"
+                                            Padding="12,6"
+                                            Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding RegisteredDevicesMessage}"
+                                               VerticalAlignment="Center"
+                                               Foreground="#374151"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <DataGrid Grid.Row="3"
+                                          ItemsSource="{Binding RegisteredDevices}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Device ID"
+                                                            Binding="{Binding DeviceId}"
+                                                            Width="2*" />
+                                        <DataGridTextColumn Header="Status"
+                                                            Binding="{Binding Status}"
+                                                            Width="80" />
+                                        <DataGridTextColumn Header="Label"
+                                                            Binding="{Binding Label}"
+                                                            Width="*" />
+                                        <DataGridTextColumn Header="Created"
+                                                            Binding="{Binding CreatedAtDisplay}"
+                                                            Width="120" />
+                                        <DataGridTextColumn Header="Approved"
+                                                            Binding="{Binding ApprovedAtDisplay}"
+                                                            Width="120" />
+                                        <DataGridTemplateColumn Header="Actions" Width="260">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="Approve"
+                                                                Padding="8,4"
+                                                                Margin="0,0,6,0"
+                                                                IsEnabled="{Binding CanApprove}"
+                                                                Command="{Binding DataContext.ApproveRegisteredDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="Disable"
+                                                                Padding="8,4"
+                                                                Margin="0,0,6,0"
+                                                                IsEnabled="{Binding CanDisable}"
+                                                                Command="{Binding DataContext.DisableRegisteredDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="Delete"
+                                                                Padding="8,4"
+                                                                IsEnabled="{Binding CanDelete}"
+                                                                Command="{Binding DataContext.DeleteRegisteredDeviceCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Background="White"
+                                CornerRadius="8"
+                                Padding="16"
+                                BorderBrush="#E5E7EB"
+                                BorderThickness="1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" MinHeight="140" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0"
+                                           Text="Release mobile session"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="#111827"
+                                           Margin="0,0,0,8" />
+                                <TextBlock Grid.Row="1"
+                                           TextWrapping="Wrap"
+                                           Foreground="#6B7280"
+                                           FontSize="12"
+                                           Margin="0,0,0,12"
+                                           Text="Supervisor or admin token required. Ends the server-side mobile JWT session (revoked_at), removes wms_carton_lock rows for that session, and writes an audit row. Does not delete scan history (tabWmsScanEvent, receive lines, stock ledger). Use when a device is broken, offline, or stuck so the user can sign in on another device." />
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <Button Content="Refresh sessions"
+                                            Command="{Binding RefreshMobileSessionsCommand}"
+                                            IsEnabled="{Binding IsLoadingMobileSessions, Converter={StaticResource InverseBoolConverter}}"
+                                            Padding="12,6"
+                                            Margin="0,0,12,0" />
+                                    <Button Content="Release selected session"
+                                            Command="{Binding ReleaseSelectedMobileSessionCommand}"
+                                            Padding="12,6"
+                                            Margin="0,0,8,0" />
+                                    <Button Content="Release all for selected user"
+                                            Command="{Binding ReleaseMobileSessionsForSelectedUserCommand}"
+                                            Padding="12,6"
+                                            Margin="0,0,8,0" />
+                                    <Button Content="Release all for selected device"
+                                            Command="{Binding ReleaseMobileSessionsForSelectedDeviceCommand}"
+                                            Padding="12,6"
+                                            Margin="0,0,8,0" />
+                                    <TextBlock Text="{Binding MobileSessionsMessage}"
+                                               VerticalAlignment="Center"
+                                               Foreground="#374151"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <DataGrid Grid.Row="3"
+                                          ItemsSource="{Binding ActiveMobileSessions}"
+                                          SelectedItem="{Binding SelectedMobileSession}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="JTI"
+                                                            Binding="{Binding Jti}"
+                                                            Width="2*" />
+                                        <DataGridTextColumn Header="User"
+                                                            Binding="{Binding UserCode}"
+                                                            Width="*" />
+                                        <DataGridTextColumn Header="Device ID"
+                                                            Binding="{Binding DeviceId}"
+                                                            Width="*" />
+                                        <DataGridTextColumn Header="Locks"
+                                                            Binding="{Binding ActiveLocks}"
+                                            Width="60" />
+                                        <DataGridTextColumn Header="Created"
+                                                            Binding="{Binding CreatedAtDisplay}"
+                                                            Width="130" />
+                                        <DataGridTextColumn Header="Expires"
+                                                            Binding="{Binding ExpiresAtDisplay}"
+                                                            Width="130" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Grid Grid.Row="4" Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="12" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Release by user code"
+                                                   Foreground="#4B5563"
+                                                   Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding ManualReleaseUserCode, UpdateSourceTrigger=PropertyChanged}"
+                                                 Padding="6" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Release by device id"
+                                                   Foreground="#4B5563"
+                                                   Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding ManualReleaseDeviceId, UpdateSourceTrigger=PropertyChanged}"
+                                                 Padding="6" />
+                                    </StackPanel>
+                                    <Button Grid.Column="3"
+                                            Content="Release user"
+                                            Command="{Binding ReleaseMobileSessionsByManualUserCommand}"
+                                            VerticalAlignment="Bottom"
+                                            Padding="12,6"
+                                            Margin="12,0,8,0" />
+                                    <Button Grid.Column="4"
+                                            Content="Release device"
+                                            Command="{Binding ReleaseMobileSessionsByManualDeviceCommand}"
+                                            VerticalAlignment="Bottom"
+                                            Padding="12,6" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Sync Tab -->
             <TabItem Header="Sync">
                 <Border Background="White"

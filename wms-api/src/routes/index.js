@@ -125,10 +125,16 @@ router.get('/api/asn/:asn_no/stores', authenticateToken, getAsnStores);
 // Register transfer order quantity update routes
 import { 
   updateTransferOrderQuantitiesEndpoint, 
-  updateAllTransferOrderQuantitiesEndpoint 
+  updateAllTransferOrderQuantitiesEndpoint,
+  backfillScanEventTransferOrderEndpoint,
 } from '../modules/transfer-orders/transferOrderController.js';
 router.post('/api/transfer-orders/:to_no/update-quantities', authenticateToken, updateTransferOrderQuantitiesEndpoint);
 router.post('/api/transfer-orders/update-all-quantities', authenticateToken, updateAllTransferOrderQuantitiesEndpoint);
+router.post(
+  '/api/transfer-orders/backfill-scan-transfer-order',
+  authenticateToken,
+  backfillScanEventTransferOrderEndpoint
+);
 
 export default router;
 

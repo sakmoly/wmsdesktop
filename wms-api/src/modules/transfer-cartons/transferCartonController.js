@@ -7,6 +7,102 @@ import { getConnection } from "../../db/connection.js";
 import { postStock } from "../stock-ledger/stockPostingService.js";
 
 /**
+ * Item codes for a transfer carton in a Material Request (same heuristics as seal;
+ * for reopen, third fallback uses status = 'Sealed' so lines can be reverted after seal).
+ * @param {'seal'|'reopen'} [mode] — default "seal"
+ * @returns {Promise<Array<{ item_code: string }>>}
+ */
+async function getMaterialRequestItemCodesForTransferCarton(
+  connection,
+  tc_id,
+  materialRequest,
+  mode = "seal"
+) {
+  const isReopen = mode === "reopen";
+  const lineStatusFilter = isReopen
+    ? "AND status = 'Sealed'"
+    : "AND status != 'Sealed'";
+
+  if (isReopen) {
+    const [anyByTc] = await connection.execute(
+      `
+      SELECT DISTINCT item_code
+      FROM tabWmsScanEvent
+      WHERE tc_id = ?
+        AND item_code IS NOT NULL
+        AND item_code != ''
+    `,
+      [tc_id]
+    );
+    if (anyByTc.length > 0) {
+      return anyByTc;
+    }
+  }
+
+  const [itemsByTC] = await connection.execute(
+    `
+    SELECT DISTINCT item_code
+    FROM tabWmsScanEvent
+    WHERE tc_id = ?
+      AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC', 'SORT_TO_BOX')
+      AND item_code IS NOT NULL
+  `,
+    [tc_id]
+  );
+
+  if (itemsByTC.length > 0) {
+    return itemsByTC;
+  }
+
+  const [tcInfo] = await connection.execute(
+    `
+    SELECT created_on, sealed_on
+    FROM tabTransferCarton
+    WHERE tc_id = ?
+  `,
+    [tc_id]
+  );
+
+  if (tcInfo.length === 0) {
+    return [];
+  }
+
+  const tcCreatedOn = tcInfo[0].created_on;
+  const tcSealedOn = tcInfo[0].sealed_on || new Date();
+
+  const [itemsByMR] = await connection.execute(
+    `
+    SELECT DISTINCT item_code
+    FROM tabWmsScanEvent
+    WHERE transfer_order = ?
+      AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC', 'SORT_TO_BOX')
+      AND item_code IS NOT NULL
+      AND event_time >= DATE_SUB(?, INTERVAL 1 HOUR)
+      AND event_time <= DATE_ADD(?, INTERVAL 1 HOUR)
+  `,
+    [materialRequest, tcCreatedOn, tcSealedOn]
+  );
+
+  if (itemsByMR.length > 0) {
+    return itemsByMR;
+  }
+
+  const [fullyPickedItems] = await connection.execute(
+    `
+    SELECT item_code
+    FROM tabMaterialRequestItem
+    WHERE parent_title = ?
+      AND picked_qty >= requested_qty
+      AND requested_qty > 0
+      ${lineStatusFilter}
+  `,
+    [materialRequest]
+  );
+
+  return fullyPickedItems;
+}
+
+/**
  * GET /api/transfer-cartons
  * Get transfer cartons with optional filtering by ASN, store, and transfer order
  *
@@ -55,6 +151,20 @@ export const getTransferCartons = async (req, res) => {
       );
     }
 
+    // Optional ERP linkage columns (desktop writes these on PR/SE sync).
+    const purchaseReceiptColumn = allColumns.has("purchase_receipt_no")
+      ? "purchase_receipt_no"
+      : allColumns.has("purchase_receipt")
+      ? "purchase_receipt"
+      : null;
+    const stockEntryColumn = allColumns.has("warehouse_transfer_no")
+      ? "warehouse_transfer_no"
+      : allColumns.has("stock_entry_no")
+      ? "stock_entry_no"
+      : allColumns.has("stock_entry")
+      ? "stock_entry"
+      : null;
+
     // Build WHERE clause based on query parameters
     const whereConditions = [];
     const queryParams = [];
@@ -96,6 +206,8 @@ export const getTransferCartons = async (req, res) => {
         sealed_on,
         dispatched_on,
         updated_on,
+        ${purchaseReceiptColumn ? `${purchaseReceiptColumn}` : "NULL"} as purchase_receipt,
+        ${stockEntryColumn ? `${stockEntryColumn}` : "NULL"} as stock_entry,
         remarks
       FROM tabTransferCarton
       ${whereClause}
@@ -117,6 +229,8 @@ export const getTransferCartons = async (req, res) => {
       sealed_on: row.sealed_on ? row.sealed_on.toISOString() : null,
       dispatched_on: row.dispatched_on ? row.dispatched_on.toISOString() : null,
       updated_on: row.updated_on ? row.updated_on.toISOString() : null,
+      purchase_receipt: row.purchase_receipt || null,
+      stock_entry: row.stock_entry || null,
       remarks: row.remarks || null,
     }));
 
@@ -446,87 +560,15 @@ export const sealTransferCarton = async (req, res) => {
     if (isMaterialRequest) {
       const materialRequest = transferOrder;
 
-      // Get all items in this sealed transfer carton from scan events
-      // Try multiple methods to find items:
-      // 1. By tc_id (preferred)
-      // 2. By transfer_order if tc_id is not available
-      let cartonItems = [];
-
-      // Method 1: Find items by tc_id
-      const [itemsByTC] = await connection.execute(
-        `
-        SELECT DISTINCT item_code
-        FROM tabWmsScanEvent
-        WHERE tc_id = ?
-          AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC', 'SORT_TO_BOX')
-          AND item_code IS NOT NULL
-      `,
-        [tc_id]
+      const cartonItems = await getMaterialRequestItemCodesForTransferCarton(
+        connection,
+        tc_id,
+        materialRequest
       );
-
-      if (itemsByTC.length > 0) {
-        cartonItems = itemsByTC;
+      if (cartonItems.length > 0) {
         console.log(
-          `📦 Found ${cartonItems.length} item(s) in transfer carton ${tc_id} by tc_id`
+          `📦 Resolved ${cartonItems.length} item(s) for Material Request / transfer carton ${tc_id}`
         );
-      } else {
-        // Method 2: Find items by transfer_order and event time (if events don't have tc_id)
-        // Get transfer carton creation time to find events around that time
-        const [tcInfo] = await connection.execute(
-          `
-          SELECT created_on, sealed_on
-          FROM tabTransferCarton
-          WHERE tc_id = ?
-        `,
-          [tc_id]
-        );
-
-        if (tcInfo.length > 0) {
-          const tcCreatedOn = tcInfo[0].created_on;
-          const tcSealedOn = tcInfo[0].sealed_on || new Date();
-
-          // Find items picked for this Material Request around the time the carton was created/sealed
-          const [itemsByMR] = await connection.execute(
-            `
-            SELECT DISTINCT item_code
-            FROM tabWmsScanEvent
-            WHERE transfer_order = ?
-              AND event_type IN ('PACK_BOX_TO_TC', 'PACK_ITEM_TO_TC', 'SORT_TO_BOX')
-              AND item_code IS NOT NULL
-              AND event_time >= DATE_SUB(?, INTERVAL 1 HOUR)
-              AND event_time <= DATE_ADD(?, INTERVAL 1 HOUR)
-          `,
-            [materialRequest, tcCreatedOn, tcSealedOn]
-          );
-
-          if (itemsByMR.length > 0) {
-            cartonItems = itemsByMR;
-            console.log(
-              `📦 Found ${cartonItems.length} item(s) for Material Request ${materialRequest} by transfer_order (around TC creation/seal time)`
-            );
-          } else {
-            // Method 3: Find all items that are fully picked for this Material Request
-            // If we can't find items by events, mark all fully picked items as sealed
-            const [fullyPickedItems] = await connection.execute(
-              `
-              SELECT item_code
-              FROM tabMaterialRequestItem
-              WHERE parent_title = ?
-                AND picked_qty >= requested_qty
-                AND requested_qty > 0
-                AND status != 'Sealed'
-            `,
-              [materialRequest]
-            );
-
-            if (fullyPickedItems.length > 0) {
-              cartonItems = fullyPickedItems;
-              console.log(
-                `📦 Found ${cartonItems.length} fully picked item(s) for Material Request ${materialRequest} (fallback method)`
-              );
-            }
-          }
-        }
       }
 
       // Update status of Material Request items in this sealed transfer carton to "Sealed"
@@ -651,6 +693,278 @@ export const sealTransferCarton = async (req, res) => {
       error: {
         code: "DATABASE_ERROR",
         message: "Failed to seal transfer carton",
+        details: process.env.NODE_ENV === "development" ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * POST /api/transfer-cartons/reopen
+ * Unseal: status Sealed → Open. Dispatched (or Completed) is not allowed.
+ *
+ * Request body:
+ * { "tc_id", "reopened_by", "reason" (optional) }
+ */
+export const reopenTransferCarton = async (req, res) => {
+  const { tc_id, reopened_by, reason } = req.body;
+
+  if (!tc_id) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "tc_id is required",
+      },
+    });
+  }
+
+  const connection = await getConnection();
+
+  try {
+    const [tableInfo] = await connection.execute(`DESCRIBE tabTransferCarton`);
+    const allColumns = new Set(tableInfo.map((row) => row.Field));
+
+    let toColumn;
+    if (allColumns.has("to_no")) {
+      toColumn = "to_no";
+    } else if (allColumns.has("transfer_order")) {
+      toColumn = "transfer_order";
+    }
+
+    const [tcRows] = await connection.execute(
+      `
+      SELECT ${
+        toColumn || "transfer_order"
+      } as transfer_order, status, sealed_by, sealed_on
+      FROM tabTransferCarton
+      WHERE tc_id = ?
+    `,
+      [tc_id]
+    );
+
+    if (tcRows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: "TRANSFER_CARTON_NOT_FOUND",
+          message: `Transfer carton ${tc_id} not found`,
+        },
+      });
+    }
+
+    const transferOrder = tcRows[0].transfer_order;
+    const tcStatus = tcRows[0].status;
+    const isMaterialRequest =
+      transferOrder &&
+      (transferOrder.startsWith("MR-") || transferOrder.match(/^MR-\d+$/i));
+
+    if (tcStatus === "Dispatched") {
+      return res.status(409).json({
+        ok: false,
+        error: {
+          code: "TRANSFER_CARTON_CANNOT_REOPEN",
+          message:
+            "Cannot reopen a transfer carton that has been dispatched.",
+        },
+      });
+    }
+
+    if (tcStatus === "Completed") {
+      return res.status(409).json({
+        ok: false,
+        error: {
+          code: "TRANSFER_CARTON_CANNOT_REOPEN",
+          message:
+            "Cannot reopen a transfer carton in Completed status.",
+        },
+      });
+    }
+
+    if (tcStatus !== "Sealed") {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "INVALID_STATUS_FOR_REOPEN",
+          message: `Only Sealed transfer cartons can be reopened. Current status: ${tcStatus}`,
+        },
+      });
+    }
+
+    const setClauses = [
+      "status = 'Open'",
+      "sealed_by = NULL",
+      "sealed_on = NULL",
+      "updated_on = NOW()",
+    ];
+    const updateParams = [];
+
+    if (allColumns.has("reopened_by")) {
+      setClauses.push("reopened_by = ?");
+      updateParams.push(reopened_by ?? null);
+    }
+    if (allColumns.has("reopened_on")) {
+      setClauses.push("reopened_on = NOW()");
+    }
+    if (allColumns.has("reopen_reason")) {
+      setClauses.push("reopen_reason = ?");
+      updateParams.push(reason ?? null);
+    }
+
+    updateParams.push(tc_id);
+
+    const [result] = await connection.execute(
+      `
+      UPDATE tabTransferCarton
+      SET ${setClauses.join(", ")}
+      WHERE tc_id = ?
+        AND status = 'Sealed'
+    `,
+      updateParams
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(409).json({
+        ok: false,
+        error: {
+          code: "REOPEN_CONFLICT",
+          message:
+            "Transfer carton was not Sealed (it may have changed). Retry after refresh.",
+        },
+      });
+    }
+
+    // Material Request: reverse line "Sealed" and refresh MR header (aligned with seal / dispatch)
+    if (isMaterialRequest) {
+      const materialRequest = transferOrder;
+      const cartonItems = await getMaterialRequestItemCodesForTransferCarton(
+        connection,
+        tc_id,
+        materialRequest,
+        "reopen"
+      );
+
+      if (cartonItems.length > 0) {
+        const itemCodes = cartonItems.map((item) => item.item_code);
+        const placeholders = itemCodes.map(() => "?").join(",");
+
+        const [revertResult] = await connection.execute(
+          `
+          UPDATE tabMaterialRequestItem
+          SET status = CASE
+            WHEN picked_qty >= requested_qty AND requested_qty > 0 THEN 'Picked'
+            ELSE 'In Progress'
+          END,
+              updated_at = NOW()
+          WHERE parent_title = ?
+            AND item_code IN (${placeholders})
+            AND status = 'Sealed'
+        `,
+          [materialRequest, ...itemCodes]
+        );
+
+        console.log(
+          `↩️ Reopen ${tc_id}: reverted ${revertResult.affectedRows} Material Request line(s) from Sealed`
+        );
+      } else {
+        console.warn(
+          `⚠️  Reopen ${tc_id}: no MR line items resolved to revert (scan/MR heuristics).`
+        );
+      }
+
+      const [itemStatus] = await connection.execute(
+        `
+        SELECT
+          COUNT(*) as total_items,
+          SUM(CASE WHEN picked_qty >= requested_qty AND requested_qty > 0 THEN 1 ELSE 0 END) as fully_picked_items,
+          SUM(CASE WHEN picked_qty > 0 THEN 1 ELSE 0 END) as partially_picked_items
+        FROM tabMaterialRequestItem
+        WHERE parent_title = ?
+      `,
+        [materialRequest]
+      );
+
+      const totalItems = itemStatus[0].total_items || 0;
+      const fullyPickedItems = itemStatus[0].fully_picked_items || 0;
+      const partiallyPickedItems = itemStatus[0].partially_picked_items || 0;
+
+      const [tcStatusCounts] = await connection.execute(
+        `
+        SELECT
+          COUNT(*) as total_tcs,
+          SUM(CASE WHEN status = 'Sealed' OR status = 'Dispatched' THEN 1 ELSE 0 END) as sealed_tcs
+        FROM tabTransferCarton
+        WHERE ${toColumn || "transfer_order"} = ?
+      `,
+        [materialRequest]
+      );
+
+      const totalTCs = tcStatusCounts[0].total_tcs || 0;
+      const sealedTCs = tcStatusCounts[0].sealed_tcs || 0;
+
+      const [mrStatus] = await connection.execute(
+        `
+        SELECT status
+        FROM tabMaterialRequest
+        WHERE title = ?
+      `,
+        [materialRequest]
+      );
+
+      if (mrStatus.length > 0) {
+        const currentStatus = mrStatus[0].status;
+        let newStatus = currentStatus;
+
+        if (
+          fullyPickedItems === totalItems &&
+          totalItems > 0 &&
+          sealedTCs === totalTCs &&
+          totalTCs > 0
+        ) {
+          newStatus = "Picked";
+        } else if (currentStatus === "Picked" && sealedTCs < totalTCs) {
+          newStatus = "In Progress";
+        } else if (partiallyPickedItems > 0 && currentStatus === "Submitted") {
+          newStatus = "In Progress";
+        }
+
+        if (newStatus !== currentStatus) {
+          await connection.execute(
+            `
+            UPDATE tabMaterialRequest
+            SET status = ?,
+                updated_at = NOW()
+            WHERE title = ?
+          `,
+            [newStatus, materialRequest]
+          );
+
+          console.log(
+            `✅ Material Request ${materialRequest}: "${currentStatus}" → "${newStatus}" after reopening ${tc_id}`
+          );
+        }
+      }
+    }
+
+    return res.json({
+      ok: true,
+      message: "Transfer carton reopened (unsealed) successfully",
+      data: {
+        tc_id,
+        status: "Open",
+        reopened_by: reopened_by ?? null,
+        reason: reason ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to reopen transfer carton:", error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to reopen transfer carton",
         details: process.env.NODE_ENV === "development" ? error.message : null,
       },
     });
@@ -1280,6 +1594,19 @@ export const getTransferCartonById = async (req, res) => {
       );
     }
 
+    const purchaseReceiptColumn = allColumns.has("purchase_receipt_no")
+      ? "purchase_receipt_no"
+      : allColumns.has("purchase_receipt")
+      ? "purchase_receipt"
+      : null;
+    const stockEntryColumn = allColumns.has("warehouse_transfer_no")
+      ? "warehouse_transfer_no"
+      : allColumns.has("stock_entry_no")
+      ? "stock_entry_no"
+      : allColumns.has("stock_entry")
+      ? "stock_entry"
+      : null;
+
     // Get transfer carton
     const [rows] = await connection.execute(
       `
@@ -1295,6 +1622,8 @@ export const getTransferCartonById = async (req, res) => {
         sealed_on,
         dispatched_on,
         updated_on,
+        ${purchaseReceiptColumn ? `${purchaseReceiptColumn}` : "NULL"} as purchase_receipt,
+        ${stockEntryColumn ? `${stockEntryColumn}` : "NULL"} as stock_entry,
         remarks
       FROM tabTransferCarton
       WHERE tc_id = ?
@@ -1594,6 +1923,8 @@ export const getTransferCartonById = async (req, res) => {
       updated_on: transferCarton.updated_on
         ? transferCarton.updated_on.toISOString()
         : null,
+      purchase_receipt: transferCarton.purchase_receipt || null,
+      stock_entry: transferCarton.stock_entry || null,
       remarks: transferCarton.remarks || null,
       contents: cartonContents, // Transfer carton contents from WMS Scan Events
     };
@@ -1692,6 +2023,22 @@ export const addItemsToTransferCarton = async (req, res) => {
           code: 'INVALID_STATUS',
           message: `Cannot add items to Transfer Carton ${tc_id}. Current status: ${transferCarton.status}`
         }
+      });
+    }
+
+    const { findMissingItemCodesInMaster } = await import('../../utils/itemMasterValidate.js');
+    const missTc = await findMissingItemCodesInMaster(
+      connection,
+      items.map((i) => i.item_code)
+    );
+    if (missTc.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'ITEM_NOT_IN_MASTER',
+          message: `Item code(s) not in Item master (tabItem): ${missTc.join(', ')}`,
+          missing_item_codes: missTc,
+        },
       });
     }
     

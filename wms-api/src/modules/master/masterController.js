@@ -244,13 +244,39 @@ export const getAsnByNumber = async (req, res) => {
 
     const asn = asnRows[0];
 
-    // Get ASN item details (cartons)
+    // Resolve receiving-carton ASN column name by schema (asn_no vs advance_shipping_notice).
+    const [rcAsnCols] = await connection.execute(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabReceivingCarton'
+        AND COLUMN_NAME IN ('asn_no', 'advance_shipping_notice')
+    `);
+    const receivingAsnCol = rcAsnCols.some((r) => r.COLUMN_NAME === 'asn_no')
+      ? 'asn_no'
+      : 'advance_shipping_notice';
+
+    // Get ASN item details enriched with latest receiving/lock info per carton.
     const [itemRows] = await connection.execute(
-      `SELECT item_code, po_item_reference, shipped_qty, 
-              carton_id, carton_assigned_status
-       FROM tabAsnItemDetails
-       WHERE parent_title = ?
-       ORDER BY item_code, carton_id`,
+      `SELECT d.item_code, d.po_item_reference, d.shipped_qty,
+              d.carton_id, d.carton_assigned_status,
+              rc.status AS receiving_status,
+              rc.inbound_session,
+              rc.opened_by,
+              rc.locked_by,
+              rc.locked_on
+       FROM tabAsnItemDetails d
+       LEFT JOIN tabReceivingCarton rc
+         ON rc.carton_id = d.carton_id
+        AND rc.${receivingAsnCol} = d.parent_title
+        AND rc.updated_on = (
+          SELECT MAX(rc2.updated_on)
+          FROM tabReceivingCarton rc2
+          WHERE rc2.carton_id = d.carton_id
+            AND rc2.${receivingAsnCol} = d.parent_title
+        )
+       WHERE d.parent_title = ?
+       ORDER BY d.item_code, d.carton_id`,
       [asn_no]
     );
 
@@ -260,7 +286,13 @@ export const getAsnByNumber = async (req, res) => {
       po_item_reference: row.po_item_reference || null,
       shipped_qty: parseFloat(row.shipped_qty) || 0,
       carton_id: row.carton_id || null,
-      carton_assigned_status: row.carton_assigned_status || 'Assigned'
+      carton_assigned_status: row.carton_assigned_status || 'Assigned',
+      carton_status: row.receiving_status || row.carton_assigned_status || 'Assigned',
+      receiving_status: row.receiving_status || null,
+      inbound_session: row.inbound_session || null,
+      opened_by: row.opened_by || null,
+      locked_by: row.locked_by || null,
+      locked_on: row.locked_on ? new Date(row.locked_on).toISOString() : null
     }));
 
     // Format response

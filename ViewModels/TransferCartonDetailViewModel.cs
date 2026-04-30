@@ -39,7 +39,8 @@ public partial class TransferCartonDetailViewModel : ObservableObject
 
     public bool CanPrintLabel => true; // Can always print label
 
-    public bool CanPrintPackingList => true;
+    /// <summary>Allow printing packing list only after Stock Entry is linked.</summary>
+    public bool CanPrintPackingList => !string.IsNullOrWhiteSpace(_warehouseTransferDisplay);
 
     /// <summary>True when a Stock Entry has been created for this transfer carton (Warehouse Transfer number is set).</summary>
     public bool CanPrintOutSlip => !string.IsNullOrWhiteSpace(_warehouseTransferDisplay);
@@ -74,6 +75,7 @@ public partial class TransferCartonDetailViewModel : ObservableObject
             if (SetProperty(ref _warehouseTransferDisplay, value))
             {
                 OnPropertyChanged(nameof(CanPrintOutSlip));
+                OnPropertyChanged(nameof(CanPrintPackingList));
                 OnPropertyChanged(nameof(CanGetPurchaseReceipt));
                 OnPropertyChanged(nameof(CanGenerateStockEntry));
             }

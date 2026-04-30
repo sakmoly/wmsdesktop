@@ -5,8 +5,12 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="Transfer Order Details"
-        Height="420" Width="800"
-        WindowStartupLocation="CenterOwner">
+        Height="620"
+        Width="1000"
+        MinHeight="520"
+        MinWidth="880"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
     <Grid Background="#F3F4F6" Margin="8">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -177,6 +181,18 @@
                        Foreground="#1D4ED8"
                        VerticalAlignment="Center" />
             <TextBlock Text="{Binding TotalQty, StringFormat=Total Qty: {0}}"
+                       Margin="0,0,16,0"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       Foreground="#1D4ED8"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TotalSortedQty, StringFormat=Total Sorted: {0}}"
+                       Margin="0,0,16,0"
+                       FontSize="14"
+                       FontWeight="Bold"
+                       Foreground="#1D4ED8"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TotalPackedQty, StringFormat=Total Packed: {0}}"
                        Margin="0,0,24,0"
                        FontSize="14"
                        FontWeight="Bold"

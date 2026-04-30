@@ -15,6 +15,8 @@ public class AsnSyncResult
 {
     public bool Success { get; set; }
     public int TotalFetched { get; set; }
+    /// <summary>ASNs present in ERP response but not upserted because WMS already has terminal status (e.g. Received).</summary>
+    public int AsnsSkippedLocalTerminal { get; set; }
     public int AsnsInserted { get; set; }
     public int AsnsUpdated { get; set; }
     public int ItemsInserted { get; set; }
@@ -65,7 +67,21 @@ public static class AsnSyncFromErpNextService
                     byTitle[title] = asn;
             }
 
+            var skipTerminalTitles = await ErpSyncPullHeaderStatus.GetAsnTitlesToSkipOnErpPullAsync(connection);
+            var skipped = 0;
+            foreach (var t in skipTerminalTitles)
+            {
+                if (byTitle.Remove(t)) skipped++;
+            }
+
+            result.AsnsSkippedLocalTerminal = skipped;
             result.TotalFetched = byTitle.Count;
+            if (skipped > 0)
+            {
+                ErrorLogService.LogInfo(
+                    $"AsnSyncFromErpNextService: Skipped {skipped} ASN(s) already terminal in WMS (Received/Completed/Cancelled/Closed); not upserting. ERP payload unchanged — narrow get_asns_for_wms on ERPNext to reduce network.");
+            }
+
             ErrorLogService.LogInfo($"AsnSyncFromErpNextService: Syncing {result.TotalFetched} ASN(s) with items.");
 
             // Resolve default_receiving_warehouse_code (e.g. WH-MAIN) for tabAdvanceShippingNotice.warehouse
@@ -79,6 +95,7 @@ public static class AsnSyncFromErpNextService
             else if (string.IsNullOrEmpty(defaultWarehouseCode))
                 defaultWarehouseCode = "WH-MAIN";
 
+            var asnsUpsertedWithItems = new List<string>();
             foreach (var kv in byTitle)
             {
                 var asn = kv.Value;
@@ -99,6 +116,13 @@ public static class AsnSyncFromErpNextService
                     var items = asn.Items ?? new List<ErpNextAsnItemDto>();
                     if (totalQty == 0 && items.Count > 0)
                         totalQty = items.Sum(i => i.ShippedQty);
+
+                    if (!items.Any(i => !string.IsNullOrWhiteSpace((i.ItemCode ?? "").Trim())))
+                    {
+                        ErrorLogService.LogInfo(
+                            $"AsnSyncFromErpNextService: Skipping ASN {title}: ERP payload has no item lines (include_items missing or empty). Desktop DB not updated.");
+                        continue;
+                    }
 
                     var asnSql = @"INSERT INTO tabAdvanceShippingNotice 
                         (title, status, purchase_order, supplier, shipment_date, expected_arrival_date, 
@@ -121,10 +145,12 @@ public static class AsnSyncFromErpNextService
                     var shipmentType = asn.ResolvedShipmentType;
                     if (string.IsNullOrWhiteSpace(shipmentType))
                         ErrorLogService.LogInfo($"ASN {title}: shipment_type not in API response (check get_asns_for_wms returns shipment_type or shipmentType).");
+                    var existingAsnStatus = await ErpSyncPullHeaderStatus.ReadStatusAsync(connection, "tabAdvanceShippingNotice", title);
+                    var headerStatus = ErpSyncPullHeaderStatus.MergeAsnStatus(existingAsnStatus, asn.Status ?? "Draft", title);
                     await using (var cmd = new MySqlCommand(asnSql, connection))
                     {
                         cmd.Parameters.AddWithValue("@title", title);
-                        cmd.Parameters.AddWithValue("@status", asn.Status ?? "Draft");
+                        cmd.Parameters.AddWithValue("@status", headerStatus);
                         cmd.Parameters.AddWithValue("@po", (object?)asn.PurchaseOrder ?? DBNull.Value);
                         cmd.Parameters.AddWithValue("@supplier", asn.Supplier ?? "");
                         cmd.Parameters.AddWithValue("@shipDate", shipmentDate.Value);
@@ -161,6 +187,8 @@ public static class AsnSyncFromErpNextService
                         await itemCmd.ExecuteNonQueryAsync();
                         result.ItemsInserted++;
                     }
+
+                    asnsUpsertedWithItems.Add(title);
                 }
                 catch (Exception ex)
                 {
@@ -171,9 +199,9 @@ public static class AsnSyncFromErpNextService
             }
 
             result.Success = true;
-            ErrorLogService.LogInfo($"ASN sync from ERPNext completed. Fetched: {result.TotalFetched}, ASNs inserted: {result.AsnsInserted}, updated: {result.AsnsUpdated}, items: {result.ItemsInserted}, errors: {result.Errors.Count}");
+            ErrorLogService.LogInfo($"ASN sync from ERPNext completed. Fetched (after local skip): {result.TotalFetched}, skipped terminal in WMS: {result.AsnsSkippedLocalTerminal}, ASNs inserted: {result.AsnsInserted}, updated: {result.AsnsUpdated}, items: {result.ItemsInserted}, errors: {result.Errors.Count}");
 
-            var asnNamesJustSynced = byTitle.Keys.ToList();
+            var asnNamesJustSynced = asnsUpsertedWithItems;
             if (asnNamesJustSynced.Count > 0 && endpoints.Count > 0)
             {
                 var (_, pushBaseUrl, pushApiKey) = endpoints[0];

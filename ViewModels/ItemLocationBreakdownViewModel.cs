@@ -87,21 +87,30 @@ public sealed class ItemLocationBreakdownViewModel : BaseViewModel
     {
         var list = new System.Collections.Generic.List<ItemLocationStock>();
         var rows = await CartonDataService.GetCartonStockAsync(settings, cartonId: null, itemCode: item.Code, warehouse: null, binLocation: null);
-        foreach (var row in rows.OrderBy(r => r.BinLocation).ThenBy(r => r.CartonId))
-        {
-            if (row.Qty <= 0) continue;
-            list.Add(new ItemLocationStock
+        // tabCartonStock can contain multiple physical rows for the same logical slot (same warehouse/bin/carton/item)
+        // when inserts were used instead of upserts — show one line per slot and sum qty so Total Balance matches reality.
+        var grouped = rows
+            .Where(r => r.Qty > 0)
+            .GroupBy(r => new
+            {
+                Wh = (r.Warehouse ?? "").Trim(),
+                Bin = (r.BinLocation ?? "").Trim(),
+                Ctn = (r.CartonId ?? "").Trim()
+            })
+            .Select(g => new ItemLocationStock
             {
                 ItemCode = item.Code,
                 ItemName = item.Name,
-                Warehouse = warehouseCode,
-                LocationId = row.BinLocation ?? "",
-                CartonId = row.CartonId,
+                Warehouse = string.IsNullOrEmpty(g.Key.Wh) ? warehouseCode : g.Key.Wh,
+                LocationId = g.Key.Bin,
+                CartonId = string.IsNullOrEmpty(g.Key.Ctn) ? null : g.Key.Ctn,
                 InQty = 0,
                 OutQty = 0,
-                BalanceQty = row.Qty
-            });
-        }
+                BalanceQty = g.Sum(r => r.Qty)
+            })
+            .OrderBy(l => l.LocationId)
+            .ThenBy(l => l.CartonId ?? "");
+        list.AddRange(grouped);
         return list;
     }
 

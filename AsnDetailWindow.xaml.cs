@@ -81,12 +81,14 @@ public partial class AsnDetailWindow : Window
                 }
                 else
                 {
+                    // PR generation failed, allow user to push received qty again.
+                    AsnPushStateService.SetErpReadyForPurchaseReceipt(_asnTitle, false);
                     await RefreshAsnAsync();
                     RefreshPrimaryErpAsnActionButtonBindings();
                     MessageBox.Show(
                         string.IsNullOrWhiteSpace(prError)
-                            ? "Purchase Receipt was not created (no document number returned). Check ERPNext and try again."
-                            : $"Purchase Receipt was not created:\n{prError}",
+                            ? "Purchase Receipt was not created (no document number returned). The button is switched back to \"Update Received Qty to ERPNext\" so you can re-sync and try again."
+                            : $"Purchase Receipt was not created:\n{prError}\n\nThe button is switched back to \"Update Received Qty to ERPNext\" so you can re-sync and try again.",
                         "Generate Purchase Receipt",
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);

@@ -1357,15 +1357,24 @@ public static class ErpNextWmsSyncApiService
         var countedOnStr = countedOn.ToString("yyyy-MM-dd HH:mm:ss");
 
         // Final payload format: no bin_location at header; each line has item_code, bin_location, carton_id, counted_qty, uom.
+        // When the task has a zone (single-bin cycle count), send that bin on every line for ERP. Otherwise a typo or
+        // stale bin on individual lines (e.g. OWPALI vs OWPALT) causes LinkValidationError in ERPNext.
         var lines = task.Lines
             .Where(l => l.ActualQty.HasValue)
-            .Select(l => new CycleCountPushLineDto
+            .Select(l =>
             {
-                ItemCode = (l.ItemCode ?? "").Trim(),
-                BinLocation = (l.BinLocation ?? taskZone).Trim(),
-                CartonId = string.IsNullOrWhiteSpace(l.CartonId) ? null : (l.CartonId ?? "").Trim(),
-                CountedQty = l.ActualQty ?? 0,
-                Uom = "Nos"
+                var lineBin = (l.BinLocation ?? "").Trim();
+                var binForErp = !string.IsNullOrWhiteSpace(taskZone)
+                    ? taskZone
+                    : lineBin;
+                return new CycleCountPushLineDto
+                {
+                    ItemCode = (l.ItemCode ?? "").Trim(),
+                    BinLocation = binForErp,
+                    CartonId = string.IsNullOrWhiteSpace(l.CartonId) ? null : (l.CartonId ?? "").Trim(),
+                    CountedQty = l.ActualQty ?? 0,
+                    Uom = "Nos"
+                };
             })
             .ToList();
 

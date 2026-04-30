@@ -394,7 +394,7 @@ public partial class SettingsViewModel : ObservableObject
         {
             var result = await AsnSyncFromErpNextService.SyncAsnsFromErpNextAsync(settings);
             var msg = result.Success
-                ? $"ASN sync completed.\n\nFetched: {result.TotalFetched}, ASNs inserted: {result.AsnsInserted}, updated: {result.AsnsUpdated}, items: {result.ItemsInserted}"
+                ? $"ASN sync completed.\n\nFetched (processed): {result.TotalFetched}, skipped (terminal in WMS): {result.AsnsSkippedLocalTerminal}, ASNs inserted: {result.AsnsInserted}, updated: {result.AsnsUpdated}, items: {result.ItemsInserted}"
                 : "ASN sync failed:\n\n" + string.Join("\n", result.Errors);
             if (result.Errors.Count > 0) msg += $"\n\nErrors: {result.Errors.Count}";
             MessageBox.Show(msg, "Sync ASNs (ERPNext)", MessageBoxButton.OK, result.Success ? MessageBoxImage.Information : MessageBoxImage.Error);

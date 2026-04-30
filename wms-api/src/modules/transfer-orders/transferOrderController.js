@@ -1,5 +1,7 @@
 // Transfer Order operations - Update quantities endpoint
 
+import { getConnection } from '../../db/connection.js';
+import { backfillSortToBoxTransferOrder } from '../../services/backfillScanEventTransferOrder.js';
 import { updateTransferOrderQuantities, updateAllTransferOrderQuantities } from './updateTransferOrderQuantities.js';
 
 /**
@@ -61,6 +63,54 @@ export const updateAllTransferOrderQuantitiesEndpoint = async (req, res) => {
         details: process.env.NODE_ENV === 'development' ? error.message : null
       }
     });
+  }
+};
+
+/**
+ * POST /api/transfer-orders/backfill-scan-transfer-order
+ * Body/query: apply=true to execute; default dry-run (counts only).
+ * Sets tabWmsScanEvent.transfer_order for SORT_TO_BOX from sort box + TO; when apply is true,
+ * runs update-all TO quantities afterward.
+ */
+export const backfillScanEventTransferOrderEndpoint = async (req, res) => {
+  const apply =
+    req.body?.apply === true ||
+    req.query?.apply === '1' ||
+    String(req.query?.apply || '').toLowerCase() === 'true';
+
+  const connection = await getConnection();
+  try {
+    const data = await backfillSortToBoxTransferOrder(connection, {
+      dryRun: !apply,
+    });
+
+    if (!data.ok) {
+      return res.status(400).json({ ok: false, data });
+    }
+
+    if (apply) {
+      await updateAllTransferOrderQuantities();
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        ...data,
+        quantities_refreshed: Boolean(apply),
+      },
+    });
+  } catch (error) {
+    console.error('backfillScanEventTransferOrder error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'BACKFILL_ERROR',
+        message: 'Backfill failed',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
   }
 };
 

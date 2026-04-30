@@ -2,7 +2,8 @@
 // Transfer carton routes
 
 import express from 'express';
-import { getTransferCartons, getTransferCartonById, createTransferCarton, sealTransferCarton, dispatchTransferCarton, addItemsToTransferCarton } from '../modules/transfer-cartons/transferCartonController.js';
+import { getTransferCartons, getTransferCartonById, createTransferCarton, sealTransferCarton, reopenTransferCarton, dispatchTransferCarton, addItemsToTransferCarton } from '../modules/transfer-cartons/transferCartonController.js';
+import { packBoxIntoTransferCarton } from '../modules/transfer-cartons/packBoxIntoTransferCarton.js';
 import { authenticateToken } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -16,8 +17,14 @@ router.post('/create', authenticateToken, createTransferCarton);
 // POST /api/transfer-cartons/seal - Seal transfer cartons (must come before /:tc_id)
 router.post('/seal', authenticateToken, sealTransferCarton);
 
+// POST /api/transfer-cartons/reopen - Unseal (Sealed → Open); not for Dispatched
+router.post('/reopen', authenticateToken, reopenTransferCarton);
+
 // POST /api/transfer-cartons/dispatch - Dispatch transfer cartons (must come before /:tc_id)
 router.post('/dispatch', authenticateToken, dispatchTransferCarton);
+
+// POST /api/transfer-cartons/:tc_id/pack-box - Server-authoritative pack (Closed sort box -> Open TC)
+router.post('/:tc_id/pack-box', authenticateToken, packBoxIntoTransferCarton);
 
 // POST /api/transfer-cartons/:tc_id/add-items - Add items to an existing transfer carton (must come before /:tc_id)
 router.post('/:tc_id/add-items', authenticateToken, addItemsToTransferCarton);

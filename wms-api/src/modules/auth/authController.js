@@ -4,16 +4,36 @@
 import { getConnection } from '../../db/connection.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { randomUUID } from 'crypto';
+import {
+  upsertDevicePending,
+  getDeviceStatus,
+  getActiveMobileSessionForUser,
+  revokeAllSessionsForUser,
+  insertMobileSession,
+  revokeSessionByJti,
+  isMobileSessionActive,
+  approveDeviceById,
+  disableDeviceById,
+  deleteRegisteredDeviceById,
+  isAdminUser,
+  isSupervisorOrAdminUser,
+  listActiveMobileSessions,
+  adminReleaseMobileSessionByJti,
+  adminReleaseMobileSessionsByUser,
+  adminReleaseMobileSessionsByDevice,
+} from '../../services/mobileSessionService.js';
 
 /**
  * POST /api/auth/login
  * User login endpoint
  * 
- * Request Body:
- * {
- *   "user_code": "USER-172188",
- *   "password": "password123"
- * }
+ * Request Body (desktop):
+ * { "user_code": "USER-172188", "password": "password123" }
+ *
+ * Mobile (optional): device_id, device_label, client_type: "mobile",
+ * replace_other_mobile_session: true — after credential check, revokes other
+ * devices' mobile sessions for this user then issues a new token.
  * 
  * Response:
  * {
@@ -43,7 +63,19 @@ export const login = async (req, res) => {
   process.stderr.write(logMessage);
   process.stdout.write(logMessage);
   
-  const { user_code, password } = req.body;
+  const {
+    user_code,
+    password,
+    device_id,
+    device_label,
+    client_type,
+    replace_other_mobile_session,
+  } = req.body;
+
+  const replaceOtherMobileSession =
+    replace_other_mobile_session === true ||
+    replace_other_mobile_session === 1 ||
+    String(replace_other_mobile_session || '').toLowerCase() === 'true';
   
   console.error(`[${timestamp}] Body parsed - user_code: ${user_code}, password: ${password ? '***' : 'MISSING'}`);
   console.log(`[${timestamp}] Body parsed - user_code: ${user_code}, password: ${password ? '***' : 'MISSING'}`);
@@ -195,41 +227,117 @@ export const login = async (req, res) => {
 
     console.log(`[${timestamp}] ✅ Password validated successfully`);
 
-    // Generate JWT token
     const jwtSecret = process.env.JWT_SECRET || 'default-secret-key-change-in-production';
     const expiresIn = process.env.JWT_EXPIRES_IN || '7d';
-    
-    console.log(`[${timestamp}] 🔑 Generating JWT token...`);
-    const token = jwt.sign(
-      {
+
+    const rawDevice = device_id != null ? String(device_id).trim() : '';
+    const ct = client_type != null ? String(client_type).trim().toLowerCase() : '';
+    const isMobileClient =
+      ct === 'mobile' || (rawDevice.length > 0 && ct !== 'desktop');
+
+    if (ct === 'mobile' && !rawDevice) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'client_type mobile requires device_id (app-generated UUID)',
+        },
+      });
+    }
+
+    let token;
+    let expiresInSeconds;
+    let responseClientType = 'desktop';
+    let deviceStatusOut = null;
+
+    if (isMobileClient && rawDevice) {
+      responseClientType = 'mobile';
+      const active = await getActiveMobileSessionForUser(connection, user.user_code);
+      if (active && active.device_id !== rawDevice) {
+        if (!replaceOtherMobileSession) {
+          return res.status(409).json({
+            ok: false,
+            success: false,
+            error: {
+              code: 'AUTH_SESSION_EXISTS',
+              message:
+                'This user is already logged in on another mobile device. Log out there first, or retry login with replace_other_mobile_session: true to use this device.',
+              active_device_id: active.device_id,
+            },
+          });
+        }
+        console.log(
+          `[${timestamp}] 🔁 replace_other_mobile_session: revoking other mobile session(s) for ${user.user_code} (was device ${active.device_id})`
+        );
+      }
+
+      await revokeAllSessionsForUser(connection, user.user_code);
+
+      deviceStatusOut = await upsertDevicePending(connection, rawDevice, device_label || null);
+      const st = await getDeviceStatus(connection, rawDevice);
+      if (st === 'disabled') {
+        return res.status(403).json({
+          ok: false,
+          success: false,
+          error: {
+            code: 'DEVICE_DISABLED',
+            message: 'This device is disabled. Contact an administrator.',
+          },
+        });
+      }
+
+      const jti = randomUUID();
+      const payload = {
         user_code: user.user_code,
         user_id: user.user_code,
-        role: user.role || 'operator'
-      },
-      jwtSecret,
-      { expiresIn }
-    );
+        role: user.role || 'operator',
+        typ: 'mobile',
+        device_id: rawDevice,
+        jti,
+      };
 
-    // Calculate expires_in in seconds
-    const expiresInSeconds = expiresIn === '7d' ? 604800 : 
-                            expiresIn === '1d' ? 86400 :
-                            expiresIn === '1h' ? 3600 : 604800;
+      token = jwt.sign(payload, jwtSecret, { expiresIn });
+      const decoded = jwt.decode(token);
+      expiresInSeconds =
+        typeof decoded?.exp === 'number' && typeof decoded?.iat === 'number'
+          ? decoded.exp - decoded.iat
+          : 604800;
 
-    console.log(`[${timestamp}] ✅ LOGIN SUCCESS for user: ${user_code}`);
-    console.log(`[${timestamp}] Token generated, expires in: ${expiresInSeconds} seconds`);
+      await insertMobileSession(connection, {
+        jti,
+        userCode: user.user_code,
+        deviceId: rawDevice,
+        expUnix: decoded.exp,
+      });
+    } else {
+      token = jwt.sign(
+        {
+          user_code: user.user_code,
+          user_id: user.user_code,
+          role: user.role || 'operator',
+        },
+        jwtSecret,
+        { expiresIn }
+      );
+      expiresInSeconds =
+        expiresIn === '7d' ? 604800 : expiresIn === '1d' ? 86400 : expiresIn === '1h' ? 3600 : 604800;
+    }
 
-    // Return success response
+    console.log(`[${timestamp}] ✅ LOGIN SUCCESS for user: ${user_code} (${responseClientType})`);
+
     res.json({
       ok: true,
-      success: true, // Desktop app expects this
+      success: true,
       data: {
         access_token: token,
         expires_in: expiresInSeconds,
+        client_type: responseClientType,
+        device_status: deviceStatusOut,
         user: {
           user_code: user.user_code,
-          name: user.name || user.user_code
-        }
-      }
+          name: user.name || user.user_code,
+        },
+      },
     });
     
     console.log(`[${timestamp}] ===== LOGIN REQUEST COMPLETE =====\n`);
@@ -258,6 +366,388 @@ export const login = async (req, res) => {
       connection.release();
       console.log(`[${timestamp}] 🔌 Database connection released`);
     }
+  }
+};
+
+/**
+ * POST /api/auth/logout — revokes mobile server session and releases carton locks for that session.
+ * Desktop tokens (no jti) return success without server-side state.
+ */
+export const logout = async (req, res) => {
+  if (!req.user?.jti || req.user.typ !== 'mobile') {
+    return res.json({
+      ok: true,
+      success: true,
+      message: 'No mobile session to revoke.',
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    await revokeSessionByJti(connection, req.user.jti);
+    return res.json({ ok: true, success: true });
+  } catch (error) {
+    console.error('logout error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Logout failed',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * GET /api/auth/session — for mobile settings / pending UI; returns device and session flags.
+ */
+export const getSession = async (req, res) => {
+  const connection = await getConnection();
+  try {
+    const isMobile = req.user?.typ === 'mobile' && req.user?.jti;
+    let device_status = null;
+    if (req.user?.device_id) {
+      device_status = await getDeviceStatus(connection, req.user.device_id);
+    }
+    let session_active = true;
+    if (isMobile) {
+      session_active = await isMobileSessionActive(connection, req.user.jti);
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        user_code: req.user.user_code || req.user.user_id,
+        client_type: isMobile ? 'mobile' : 'desktop',
+        device_id: req.user.device_id || null,
+        device_status,
+        session_active,
+      },
+    });
+  } catch (error) {
+    console.error('getSession error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to read session',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * POST /api/auth/admin/devices/:deviceId/approve — approves a pending device (admin users only).
+ */
+export const approveDevice = async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator role required' },
+    });
+  }
+  const { deviceId } = req.params;
+  if (!deviceId) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'deviceId is required' },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    const updated = await approveDeviceById(connection, deviceId);
+    return res.json({
+      ok: true,
+      data: { device_id: deviceId, approved: updated },
+    });
+  } catch (error) {
+    console.error('approveDevice error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to approve device',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * POST /api/auth/admin/devices/:deviceId/disable — disable device and revoke its sessions (admin only).
+ */
+export const disableDevice = async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator role required' },
+    });
+  }
+  const { deviceId } = req.params;
+  if (!deviceId) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'deviceId is required' },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    const [rows] = await connection.execute(
+      `SELECT status FROM wms_registered_device WHERE device_id = ? LIMIT 1`,
+      [deviceId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: { code: 'NOT_FOUND', message: 'Unknown device_id' },
+      });
+    }
+    if (rows[0].status === 'disabled') {
+      return res.json({
+        ok: true,
+        data: { device_id: deviceId, disabled: false, message: 'Device was already disabled' },
+      });
+    }
+
+    await disableDeviceById(connection, deviceId);
+    return res.json({
+      ok: true,
+      data: { device_id: deviceId, disabled: true },
+    });
+  } catch (error) {
+    console.error('disableDevice error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to disable device',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * DELETE /api/auth/admin/devices/:deviceId — remove registry row; revokes sessions (admin only).
+ */
+export const deleteDevice = async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator role required' },
+    });
+  }
+  const { deviceId } = req.params;
+  if (!deviceId) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'deviceId is required' },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    const [rows] = await connection.execute(
+      `SELECT device_id FROM wms_registered_device WHERE device_id = ? LIMIT 1`,
+      [deviceId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: { code: 'NOT_FOUND', message: 'Unknown device_id' },
+      });
+    }
+
+    const deleted = await deleteRegisteredDeviceById(connection, deviceId);
+    return res.json({
+      ok: true,
+      data: { device_id: deviceId, deleted },
+    });
+  } catch (error) {
+    console.error('deleteDevice error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to delete device',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * GET /api/auth/admin/devices?status=pending|approved|disabled|all — list registered devices (admin only).
+ */
+export const listRegisteredDevices = async (req, res) => {
+  if (!isAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator role required' },
+    });
+  }
+
+  const raw = String(req.query.status || 'all').toLowerCase();
+  const allowed = new Set(['pending', 'approved', 'disabled', 'all']);
+  const status = allowed.has(raw) ? raw : 'all';
+
+  const connection = await getConnection();
+  try {
+    let sql =
+      'SELECT device_id, status, label, created_at, approved_at FROM wms_registered_device';
+    const params = [];
+    if (status !== 'all') {
+      sql += ' WHERE status = ?';
+      params.push(status);
+    }
+    sql += ' ORDER BY created_at DESC';
+    const [rows] = await connection.execute(sql, params);
+    return res.json({ ok: true, data: { devices: rows } });
+  } catch (error) {
+    console.error('listRegisteredDevices error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to list devices',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * GET /api/auth/admin/mobile-sessions — active mobile sessions (supervisor or admin).
+ */
+export const listActiveMobileSessionsForAdmin = async (req, res) => {
+  if (!isSupervisorOrAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator or supervisor role required' },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    const sessions = await listActiveMobileSessions(connection);
+    return res.json({ ok: true, data: { sessions } });
+  } catch (error) {
+    console.error('listActiveMobileSessionsForAdmin error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to list mobile sessions',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * POST /api/auth/admin/mobile-sessions/release
+ * Body: { scope: "jti"|"user"|"device", reason: string, jti?, user_code?, device_id? }
+ */
+export const releaseMobileSessionForAdmin = async (req, res) => {
+  if (!isSupervisorOrAdminUser(req.user)) {
+    return res.status(403).json({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Administrator or supervisor role required' },
+    });
+  }
+
+  const releasedBy = String(req.user?.user_code || req.user?.user_id || 'unknown').trim() || 'unknown';
+  const { scope, jti, user_code, device_id, reason } = req.body || {};
+  const scopeNorm = String(scope || '').toLowerCase().trim();
+  const reasonTrim = String(reason || '').trim();
+  if (!reasonTrim || reasonTrim.length < 3) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'reason is required (at least 3 characters)' },
+    });
+  }
+  if (reasonTrim.length > 2000) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'reason must be 2000 characters or less' },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    let result;
+    if (scopeNorm === 'jti') {
+      const j = String(jti || '').trim();
+      if (!j) {
+        return res.status(400).json({
+          ok: false,
+          error: { code: 'VALIDATION_ERROR', message: 'jti is required when scope is jti' },
+        });
+      }
+      result = await adminReleaseMobileSessionByJti(connection, j, releasedBy, reasonTrim);
+    } else if (scopeNorm === 'user') {
+      const u = String(user_code || '').trim();
+      if (!u) {
+        return res.status(400).json({
+          ok: false,
+          error: { code: 'VALIDATION_ERROR', message: 'user_code is required when scope is user' },
+        });
+      }
+      result = await adminReleaseMobileSessionsByUser(connection, u, releasedBy, reasonTrim);
+    } else if (scopeNorm === 'device') {
+      const d = String(device_id || '').trim();
+      if (!d) {
+        return res.status(400).json({
+          ok: false,
+          error: { code: 'VALIDATION_ERROR', message: 'device_id is required when scope is device' },
+        });
+      }
+      result = await adminReleaseMobileSessionsByDevice(connection, d, releasedBy, reasonTrim);
+    } else {
+      return res.status(400).json({
+        ok: false,
+        error: { code: 'VALIDATION_ERROR', message: 'scope must be jti, user, or device' },
+      });
+    }
+
+    return res.json({
+      ok: true,
+      data: {
+        scope: scopeNorm,
+        sessions_revoked: result.sessionsRevoked,
+        locks_deleted: result.locksDeleted,
+      },
+    });
+  } catch (error) {
+    console.error('releaseMobileSessionForAdmin error:', error);
+    return res.status(500).json({
+      ok: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error?.message || 'Failed to release mobile session(s)',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
+    });
+  } finally {
+    connection.release();
   }
 };
 

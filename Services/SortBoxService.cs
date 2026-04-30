@@ -51,7 +51,15 @@ public static class SortBoxService
                 var eventTime = reader.GetDateTime(3);
                 var userId = reader.IsDBNull(4) ? null : reader.GetString(4);
 
-                var key = (itemCode, cartonId);
+                // Mobile often sends carton_id = box_id; that is not an inbound source carton — leave blank for display.
+                var normalizedCarton = string.IsNullOrWhiteSpace(cartonId) ? null : cartonId.Trim();
+                var sourceCarton =
+                    normalizedCarton != null
+                    && !string.Equals(normalizedCarton, boxId.Trim(), StringComparison.OrdinalIgnoreCase)
+                        ? normalizedCarton
+                        : null;
+
+                var key = (itemCode, sourceCarton);
                 
                 if (itemDict.ContainsKey(key))
                 {
@@ -72,7 +80,7 @@ public static class SortBoxService
                     itemDict[key] = new SortBoxItem
                     {
                         ItemCode = itemCode,
-                        SourceCartonId = cartonId,
+                        SourceCartonId = sourceCarton,
                         Qty = qty,
                         SortedOn = eventTime,
                         SortedBy = userId ?? string.Empty

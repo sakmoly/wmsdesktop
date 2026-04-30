@@ -584,15 +584,20 @@ async function testASNWorkflow() {
   console.log("\n🧪 Test 3.1b: Start Inbound Session (Mobile App Flow)");
   let inboundSessionId = null;
   try {
+    const inboundSessionClientId = `SESSION-TEST-${asnNumber.replace(/[^A-Z0-9]/gi, "")}-API`;
     const response = await httpRequest("POST", "/api/inbound/session/start", {
       source_type: "ASN",
       source_doc: asnNumber,
+      requested_session_id: inboundSessionClientId,
       warehouse: GENERAL_CONFIG.WAREHOUSE,
       dock: "DOCK-01",
       user_id: GENERAL_CONFIG.USER_ID,
     });
     if (response.status === 200 && (response.data?.success || response.data?.ok)) {
-      inboundSessionId = response.data?.session_id || response.data?.data?.session_id;
+      inboundSessionId =
+        response.data?.inbound_session ||
+        response.data?.session_id ||
+        response.data?.data?.session_id;
       console.log(`   ✅ Started inbound session: ${inboundSessionId}`);
       logTest("Start Inbound Session", true, `Session: ${inboundSessionId}`);
     } else {

@@ -2,7 +2,7 @@
 // Inbound session routes
 
 import express from 'express';
-import { receiveLines, updateInboundSession, completeInboundSession, getInboundSessions, createUnloadLine } from '../modules/inbound/inboundController.js';
+import { receiveLines, updateInboundSession, completeInboundSession, getInboundSessions, createUnloadLine, getUnloadLines } from '../modules/inbound/inboundController.js';
 import { 
   startInboundSession, 
   generateCartonId, 
@@ -17,6 +17,8 @@ const router = express.Router();
 // Unified Inbound APIs (new)
 // POST /api/inbound/session/start - Start inbound session
 router.post('/session/start', authenticateToken, startInboundSession);
+// Alias: some mobile builds call /api/inbound/start (same handler).
+router.post('/start', authenticateToken, startInboundSession);
 
 // POST /api/inbound/carton/generate - Generate carton ID
 router.post('/carton/generate', authenticateToken, generateCartonId);
@@ -37,7 +39,10 @@ router.get('/sessions', authenticateToken, getInboundSessions);
 // POST /api/inbound/receive-lines - Create/update receive lines (batch)
 router.post('/receive-lines', authenticateToken, receiveLines);
 
-// POST /api/inbound/unload-line - Create/update unload line
+// GET /api/inbound/unload-lines?parent_title=... - List unload lines for pre-check (multi-shape JSON)
+router.get('/unload-lines', authenticateToken, getUnloadLines);
+
+// POST /api/inbound/unload-line - Create unload line (409 DUPLICATE_UNLOAD if same session+unit exists)
 router.post('/unload-line', authenticateToken, createUnloadLine);
 
 // POST /api/inbound/update - Update inbound session (creates if doesn't exist)

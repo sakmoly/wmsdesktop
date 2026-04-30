@@ -19,6 +19,9 @@ import { logger } from '../../utils/logger.js';
  *       "device_id": "DEVICE-001",
  *       "user_id": "USER-172188",
  *       "advance_shipping_notice": "ASN-0001",
+ *       // Optional aliases (merged into advance_shipping_notice for DB — tabWmsScanEvent has no asn_no / transfer_in on many schemas):
+ *       // "asn_no": "ASN-0001",
+ *       // "transfer_in": "MAT-STE-2026-0180",
  *       "inbound_session": "SESSION-001",
  *       "carton_id": "CTN-0101",
  *       "item_code": "SKU-001",
@@ -128,6 +131,25 @@ export const batchEvents = async (req, res) => {
         source_bin = null,    // Support source_bin field directly
         notes = null
       } = event;
+
+      // tabWmsScanEvent: canonical doc ref column is advance_shipping_notice (ASN or Transfer In title).
+      // Mobile may send asn_no and/or transfer_in without advance_shipping_notice — map all into one value.
+      {
+        const fromAsn =
+          event.asn_no != null && String(event.asn_no).trim() !== ''
+            ? String(event.asn_no).trim()
+            : null;
+        const fromAdvance =
+          advance_shipping_notice != null &&
+          String(advance_shipping_notice).trim() !== ''
+            ? String(advance_shipping_notice).trim()
+            : null;
+        const fromTransferIn =
+          transfer_in != null && String(transfer_in).trim() !== ''
+            ? String(transfer_in).trim()
+            : null;
+        advance_shipping_notice = fromAsn || fromAdvance || fromTransferIn || null;
+      }
       
       // Use material_request if transfer_order is not provided (for Material Request events)
       const effectiveTransferOrder = transfer_order || material_request;
@@ -1846,7 +1868,16 @@ async function processPutawayEvent(connection, event) {
 
   // CRITICAL: For PUTAWAY (box-based), find ASN from tabsortbox or putaway lines
   // For backward compatibility, also try tabTransferCarton
-  let asnNo = advance_shipping_notice || null;
+  let asnNo =
+    (event.asn_no != null && String(event.asn_no).trim() !== ''
+      ? String(event.asn_no).trim()
+      : null) ||
+    (advance_shipping_notice != null && String(advance_shipping_notice).trim() !== ''
+      ? String(advance_shipping_notice).trim()
+      : null) ||
+    (event.transfer_in != null && String(event.transfer_in).trim() !== ''
+      ? String(event.transfer_in).trim()
+      : null);
   let inboundSession = null;
   
   // Priority 1: Try to get ASN from tabsortbox (for box-based putaway)
@@ -2199,12 +2230,12 @@ async function processPutawayEvent(connection, event) {
              FROM tabWmsScanEvent 
              WHERE event_type = 'SORT_TO_BOX' 
                AND item_code = ? 
-               AND (box_id = ? OR carton_id = ?)
-               AND qty > 0`,
+               AND (box_id = ? OR carton_id = ?)`,
             [item_code, box_id || cartonIdForLine, box_id || cartonIdForLine]
           );
-          if (qtyFromEvents.length > 0 && qtyFromEvents[0].total_qty) {
-            correctQty = parseFloat(qtyFromEvents[0].total_qty) || qty;
+          const totalFromEvents = qtyFromEvents[0]?.total_qty;
+          if (totalFromEvents != null) {
+            correctQty = parseFloat(totalFromEvents) || 0;
             logger.info(`[Putaway Event] Using quantity from SORT_TO_BOX events: ${correctQty} (event had: ${qty})`);
           }
         } catch (qtyError) {
@@ -2630,16 +2661,17 @@ export async function processPutawayCompletionEvent(connection, event) {
     }
     }
     
-    // Check if qty_before and qty_reduced columns exist in tabStockLedger
+    // Check if qty_before, qty_reduced, and carton_id columns exist in tabStockLedger
     const [stockLedgerColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = DATABASE() 
       AND TABLE_NAME = 'tabStockLedger' 
-      AND COLUMN_NAME IN ('qty_before', 'qty_reduced')
+      AND COLUMN_NAME IN ('qty_before', 'qty_reduced', 'carton_id')
     `);
     const hasQtyBefore = stockLedgerColumns.some(col => col.COLUMN_NAME === 'qty_before');
     const hasQtyReduced = stockLedgerColumns.some(col => col.COLUMN_NAME === 'qty_reduced');
+    const hasStockLedgerCartonId = stockLedgerColumns.some(col => col.COLUMN_NAME === 'carton_id');
     
     if (!putawayTaskTitle && putawayId) {
       // CRITICAL: Check if tc_id or box_id is a putaway task title (PUT- or TI-PUT-)
@@ -2826,39 +2858,53 @@ export async function processPutawayCompletionEvent(connection, event) {
       // If we reach here, this is the first time processing this task
       // Continue with stock updates (will commit at the end)
 
-      // Get all putaway lines for this task (include carton_id and location_id for tabCartonStock updates)
-      // Check if location_id column exists in tabPutawayLine
-      const [lineLocationColumns] = await connection.execute(`
+      // Get all putaway lines for this task (carton_id, box_id, location_id for stock + tabCartonStock)
+      const [lineExtraColumns] = await connection.execute(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = DATABASE() 
       AND TABLE_NAME = 'tabPutawayLine' 
-      AND COLUMN_NAME = 'location_id'
+      AND COLUMN_NAME IN ('location_id', 'box_id')
     `);
-      const hasLineLocationId = lineLocationColumns.length > 0;
+      const hasLineLocationId = lineExtraColumns.some((c) => c.COLUMN_NAME === 'location_id');
+      const hasLineBoxId = lineExtraColumns.some((c) => c.COLUMN_NAME === 'box_id');
     
       const locationIdSelect = hasLineLocationId ? ", location_id" : ", NULL as location_id";
+      const boxIdSelect = hasLineBoxId ? ", box_id" : ", NULL as box_id";
     
       // CRITICAL: For Transfer In putaway, if carton_id is provided in event, filter lines by carton_id
       // BUT: If carton_id is a putaway task title (PUT- or TI-PUT-), don't filter by it (it's not a real carton ID)
-      let putawayLinesQuery = `SELECT item_code, qty, rack, bin, carton_id${locationIdSelect} FROM tabPutawayLine WHERE parent_title = ? AND item_code IS NOT NULL AND qty > 0`;
+      let putawayLinesQuery = `SELECT item_code, qty, rack, bin, carton_id${boxIdSelect}${locationIdSelect} FROM tabPutawayLine WHERE parent_title = ? AND item_code IS NOT NULL AND qty > 0`;
       const putawayLinesParams = [putawayTaskTitle];
     
       // If carton_id is provided (for Transfer In putaway), filter by it
       // BUT: Skip filtering if carton_id is actually a putaway task title (not a real carton ID)
       // CRITICAL: For manual trigger, don't filter by carton_id if we want to process all lines
-      if (carton_id && !carton_id.startsWith('PUT-') && !carton_id.startsWith('TI-PUT-')) {
+      const filterScanId = (() => {
+        const c = carton_id != null ? String(carton_id).trim() : "";
+        const b = box_id != null ? String(box_id).trim() : "";
+        const pick = (id) =>
+          id && !id.startsWith("PUT-") && !id.startsWith("TI-PUT-") ? id : "";
+        return pick(c) || pick(b) || null;
+      })();
+      if (filterScanId) {
         // Only filter if we're processing a specific carton (not manual trigger)
         // For manual trigger, we want to process all lines regardless of carton_id
         // Check if this is a manual trigger by checking if item_code is null (manual trigger passes null)
         if (item_code !== null) {
-          putawayLinesQuery += ` AND carton_id = ?`;
-          putawayLinesParams.push(carton_id);
-          logger.info(`[Putaway Completion] Filtering putaway lines by carton_id: ${carton_id}`);
+          if (hasLineBoxId) {
+            putawayLinesQuery += ` AND (carton_id = ? OR box_id = ?)`;
+            putawayLinesParams.push(filterScanId, filterScanId);
+            logger.info(`[Putaway Completion] Filtering putaway lines by carton_id or box_id: ${filterScanId}`);
+          } else {
+            putawayLinesQuery += ` AND carton_id = ?`;
+            putawayLinesParams.push(filterScanId);
+            logger.info(`[Putaway Completion] Filtering putaway lines by carton_id: ${filterScanId}`);
+          }
         } else {
           logger.info(`[Putaway Completion] Manual trigger detected (item_code=null) - processing all lines for task, not filtering by carton_id`);
         }
-      } else if (carton_id && (carton_id.startsWith('PUT-') || carton_id.startsWith('TI-PUT-'))) {
+      } else if (carton_id && (String(carton_id).startsWith('PUT-') || String(carton_id).startsWith('TI-PUT-'))) {
         logger.info(`[Putaway Completion] carton_id ${carton_id} is a putaway task title, not filtering by it - will process all lines for task`);
       }
     
@@ -2876,6 +2922,7 @@ export async function processPutawayCompletionEvent(connection, event) {
           item_code: line.item_code,
           qty: line.qty,
           carton_id: line.carton_id || 'NULL',
+          box_id: hasLineBoxId ? (line.box_id || 'NULL') : 'N/A',
           location_id: line.location_id || 'NULL',
           rack: line.rack || 'NULL',
           bin: line.bin || 'NULL'
@@ -2892,6 +2939,22 @@ export async function processPutawayCompletionEvent(connection, event) {
       }
       
       logger.info(`${logPrefix} ✅ Found ${putawayLines.length} putaway line(s) for task ${putawayTaskTitle}`);
+
+      const { findMissingItemCodesInMaster } = await import("../../utils/itemMasterValidate.js");
+      const missingMasterItems = await findMissingItemCodesInMaster(
+        connection,
+        putawayLines.map((l) => l.item_code)
+      );
+      if (missingMasterItems.length > 0) {
+        logger.error(`${logPrefix} ❌ Item master validation failed`, { missingMasterItems });
+        await connection.rollback();
+        const err = new Error(
+          `ITEM_NOT_IN_MASTER: The following item codes are not in tabItem: ${missingMasterItems.join(", ")}`
+        );
+        err.code = "ITEM_NOT_IN_MASTER";
+        err.missing_item_codes = missingMasterItems;
+        throw err;
+      }
 
       // Get warehouse and putaway task info
       const [taskColumns] = await connection.execute(`
@@ -3035,6 +3098,7 @@ export async function processPutawayCompletionEvent(connection, event) {
           item_code: line.item_code,
           qty: line.qty,
           carton_id: line.carton_id || 'NULL',
+          box_id: hasLineBoxId ? (line.box_id || 'NULL') : 'N/A',
           location_id: line.location_id || 'NULL',
           rack: line.rack || 'NULL',
           bin: line.bin || 'NULL'
@@ -3043,7 +3107,20 @@ export async function processPutawayCompletionEvent(connection, event) {
         const lineQty = parseFloat(line.qty) || 0;
         const lineRack = line.rack || null;
         const lineBin = line.bin || null;
-        const cartonId = line.carton_id || null;
+        const lineBoxVal =
+          hasLineBoxId && line.box_id != null && String(line.box_id).trim() !== ''
+            ? String(line.box_id).trim()
+            : '';
+        const lineCartonVal =
+          line.carton_id != null && String(line.carton_id).trim() !== ''
+            ? String(line.carton_id).trim()
+            : '';
+        const eventBoxVal = box_id != null && String(box_id).trim() !== '' ? String(box_id).trim() : '';
+        const eventCartonVal =
+          carton_id != null && String(carton_id).trim() !== '' ? String(carton_id).trim() : '';
+        // Sort-box / Transfer In scans use box_id (e.g. SAKEER); prefer line + event box before physical carton id.
+        const cartonId =
+          lineBoxVal || eventBoxVal || lineCartonVal || eventCartonVal || null;
         const lineLocationId = line.location_id || null;
       
         // Determine target location (to_location_id)
@@ -3219,6 +3296,14 @@ export async function processPutawayCompletionEvent(connection, event) {
         
             let fromUpdateFields = `qty = ?`;
             let fromUpdateParams = [fromNewQty];
+
+            if (hasStockLedgerCartonId && cartonId) {
+              fromInsertFields += `, carton_id`;
+              fromInsertValues += `, ?`;
+              fromInsertParams.push(cartonId);
+              fromUpdateFields += `, carton_id = ?`;
+              fromUpdateParams.push(cartonId);
+            }
         
             if (hasQtyBefore) {
               fromInsertFields += `, qty_before`;
@@ -3279,6 +3364,14 @@ export async function processPutawayCompletionEvent(connection, event) {
       
         let toUpdateFields = `qty = ?`;
         let toUpdateParams = [newQty];
+
+        if (hasStockLedgerCartonId && cartonId) {
+          toInsertFields += `, carton_id`;
+          toInsertValues += `, ?`;
+          toInsertParams.push(cartonId);
+          toUpdateFields += `, carton_id = ?`;
+          toUpdateParams.push(cartonId);
+        }
       
         if (hasQtyBefore) {
           toInsertFields += `, qty_before`;

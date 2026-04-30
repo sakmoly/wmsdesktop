@@ -3,6 +3,228 @@
 
 import { getConnection } from '../../db/connection.js';
 
+/** @returns {Promise<object>} column flags for SORT_TO_BOX reads */
+export async function getWmsScanEventSortColumns(connection) {
+  const [eventColumns] = await connection.execute(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tabWmsScanEvent'
+      AND COLUMN_NAME IN (
+        'advance_shipping_notice', 'asn_no', 'carton_id', 'item_code', 'qty',
+        'user_id', 'event_time', 'box_id', 'created_at'
+      )
+  `);
+  const eventCols = new Set(eventColumns.map((r) => r.COLUMN_NAME));
+  return {
+    asnCol: eventCols.has('asn_no') ? 'asn_no' : 'advance_shipping_notice',
+    hasAsnCol: eventCols.has('asn_no') || eventCols.has('advance_shipping_notice'),
+    hasCartonId: eventCols.has('carton_id'),
+    hasItemCode: eventCols.has('item_code'),
+    hasQty: eventCols.has('qty'),
+    hasUserId: eventCols.has('user_id'),
+    hasEventTime: eventCols.has('event_time'),
+    hasBoxId: eventCols.has('box_id'),
+    hasCreatedAt: eventCols.has('created_at'),
+  };
+}
+
+function formatSortedOn(d) {
+  if (!d) return null;
+  const x = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(x.getTime())) return null;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())} ${p(x.getHours())}:${p(x.getMinutes())}`;
+}
+
+/**
+ * Same merge rules as desktop SortBoxService.GetBoxContentsAsync (WMS.Desktop):
+ * ORDER BY event_time DESC; group (item_code, carton_id); sum qty; latest event wins for sorted_on / sorted_by.
+ * @param {Array<{ item_code: string, carton_id?: string|null, qty: any, event_time: Date, user_id?: string|null }>} events rows already newest-first per box
+ * @param {boolean} hasCartonId
+ * @returns {Array<{ item_code: string, source_carton: string|null, scanned_qty: number, sorted_on: Date, sorted_by: string }>}
+ */
+function mergeSortToBoxEventsDesktopOrderDesc(events, hasCartonId) {
+  const map = new Map();
+  for (const row of events) {
+    const itemCode = row.item_code;
+    if (!itemCode) continue;
+    const cartonId =
+      hasCartonId && row.carton_id != null && row.carton_id !== ''
+        ? String(row.carton_id)
+        : null;
+    const qty = parseFloat(row.qty) || 0;
+    const eventTime =
+      row.event_time instanceof Date ? row.event_time : new Date(row.event_time);
+    const userId = row.user_id != null ? String(row.user_id) : '';
+    const key = `${itemCode}\0${cartonId ?? ''}`;
+    if (map.has(key)) {
+      const existing = map.get(key);
+      map.set(key, {
+        item_code: itemCode,
+        source_carton: cartonId,
+        scanned_qty: existing.scanned_qty + qty,
+        sorted_on:
+          eventTime > existing.sorted_on ? eventTime : existing.sorted_on,
+        sorted_by:
+          eventTime > existing.sorted_on ? userId : existing.sorted_by,
+      });
+    } else {
+      map.set(key, {
+        item_code: itemCode,
+        source_carton: cartonId,
+        scanned_qty: qty,
+        sorted_on: eventTime,
+        sorted_by: userId,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    (a.item_code || '').localeCompare(b.item_code || '')
+  );
+}
+
+/**
+ * Desktop-identical "Box Contents" lines from SORT_TO_BOX (single box_id).
+ */
+export async function getSortToBoxContentsDesktop(connection, boxId, cols) {
+  if (!cols.hasBoxId || !cols.hasItemCode || !cols.hasQty) {
+    return [];
+  }
+  const timeCol = cols.hasEventTime
+    ? 'event_time'
+    : cols.hasCreatedAt
+      ? 'created_at'
+      : null;
+  if (!timeCol) {
+    return [];
+  }
+  const hasCartonId = cols.hasCartonId;
+  const [events] = await connection.execute(
+    `
+    SELECT item_code,
+           ${hasCartonId ? 'carton_id' : 'NULL AS carton_id'},
+           qty,
+           ${timeCol} AS event_time,
+           ${cols.hasUserId ? 'user_id' : 'NULL AS user_id'}
+    FROM tabWmsScanEvent
+    WHERE event_type = 'SORT_TO_BOX'
+      AND box_id = ?
+      AND item_code IS NOT NULL
+    ORDER BY ${timeCol} DESC
+  `,
+    [boxId]
+  );
+  return mergeSortToBoxEventsDesktopOrderDesc(events, hasCartonId);
+}
+
+/**
+ * units_scanned + item_count per box using the same merge as desktop (not raw SQL DISTINCT).
+ */
+async function getBoxScanStatsDesktopBatch(connection, boxIds, cols) {
+  const map = new Map();
+  for (const id of boxIds) {
+    map.set(id, { units_scanned: 0, item_count: 0 });
+  }
+  if (!boxIds.length || !cols.hasBoxId || !cols.hasItemCode || !cols.hasQty) {
+    return map;
+  }
+  const timeCol = cols.hasEventTime
+    ? 'event_time'
+    : cols.hasCreatedAt
+      ? 'created_at'
+      : null;
+  if (!timeCol) {
+    return map;
+  }
+  const hasCartonId = cols.hasCartonId;
+  const placeholders = boxIds.map(() => '?').join(',');
+  const [allEvents] = await connection.execute(
+    `
+    SELECT box_id,
+           item_code,
+           ${hasCartonId ? 'carton_id' : 'NULL AS carton_id'},
+           qty,
+           ${timeCol} AS event_time,
+           ${cols.hasUserId ? 'user_id' : 'NULL AS user_id'}
+    FROM tabWmsScanEvent
+    WHERE event_type = 'SORT_TO_BOX'
+      AND item_code IS NOT NULL
+      AND box_id IN (${placeholders})
+    ORDER BY box_id ASC, ${timeCol} DESC
+  `,
+    boxIds
+  );
+  const byBox = new Map();
+  for (const e of allEvents) {
+    if (!byBox.has(e.box_id)) {
+      byBox.set(e.box_id, []);
+    }
+    byBox.get(e.box_id).push(e);
+  }
+  for (const id of boxIds) {
+    const evs = byBox.get(id) || [];
+    const lines = mergeSortToBoxEventsDesktopOrderDesc(evs, hasCartonId);
+    const units = lines.reduce((s, l) => s + (Number(l.scanned_qty) || 0), 0);
+    map.set(id, { units_scanned: units, item_count: lines.length });
+  }
+  return map;
+}
+
+/**
+ * Latest tc_id from item-level PACK_BOX_TO_TC per box (first row wins when ordered newest-first).
+ * @returns {Promise<Map<string, string>>}
+ */
+async function getLatestPackedTcByBoxIds(connection, boxIds) {
+  const map = new Map();
+  if (!boxIds.length) {
+    return map;
+  }
+  const [colCheck] = await connection.execute(`
+    SELECT COUNT(*) AS c
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tabWmsScanEvent'
+      AND COLUMN_NAME = 'tc_id'
+  `);
+  if (!colCheck[0]?.c) {
+    return map;
+  }
+  const placeholders = boxIds.map(() => '?').join(',');
+  const [evs] = await connection.execute(
+    `
+    SELECT box_id, tc_id, event_time
+    FROM tabWmsScanEvent
+    WHERE event_type = 'PACK_BOX_TO_TC'
+      AND item_code IS NOT NULL
+      AND box_id IN (${placeholders})
+    ORDER BY event_time DESC
+  `,
+    boxIds
+  );
+  for (const ev of evs) {
+    if (ev.tc_id && !map.has(ev.box_id)) {
+      map.set(ev.box_id, String(ev.tc_id));
+    }
+  }
+  return map;
+}
+
+/** ORDER BY for tabSortBox list (schema may use created_on or created_at). */
+async function getTabSortBoxOrderColumn(connection) {
+  const [cols] = await connection.execute(`
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'tabSortBox'
+      AND COLUMN_NAME IN ('created_on', 'created_at')
+  `);
+  const set = new Set(cols.map((r) => r.COLUMN_NAME));
+  if (set.has('created_on')) return 'created_on';
+  if (set.has('created_at')) return 'created_at';
+  return 'box_id';
+}
+
 /**
  * POST /api/boxes/create
  * POST /api/sort-box/create (alias)
@@ -408,7 +630,6 @@ export const closeBox = async (req, res) => {
             AND event_type = 'SORT_TO_BOX'
             AND item_code IS NOT NULL
             AND item_code != ''
-            AND qty > 0
           GROUP BY item_code, box_id
           HAVING SUM(qty) > 0
         `, [box_id]);
@@ -642,21 +863,22 @@ export const closeBox = async (req, res) => {
  * Example:
  * GET /api/boxes?asn=ASN-0001&store=STORE-001&status=Open
  * 
- * Response:
+ * Rows come from tabSortBox (WHERE advance_shipping_notice + store).
+ * units_scanned / item_count use desktop SortBoxService.GetBoxContentsAsync merge on SORT_TO_BOX.
+ *
+ * Response (each element):
  * {
- *   "ok": true,
- *   "data": [
- *     {
- *       "box_id": "BOX-STORE-001-001",
- *       "status": "Open",
- *       "asn_no": "ASN-0001",
- *       "to_no": "TO-0001",
- *       "store": "STORE-001",
- *       "purpose": "STORE",
- *       "created_by": "USER-172188",
- *       "created_on": "2024-12-25T10:30:23Z"
- *     }
- *   ]
+ *   "box_id": "PUT-1001011",
+ *   "asn_no": "WMS-ASN-EXT-00006",
+ *   "store": "004-ALRAS",
+ *   "status": "Open",
+ *   "created_by": "TESTUSER2",
+ *   "created_on": "2026-04-26 13:19",
+ *   "units_scanned": 4,
+ *   "item_count": 4,
+ *   "packed_tc_id": null,
+ *   "pack_eligible": true,
+ *   "pack_block_reason": null
  * }
  */
 export const getBoxes = async (req, res) => {
@@ -694,63 +916,71 @@ export const getBoxes = async (req, res) => {
   const connection = await getConnection();
 
   try {
-    // Build query with filters
-    // CRITICAL: Exclude closed warehouse boxes from Packing screen
-    // Closed warehouse boxes should go directly to Putaway, not Packing
+    // Main source: tabSortBox only (same as desktop / SQL you specified).
+    const orderCol = await getTabSortBoxOrderColumn(connection);
     let query = `
-      SELECT 
-        b.box_id,
-        b.status,
-        b.advance_shipping_notice as asn_no,
-        b.transfer_order as to_no,
-        b.store,
-        b.purpose,
-        b.created_by,
-        b.created_on,
-        b.closed_by,
-        b.closed_on,
-        b.dispatched_on,
-        b.received_at_store_on,
-        b.updated_on,
-        b.remarks
-      FROM tabSortBox b
-      LEFT JOIN tabWarehouse w ON b.store = w.code
-      WHERE b.advance_shipping_notice = ? AND b.store = ?
-        AND NOT (
-          b.status = 'Closed' 
-          AND w.warehouse_type = 'Warehouse'
-        )
+      SELECT *
+      FROM tabSortBox
+      WHERE advance_shipping_notice = ?
+        AND store = ?
     `;
-    
     const queryParams = [asn, store];
 
-    // Add status filter if provided
     if (status) {
-      query += ' AND b.status = ?';
+      query += ' AND status = ?';
       queryParams.push(status);
     }
 
-    query += ' ORDER BY b.created_on DESC';
+    query += ` ORDER BY \`${orderCol}\` DESC`;
 
     const [rows] = await connection.execute(query, queryParams);
 
-    // Format response
-    const boxes = rows.map(row => ({
-      box_id: row.box_id,
-      status: row.status,
-      asn_no: row.asn_no,
-      to_no: row.to_no || null,
-      store: row.store,
-      purpose: row.purpose || 'STORE',
-      created_by: row.created_by || null,
-      created_on: row.created_on ? row.created_on.toISOString() : null,
-      closed_by: row.closed_by || null,
-      closed_on: row.closed_on ? row.closed_on.toISOString() : null,
-      dispatched_on: row.dispatched_on ? row.dispatched_on.toISOString() : null,
-      received_at_store_on: row.received_at_store_on ? row.received_at_store_on.toISOString() : null,
-      updated_on: row.updated_on ? row.updated_on.toISOString() : null,
-      remarks: row.remarks || null
-    }));
+    const sortCols = await getWmsScanEventSortColumns(connection);
+    const boxIds = rows.map((r) => r.box_id);
+    const scanStats = await getBoxScanStatsDesktopBatch(
+      connection,
+      boxIds,
+      sortCols
+    );
+    const packedTcByBox = await getLatestPackedTcByBoxIds(connection, boxIds);
+
+    // Contract: tabSortBox row + live totals (desktop SortBoxService box contents logic).
+    const boxes = rows.map((row) => {
+      const stats = scanStats.get(row.box_id) || {
+        units_scanned: 0,
+        item_count: 0,
+      };
+      const createdRaw = row.created_on ?? row.created_at ?? null;
+      const packedTcId = packedTcByBox.get(row.box_id) || null;
+      const st = String(row.status || '').trim();
+      const isClosed = st.toLowerCase() === 'closed';
+      const isPackedStatus = st.toLowerCase() === 'packed';
+      let packEligible = false;
+      let packBlockReason = null;
+      if (isPackedStatus || packedTcId) {
+        packEligible = false;
+        packBlockReason = packedTcId ? 'ALREADY_PACKED' : 'BOX_ALREADY_PACKED';
+      } else if (!isClosed) {
+        packEligible = false;
+        packBlockReason = 'BOX_NOT_CLOSED';
+      } else {
+        packEligible = true;
+        packBlockReason = null;
+      }
+      return {
+        box_id: row.box_id,
+        asn_no: row.advance_shipping_notice,
+        store: row.store,
+        status: row.status,
+        created_by: row.created_by || null,
+        created_on: formatSortedOn(createdRaw),
+        units_scanned: stats.units_scanned,
+        item_count: stats.item_count,
+        packed_tc_id: packedTcId,
+        pack_eligible: packEligible,
+        pack_block_reason: packBlockReason,
+      };
+    });
 
     res.json({
       ok: true,
@@ -766,6 +996,98 @@ export const getBoxes = async (req, res) => {
         message: 'Failed to fetch boxes',
         details: process.env.NODE_ENV === 'development' ? error.message : null
       }
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * GET /api/boxes/:box_id/items?asn=...&store=... (optional store)
+ * Step 1: tabSortBox row. Step 2: same SORT_TO_BOX logic as desktop SortBoxService.GetBoxContentsAsync.
+ */
+export const getBoxItems = async (req, res) => {
+  const { box_id } = req.params;
+  const { asn, store } = req.query;
+
+  if (!box_id?.trim()) {
+    return res.status(400).json({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR', message: 'box_id is required' },
+    });
+  }
+  if (!asn?.trim()) {
+    return res.status(400).json({
+      ok: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'asn query parameter is required',
+      },
+    });
+  }
+
+  const connection = await getConnection();
+  try {
+    let sql = `
+      SELECT *
+      FROM tabSortBox
+      WHERE box_id = ?
+        AND advance_shipping_notice = ?
+    `;
+    const params = [box_id.trim(), asn.trim()];
+    if (store?.trim()) {
+      sql += ' AND store = ?';
+      params.push(store.trim());
+    }
+    sql += ' LIMIT 1';
+
+    const [rows] = await connection.execute(sql, params);
+    if (!rows.length) {
+      return res.status(404).json({
+        ok: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Box ${box_id} not found for this ASN${store?.trim() ? ' and store' : ''}`,
+        },
+      });
+    }
+
+    const box = rows[0];
+    const cols = await getWmsScanEventSortColumns(connection);
+    const linesRaw = await getSortToBoxContentsDesktop(connection, box.box_id, cols);
+    const items = linesRaw
+      .filter((row) => (Number(row.scanned_qty) || 0) > 0)
+      .map((row) => ({
+        item_code: row.item_code,
+        source_carton: row.source_carton,
+        scanned_qty: row.scanned_qty,
+        sorted_by: row.sorted_by || null,
+        sorted_on: formatSortedOn(row.sorted_on),
+      }));
+    const total_pieces = items.reduce(
+      (s, i) => s + (Number(i.scanned_qty) || 0),
+      0
+    );
+
+    res.json({
+      ok: true,
+      data: {
+        box_id: box.box_id,
+        asn_no: box.advance_shipping_notice,
+        store: box.store,
+        total_pieces: total_pieces,
+        items,
+      },
+    });
+  } catch (error) {
+    console.error(`Failed to fetch box items for ${box_id}:`, error);
+    res.status(500).json({
+      ok: false,
+      error: {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch box items',
+        details: process.env.NODE_ENV === 'development' ? error.message : null,
+      },
     });
   } finally {
     connection.release();
@@ -843,81 +1165,22 @@ export const getBoxById = async (req, res) => {
 
     const box = rows[0];
 
-    // Get box contents from SORT events
-    // Query tabWmsScanEvent where event_type = 'SORT_TO_BOX' and box_id matches
+    // Box contents: same logic as desktop SortBoxService.GetBoxContentsAsync
     let boxContents = [];
     try {
-      // Detect schema for ASN column in tabWmsScanEvent
-      const [eventColumns] = await connection.execute(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'tabWmsScanEvent'
-        AND COLUMN_NAME IN ('advance_shipping_notice', 'asn_no', 'carton_id', 'item_code', 'qty', 'user_id', 'event_time', 'box_id')
-      `);
-      const eventCols = new Set(eventColumns.map(r => r.COLUMN_NAME));
-      
-      const asnCol = eventCols.has('asn_no') ? 'asn_no' : 'advance_shipping_notice';
-      const hasCartonId = eventCols.has('carton_id');
-      const hasItemCode = eventCols.has('item_code');
-      const hasQty = eventCols.has('qty');
-      const hasUserId = eventCols.has('user_id');
-      const hasEventTime = eventCols.has('event_time');
-      const hasBoxId = eventCols.has('box_id');
-      
-      if (hasBoxId && hasItemCode) {
-        // Build query to get SORT_TO_BOX events for this box
-        const selectFields = [
-          hasItemCode ? 'item_code' : 'NULL as item_code',
-          hasCartonId ? 'carton_id' : 'NULL as carton_id',
-          hasQty ? 'qty' : '1 as qty',
-          hasUserId ? 'user_id' : 'NULL as user_id',
-          hasEventTime ? 'event_time' : 'created_at as event_time'
-        ];
-        
-        const [sortEvents] = await connection.execute(`
-          SELECT 
-            ${selectFields.join(', ')}
-          FROM tabWmsScanEvent
-          WHERE event_type = 'SORT_TO_BOX'
-            AND box_id = ?
-          ORDER BY ${hasEventTime ? 'event_time' : 'created_at'} DESC
-        `, [box_id]);
-        
-        // Group by item_code and carton_id, sum quantities
-        const contentsMap = new Map();
-        
-        for (const event of sortEvents) {
-          const key = `${event.item_code || ''}_${event.carton_id || ''}`;
-          
-          if (!contentsMap.has(key)) {
-            contentsMap.set(key, {
-              item_code: event.item_code || null,
-              source_carton: event.carton_id || null,
-              qty: parseFloat(event.qty) || 0,
-              sorted_by: event.user_id || null,
-              sorted_on: event.event_time ? event.event_time.toISOString() : null
-            });
-          } else {
-            // Sum quantities for same item_code + carton_id combination
-            const existing = contentsMap.get(key);
-            existing.qty += parseFloat(event.qty) || 0;
-            // Keep the latest sorted_on time
-            if (event.event_time && (!existing.sorted_on || new Date(event.event_time) > new Date(existing.sorted_on))) {
-              existing.sorted_on = event.event_time.toISOString();
-            }
-          }
-        }
-        
-        boxContents = Array.from(contentsMap.values())
-          .sort((a, b) => (a.item_code || '').localeCompare(b.item_code || ''));
-        
-        console.log(`✅ Found ${boxContents.length} items in box ${box_id} from SORT events`);
-      } else {
-        console.log(`ℹ️ tabWmsScanEvent table missing required columns for box contents`);
-      }
+      const cols = await getWmsScanEventSortColumns(connection);
+      const lines = await getSortToBoxContentsDesktop(connection, box_id, cols);
+      boxContents = lines.map((row) => ({
+        item_code: row.item_code,
+        source_carton: row.source_carton,
+        qty: row.scanned_qty,
+        sorted_by: row.sorted_by || null,
+        sorted_on: row.sorted_on ? row.sorted_on.toISOString() : null,
+      }));
+      console.log(
+        `✅ Found ${boxContents.length} items in box ${box_id} from SORT events (desktop merge)`
+      );
     } catch (contentsError) {
-      // Non-critical - log but don't fail
       console.warn(`Failed to fetch box contents for ${box_id}:`, contentsError.message);
     }
 

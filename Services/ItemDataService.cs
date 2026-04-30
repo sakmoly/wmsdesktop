@@ -11,8 +11,7 @@ namespace Wms.Desktop.Services;
 public static class ItemDataService
 {
     /// <summary>
-    /// Get all Items from database. Stock Qty is set from transaction history total balance
-    /// (same as Item Location Breakdown total) so the list matches the breakdown popup.
+    /// Get all Items from database. Stock Qty is overridden from <c>tabtransactionhistory</c> net balance per item when available.
     /// </summary>
     public static async Task<List<Item>> GetItemsAsync(WmsSettings settings)
     {
@@ -57,32 +56,31 @@ public static class ItemDataService
                 }
             }
 
-            // Override StockQty with total balance from transaction history (same as Item Location Breakdown total)
             var balances = await GetItemTotalBalancesFromTransactionHistoryAsync(connection);
             for (var i = 0; i < items.Count; i++)
             {
                 var item = items[i];
-                if (balances.TryGetValue(item.Code, out var totalBalance))
+                if (!balances.TryGetValue(item.Code, out var totalBalance))
+                    continue;
+
+                items[i] = new Item
                 {
-                    items[i] = new Item
-                    {
-                        Code = item.Code,
-                        Name = item.Name,
-                        ItemGroup = item.ItemGroup,
-                        Color = item.Color,
-                        Size = item.Size,
-                        Year = item.Year,
-                        Season = item.Season,
-                        Brand = item.Brand,
-                        DefaultUom = item.DefaultUom,
-                        StockUom = item.StockUom,
-                        Barcode = item.Barcode,
-                        MaintainStock = item.MaintainStock,
-                        StockQty = totalBalance,
-                        ReservedQty = item.ReservedQty,
-                        UpdatedOn = item.UpdatedOn
-                    };
-                }
+                    Code = item.Code,
+                    Name = item.Name,
+                    ItemGroup = item.ItemGroup,
+                    Color = item.Color,
+                    Size = item.Size,
+                    Year = item.Year,
+                    Season = item.Season,
+                    Brand = item.Brand,
+                    DefaultUom = item.DefaultUom,
+                    StockUom = item.StockUom,
+                    Barcode = item.Barcode,
+                    MaintainStock = item.MaintainStock,
+                    StockQty = totalBalance,
+                    ReservedQty = item.ReservedQty,
+                    UpdatedOn = item.UpdatedOn
+                };
             }
         }
         catch (Exception ex)
@@ -95,7 +93,6 @@ public static class ItemDataService
 
     /// <summary>
     /// Returns item_code -> total balance (sum of qty_change) from tabtransactionhistory.
-    /// Same total as used in Item Location Breakdown.
     /// </summary>
     private static async Task<Dictionary<string, double>> GetItemTotalBalancesFromTransactionHistoryAsync(MySqlConnection connection)
     {

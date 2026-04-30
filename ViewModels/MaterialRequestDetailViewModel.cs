@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Input;
 using Wms.Desktop.Models;
 using Wms.Desktop.Services;
+using System.Runtime.Versioning;
 
 namespace Wms.Desktop.ViewModels;
 
@@ -22,7 +23,14 @@ public sealed class MaterialRequestDetailViewModel : BaseViewModel
     public string? StockEntryNo
     {
         get => _stockEntryNo ?? MaterialRequest.StockEntryNo;
-        set { _stockEntryNo = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanPushToErp)); }
+        set
+        {
+            _stockEntryNo = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanPushToErp));
+            OnPropertyChanged(nameof(CanPrintTransferSlip));
+            CommandManager.InvalidateRequerySuggested();
+        }
     }
 
     private bool _isPushingToErp;
@@ -30,7 +38,11 @@ public sealed class MaterialRequestDetailViewModel : BaseViewModel
     /// <summary>Allow Push to ERP only when not already pushed (no Stock Entry) and not currently pushing.</summary>
     public bool CanPushToErp => !IsPushingToErp && string.IsNullOrWhiteSpace(StockEntryNo);
 
+    /// <summary>Transfer slip print requires Stock Entry from ERPNext (saved on MR after push).</summary>
+    public bool CanPrintTransferSlip => !string.IsNullOrWhiteSpace(StockEntryNo);
+
     public ICommand PushToErpCommand { get; }
+    public ICommand PrintTransferSlipCommand { get; }
 
     private bool _isCartonLevelMode;
     public bool IsCartonLevelMode
@@ -53,10 +65,58 @@ public sealed class MaterialRequestDetailViewModel : BaseViewModel
         MaterialRequest = materialRequest;
         _stockEntryNo = materialRequest.StockEntryNo;
         PushToErpCommand = new RelayCommand(_ => _ = PushToErpAsync(), _ => CanPushToErp);
+        PrintTransferSlipCommand = new RelayCommand(_ => _ = PrintTransferSlipAsync(), _ => CanPrintTransferSlip);
 
         // Check inventory mode
         var settings = SettingsService.LoadSettings();
         IsCartonLevelMode = settings?.InventoryTrackingMode == "CartonLevel";
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private async Task PrintTransferSlipAsync()
+    {
+        var ste = (StockEntryNo ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(ste))
+        {
+            MessageBox.Show(
+                "Stock Entry is not set on this Material Request yet.\n\nPush to ERP first so ERPNext creates the Stock Entry, then print the transfer slip.",
+                "Transfer Slip",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        try
+        {
+            Dictionary<string, Item>? itemsDict = null;
+            var settings = SettingsService.LoadSettings();
+            if (settings != null && settings.DatabaseExists && settings.TablesExist)
+            {
+                try
+                {
+                    var items = await ItemDataService.GetItemsAsync(settings);
+                    itemsDict = items.ToDictionary(i => i.Code, i => i);
+                }
+                catch (Exception ex)
+                {
+                    ErrorLogService.LogError("MaterialRequestDetailViewModel: Could not load items for transfer slip", ex);
+                }
+            }
+
+            var ok = PrintService.PrintMaterialRequestTransferSlip(MaterialRequest, ste, MaterialRequest.Items, itemsDict);
+            if (ok)
+            {
+                MessageBox.Show("Transfer slip sent to printer.", "Transfer Slip",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"MaterialRequestDetailViewModel: Print transfer slip failed for '{MaterialRequest.Title}'", ex);
+            MessageBox.Show($"Could not print: {ex.Message}", "Transfer Slip",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private async Task PushToErpAsync()

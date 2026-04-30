@@ -43,43 +43,134 @@ export const lockCarton = async (req, res) => {
   
   try {
     await connection.beginTransaction();
+
+    // Resolve schema differences (asn_no vs advance_shipping_notice, optional device_id).
+    const [asnCols] = await connection.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabReceivingCarton'
+        AND COLUMN_NAME IN ('asn_no', 'advance_shipping_notice')
+    `);
+    const asnColumn = asnCols.some((r) => r.COLUMN_NAME === 'asn_no')
+      ? 'asn_no'
+      : 'advance_shipping_notice';
+    const [deviceCols] = await connection.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabReceivingCarton'
+        AND COLUMN_NAME = 'device_id'
+    `);
+    const hasDeviceIdCol = deviceCols.length > 0;
     
-    // Check if carton is already locked by another user
-    // Note: Using tabReceivingCarton table (advance_shipping_notice = asn_no)
+    // Check carton-level lock across sessions for the same ASN.
+    // This prevents duplicate lock on different sessions/devices.
     const [existing] = await connection.query(`
-      SELECT locked_by, status
+      SELECT locked_by, status, inbound_session${hasDeviceIdCol ? ', device_id' : ''}
       FROM tabReceivingCarton
-      WHERE advance_shipping_notice = ? 
-        AND inbound_session = ? 
+      WHERE ${asnColumn} = ?
         AND carton_id = ?
-    `, [asn_no, inbound_session, carton_id]);
+      ORDER BY updated_on DESC
+      LIMIT 1
+    `, [asn_no, carton_id]);
     
     if (existing.length > 0) {
       const carton = existing[0];
-      
-      // If locked by different user and still in "Receiving" status
+      const lockedSession = carton.inbound_session || null;
+      const lockedDevice = hasDeviceIdCol ? (carton.device_id || null) : null;
+
+      // Different user: block with explicit lock owner message.
       if (carton.locked_by && carton.locked_by !== user_id && carton.status === 'Receiving') {
         await connection.rollback();
         connection.release();
         
-        return res.json({
+        return res.status(409).json({
           locked: false,
-          message: `Carton is already being processed by ${carton.locked_by}`
+          code: 'CARTON_ALREADY_LOCKED',
+          message: `Carton already locked by ${carton.locked_by}`,
+          lock: {
+            carton_id,
+            asn_no,
+            locked_by: carton.locked_by,
+            inbound_session: lockedSession,
+            device_id: lockedDevice
+          }
+        });
+      }
+
+      // Same user + same session: idempotent no-op success.
+      if (carton.locked_by === user_id && lockedSession === inbound_session && carton.status === 'Receiving') {
+        await connection.commit();
+        connection.release();
+        return res.json({
+          locked: true,
+          no_action: true,
+          message: 'Carton already locked by this user in the same session',
+          lock: {
+            carton_id,
+            asn_no,
+            locked_by: user_id,
+            inbound_session,
+            device_id: lockedDevice
+          }
+        });
+      }
+    }
+    
+    // Check row for this exact session/carton for UPSERT path.
+    const [existingCurrentSession] = await connection.query(`
+      SELECT locked_by, status
+      FROM tabReceivingCarton
+      WHERE ${asnColumn} = ? 
+        AND inbound_session = ? 
+        AND carton_id = ?
+      LIMIT 1
+    `, [asn_no, inbound_session, carton_id]);
+    
+    if (existingCurrentSession.length > 0) {
+      const carton = existingCurrentSession[0];
+    
+      // Guard current-session row as well (defensive).
+      if (carton.locked_by && carton.locked_by !== user_id && carton.status === 'Receiving') {
+        await connection.rollback();
+        connection.release();
+        
+        return res.status(409).json({
+          locked: false,
+          code: 'CARTON_ALREADY_LOCKED',
+          message: `Carton already locked by ${carton.locked_by}`
         });
       }
     }
     
     // Insert or update carton status to "Receiving" and lock it
-    await connection.query(`
+    const lockSql = hasDeviceIdCol
+      ? `
       INSERT INTO tabReceivingCarton 
-        (carton_id, advance_shipping_notice, inbound_session, status, locked_by, locked_on, updated_on)
+        (carton_id, ${asnColumn}, inbound_session, status, locked_by, locked_on, updated_on, device_id)
+      VALUES (?, ?, ?, 'Receiving', ?, NOW(), NOW(), ?)
+      ON DUPLICATE KEY UPDATE
+        status = 'Receiving',
+        locked_by = VALUES(locked_by),
+        locked_on = NOW(),
+        updated_on = NOW(),
+        device_id = VALUES(device_id)
+    `
+      : `
+      INSERT INTO tabReceivingCarton 
+        (carton_id, ${asnColumn}, inbound_session, status, locked_by, locked_on, updated_on)
       VALUES (?, ?, ?, 'Receiving', ?, NOW(), NOW())
       ON DUPLICATE KEY UPDATE
         status = 'Receiving',
         locked_by = VALUES(locked_by),
         locked_on = NOW(),
         updated_on = NOW()
-    `, [carton_id, asn_no, inbound_session, user_id]);
+    `;
+    const lockParams = hasDeviceIdCol
+      ? [carton_id, asn_no, inbound_session, user_id, device_id || null]
+      : [carton_id, asn_no, inbound_session, user_id];
+    await connection.query(lockSql, lockParams);
     
     // Also update tabAsnItemDetails.carton_assigned_status to "Receiving"
     try {
@@ -101,7 +192,14 @@ export const lockCarton = async (req, res) => {
     
     res.json({
       locked: true,
-      message: 'Carton locked successfully'
+      message: 'Carton locked successfully',
+      lock: {
+        carton_id,
+        asn_no,
+        locked_by: user_id,
+        inbound_session,
+        device_id: device_id || null
+      }
     });
     
   } catch (error) {
@@ -151,9 +249,77 @@ export const completeCarton = async (req, res) => {
   
   try {
     await connection.beginTransaction();
+
+    const [asnCols] = await connection.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabReceivingCarton'
+        AND COLUMN_NAME IN ('asn_no', 'advance_shipping_notice')
+    `);
+    const asnColumn = asnCols.some((r) => r.COLUMN_NAME === 'asn_no')
+      ? 'asn_no'
+      : 'advance_shipping_notice';
+    const [deviceCols] = await connection.query(`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'tabReceivingCarton'
+        AND COLUMN_NAME = 'device_id'
+    `);
+    const hasDeviceIdCol = deviceCols.length > 0;
+
+    // Enforce lock ownership before completing.
+    const [lockRows] = await connection.query(
+      `SELECT locked_by, status, inbound_session${hasDeviceIdCol ? ', device_id' : ''}
+       FROM tabReceivingCarton
+       WHERE ${asnColumn} = ?
+         AND carton_id = ?
+       ORDER BY updated_on DESC
+       LIMIT 1`,
+      [asn_no, carton_id]
+    );
+    if (lockRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        ok: false,
+        code: 'CARTON_NOT_FOUND',
+        message: `Carton ${carton_id} not found for ASN ${asn_no}`
+      });
+    }
+    const lock = lockRows[0];
+    if (lock.locked_by && lock.locked_by !== user_id && lock.status === 'Receiving') {
+      await connection.rollback();
+      return res.status(409).json({
+        ok: false,
+        code: 'CARTON_LOCKED_BY_OTHER_USER',
+        message: `Carton already locked by ${lock.locked_by}`,
+        lock: {
+          carton_id,
+          asn_no,
+          locked_by: lock.locked_by,
+          inbound_session: lock.inbound_session || null,
+          device_id: hasDeviceIdCol ? (lock.device_id || null) : null
+        }
+      });
+    }
     
     // Update carton status to Received and clear lock
-    await connection.query(`
+    const completeSql = hasDeviceIdCol
+      ? `
+      UPDATE tabReceivingCarton
+      SET status = 'Received',
+          received_by = ?,
+          received_on = NOW(),
+          locked_by = NULL,
+          locked_on = NULL,
+          updated_on = NOW(),
+          device_id = COALESCE(?, device_id)
+      WHERE ${asnColumn} = ? 
+        AND inbound_session = ? 
+        AND carton_id = ?
+    `
+      : `
       UPDATE tabReceivingCarton
       SET status = 'Received',
           received_by = ?,
@@ -161,10 +327,22 @@ export const completeCarton = async (req, res) => {
           locked_by = NULL,
           locked_on = NULL,
           updated_on = NOW()
-      WHERE advance_shipping_notice = ? 
+      WHERE ${asnColumn} = ? 
         AND inbound_session = ? 
         AND carton_id = ?
-    `, [user_id, asn_no, inbound_session, carton_id]);
+    `;
+    const completeParams = hasDeviceIdCol
+      ? [user_id, device_id || null, asn_no, inbound_session, carton_id]
+      : [user_id, asn_no, inbound_session, carton_id];
+    const [completeResult] = await connection.query(completeSql, completeParams);
+    if (!completeResult || completeResult.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        ok: false,
+        code: 'SESSION_MISMATCH',
+        message: `Carton lock belongs to a different inbound_session. Expected ${inbound_session}.`
+      });
+    }
     
     // Also update tabAsnItemDetails.carton_assigned_status to "Received"
     try {

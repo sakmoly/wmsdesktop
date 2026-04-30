@@ -24,11 +24,18 @@ public static class SortBoxDataService
             await using var connection = new MySqlConnection(connectionString);
             await connection.OpenAsync();
 
-            var sql = @"SELECT box_id, status, advance_shipping_notice, transfer_order, store, 
-                               purpose, created_by, created_on, closed_by, closed_on, 
-                               dispatched_on, received_at_store_on, remarks
-                        FROM tabSortBox
-                        ORDER BY created_on DESC, box_id";
+            var sql = @"SELECT s.box_id, s.status, s.advance_shipping_notice, s.transfer_order, s.store,
+                               s.purpose, s.created_by, s.created_on, s.closed_by, s.closed_on,
+                               s.dispatched_on, s.received_at_store_on, s.remarks,
+                               COALESCE(e.total_scanned_qty, 0) AS total_scanned_qty
+                        FROM tabSortBox s
+                        LEFT JOIN (
+                            SELECT box_id, SUM(qty) AS total_scanned_qty
+                            FROM tabWmsScanEvent
+                            WHERE event_type = 'SORT_TO_BOX'
+                            GROUP BY box_id
+                        ) e ON e.box_id = s.box_id
+                        ORDER BY s.created_on DESC, s.box_id";
             
             ErrorLogService.LogInfo($"Executing query: {sql}");
             await using var cmd = new MySqlCommand(sql, connection);
@@ -52,7 +59,8 @@ public static class SortBoxDataService
                     ClosedOn = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
                     DispatchedOn = reader.IsDBNull(10) ? null : reader.GetDateTime(10),
                     ReceivedAtStoreOn = reader.IsDBNull(11) ? null : reader.GetDateTime(11),
-                    Remarks = reader.IsDBNull(12) ? null : reader.GetString(12)
+                    Remarks = reader.IsDBNull(12) ? null : reader.GetString(12),
+                    TotalScannedQty = reader.IsDBNull(13) ? 0m : reader.GetDecimal(13)
                 });
             }
             

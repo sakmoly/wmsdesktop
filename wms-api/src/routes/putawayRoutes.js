@@ -30,7 +30,7 @@ router.get('/remaining-items', authenticateToken, getRemainingItems);
 // POST /api/putaway/create-task-for-remaining-items - Create putaway task for remaining items
 router.post('/create-task-for-remaining-items', authenticateToken, createTaskForRemainingItems);
 
-// POST /api/putaway/create-tasks - Legacy endpoint (Putaway Tasks are auto-created, this is a no-op)
+// POST /api/putaway/create-tasks - Idempotent Transfer In putaway task ensure (body: { transfer_in })
 router.post('/create-tasks', authenticateToken, createTasks);
 
 // POST /api/putaway/assign-rack - Assign rack/bin for putaway

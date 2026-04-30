@@ -74,6 +74,9 @@
                     <DataGridTextColumn Header="Store"
                                         Binding="{Binding Store}"
                                         Width="120" />
+                    <DataGridTextColumn Header="Sorted qty"
+                                        Binding="{Binding TotalScannedQty, StringFormat=N2}"
+                                        Width="110" />
                     <DataGridTextColumn Header="Created By"
                                         Binding="{Binding CreatedBy}"
                                         Width="120" />

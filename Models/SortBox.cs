@@ -23,6 +23,9 @@ public sealed class SortBox
     public DateTime? ReceivedAtStoreOn { get; init; }
     public DateTime? UpdatedOn { get; init; } // For sync operations
     public string? Remarks { get; init; }
+
+    /// <summary>Net quantity from SORT_TO_BOX scan events for this box (includes adjustments).</summary>
+    public decimal TotalScannedQty { get; init; }
     
     // Note: BoxId can be used as TransferCarton.TcId (same entity concept)
 }

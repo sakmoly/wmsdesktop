@@ -1850,6 +1850,7 @@ public static class PrintService
             AddHdr("Store:", transferCarton.Store ?? "—");
             AddHdr("ASN:", string.IsNullOrWhiteSpace(transferCarton.AdvanceShippingNotice) ? "—" : transferCarton.AdvanceShippingNotice);
             AddHdr("Transfer order:", transferCarton.TransferOrder ?? "—");
+            AddHdr("Stock entry:", string.IsNullOrWhiteSpace(transferCarton.WarehouseTransferNo) ? "—" : transferCarton.WarehouseTransferNo);
             AddHdr("Status:", transferCarton.Status ?? "—");
 
             root.Children.Add(new Rectangle { Height = 1, Fill = Brushes.LightGray, Margin = new Thickness(0, 8, 0, 14) });
@@ -1960,6 +1961,193 @@ public static class PrintService
         catch (Exception ex)
         {
             ErrorLogService.LogError($"PrintService: Error printing single transfer carton {transferCarton.TcId}", ex);
+            MessageBox.Show($"Error printing: {ex.Message}", "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Material Request transfer slip (after ERP Stock Entry exists): header + line items, includes Stock Entry number.
+    /// </summary>
+    public static bool PrintMaterialRequestTransferSlip(
+        MaterialRequest materialRequest,
+        string stockEntryNo,
+        IReadOnlyList<MaterialRequestItem> lines,
+        Dictionary<string, Item>? itemsDictionary = null)
+    {
+        if (materialRequest == null || lines == null)
+            return false;
+
+        var ste = (stockEntryNo ?? "").Trim();
+        if (string.IsNullOrEmpty(ste))
+            return false;
+
+        try
+        {
+            var printDialog = new PrintDialog();
+            try
+            {
+                if (printDialog.PrintTicket != null)
+                    printDialog.PrintTicket.PageMediaSize = new PageMediaSize(210, 297);
+            }
+            catch { /* default */ }
+
+            if (printDialog.ShowDialog() != true)
+                return false;
+
+            var pageWidth = printDialog.PrintableAreaWidth;
+            var pageHeight = printDialog.PrintableAreaHeight;
+            var fixedDoc = new FixedDocument();
+            var pageContent = new PageContent();
+            var fixedPage = new FixedPage { Width = pageWidth, Height = pageHeight };
+
+            var sideMargin = 16.0;
+            var contentWidth = Math.Max(320, pageWidth - 2 * sideMargin);
+
+            var root = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Width = contentWidth,
+                Margin = new Thickness(sideMargin, 18, sideMargin, 18),
+                Background = Brushes.White
+            };
+
+            root.Children.Add(new TextBlock
+            {
+                Text = "MATERIAL REQUEST — TRANSFER SLIP",
+                FontSize = 22,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                Margin = new Thickness(0, 0, 0, 6)
+            });
+            root.Children.Add(new TextBlock
+            {
+                Text = $"Printed {DateTime.Now:yyyy-MM-dd HH:mm}",
+                FontSize = 12,
+                Foreground = Brushes.Gray,
+                Margin = new Thickness(0, 0, 0, 14)
+            });
+
+            void AddHdr(string label, string value)
+            {
+                var sp = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 5) };
+                sp.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, Width = 168, FontSize = 12 });
+                sp.Children.Add(new TextBlock { Text = value, FontSize = 12, TextWrapping = TextWrapping.Wrap });
+                root.Children.Add(sp);
+            }
+
+            AddHdr("Material request:", materialRequest.Title);
+            AddHdr("Stock entry (ERP):", ste);
+            AddHdr("Status:", materialRequest.Status ?? "—");
+            AddHdr("From warehouse:", materialRequest.FromWarehouse ?? "—");
+            AddHdr("To showroom:", materialRequest.ToShowroom ?? "—");
+            AddHdr("Requested by:", string.IsNullOrWhiteSpace(materialRequest.RequestedBy) ? "—" : materialRequest.RequestedBy);
+            AddHdr("Requested date:", materialRequest.RequestedDate.ToString("d"));
+            AddHdr("Required date:", materialRequest.RequiredDate?.ToString("d") ?? "—");
+
+            root.Children.Add(new Rectangle { Height = 1, Fill = Brushes.LightGray, Margin = new Thickness(0, 8, 0, 14) });
+
+            var th = new Border
+            {
+                Width = contentWidth,
+                Background = new SolidColorBrush(Color.FromRgb(31, 81, 255)),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 0, 0, 3)
+            };
+            var thGrid = new Grid();
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.2, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.85, GridUnitType.Star) });
+            thGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0.75, GridUnitType.Star) });
+            string[] heads = { "Item code", "Description", "Requested", "Picked", "Pending", "Status" };
+            for (var hi = 0; hi < heads.Length; hi++)
+            {
+                var tb = new TextBlock
+                {
+                    Text = heads[hi],
+                    Foreground = Brushes.White,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 11,
+                    Margin = new Thickness(6, 4, 6, 4),
+                    HorizontalAlignment = hi >= 2 && hi <= 4 ? HorizontalAlignment.Right : HorizontalAlignment.Left
+                };
+                Grid.SetColumn(tb, hi);
+                thGrid.Children.Add(tb);
+            }
+            th.Child = thGrid;
+            root.Children.Add(th);
+
+            var ri = 0;
+            double totReq = 0, totPick = 0, totPen = 0;
+            foreach (var line in lines.OrderBy(l => l.ItemCode))
+            {
+                ri++;
+                totReq += line.RequestedQty;
+                totPick += line.PickedQty;
+                totPen += line.PendingQty;
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 2), Width = contentWidth };
+                for (var c = 0; c < 6; c++)
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = thGrid.ColumnDefinitions[c].Width });
+
+                var bg = new Border
+                {
+                    Background = ri % 2 == 0 ? new SolidColorBrush(Color.FromRgb(249, 250, 251)) : Brushes.White,
+                    Padding = new Thickness(6, 6, 6, 6)
+                };
+                Grid.SetColumnSpan(bg, 6);
+                row.Children.Add(bg);
+
+                var desc = itemsDictionary?.GetValueOrDefault(line.ItemCode)?.Name ?? "—";
+                void AddCell(int col, string text, bool right = false)
+                {
+                    var t = new TextBlock
+                    {
+                        Text = text,
+                        FontSize = 11,
+                        Margin = new Thickness(8, 4, 8, 4),
+                        TextWrapping = TextWrapping.Wrap,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        HorizontalAlignment = right ? HorizontalAlignment.Right : HorizontalAlignment.Left
+                    };
+                    Grid.SetColumn(t, col);
+                    row.Children.Add(t);
+                }
+
+                AddCell(0, line.ItemCode);
+                AddCell(1, desc);
+                AddCell(2, line.RequestedQty.ToString("0.##"), true);
+                AddCell(3, line.PickedQty.ToString("0.##"), true);
+                AddCell(4, line.PendingQty.ToString("0.##"), true);
+                AddCell(5, line.Status ?? "—");
+                root.Children.Add(row);
+            }
+
+            var footSp = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 16, 0, 0)
+            };
+            footSp.Children.Add(new TextBlock
+            {
+                Text = $"Lines: {lines.Count}    Requested: {totReq:0.##}    Picked: {totPick:0.##}    Pending: {totPen:0.##}",
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12
+            });
+            root.Children.Add(footSp);
+
+            fixedPage.Children.Add(root);
+            pageContent.Child = fixedPage;
+            fixedDoc.Pages.Add(pageContent);
+            printDialog.PrintDocument(fixedDoc.DocumentPaginator, $"MR Transfer Slip {materialRequest.Title}");
+            ErrorLogService.LogInfo($"PrintService: Material Request transfer slip printed for {materialRequest.Title} (STE {ste})");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ErrorLogService.LogError($"PrintService: Error printing MR transfer slip {materialRequest.Title}", ex);
             MessageBox.Show($"Error printing: {ex.Message}", "Print Error", MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }

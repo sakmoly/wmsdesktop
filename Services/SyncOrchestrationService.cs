@@ -41,7 +41,7 @@ public static class SyncOrchestrationService
         {
             // —— Pull from ERPNext ——
             var asnResult = await AsnSyncFromErpNextService.SyncAsnsFromErpNextAsync(settings);
-            result.Messages.Add($"ASNs: Fetched {asnResult.TotalFetched}, inserted {asnResult.AsnsInserted}, updated {asnResult.AsnsUpdated}" + (asnResult.Success ? "" : " (with errors)"));
+            result.Messages.Add($"ASNs: Fetched {asnResult.TotalFetched}, skipped terminal in WMS {asnResult.AsnsSkippedLocalTerminal}, inserted {asnResult.AsnsInserted}, updated {asnResult.AsnsUpdated}" + (asnResult.Success ? "" : " (with errors)"));
 
             var toResult = await TransferOrderSyncFromErpNextService.SyncTransferOrdersFromErpNextAsync(settings);
             result.Messages.Add($"Transfer Orders: Fetched {toResult.TotalFetched}, inserted {toResult.TosInserted}, updated {toResult.TosUpdated}" + (toResult.Success ? "" : " (with errors)"));

@@ -131,9 +131,9 @@
                         <DataGridTextColumn Header="Item Code"
                                             Binding="{Binding ItemCode}"
                                             Width="200" />
-                        <DataGridTextColumn Header="Source Carton"
-                                            Binding="{Binding SourceCartonId}"
-                                            Width="160" />
+                        <DataGridTextColumn Header="Inbound carton (if captured)"
+                                            Binding="{Binding SourceCartonId, TargetNullValue=-}"
+                                            Width="200" />
                         <DataGridTextColumn Header="Quantity"
                                             Binding="{Binding Qty}"
                                             Width="100">

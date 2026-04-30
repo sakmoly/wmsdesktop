@@ -76,7 +76,7 @@ public static class AsnSyncTestService
             }
 
             result.Steps[2].Status = "Passed";
-            result.Steps[2].Message = $"Fetched: {syncResult.TotalFetched}, inserted: {syncResult.AsnsInserted}, updated: {syncResult.AsnsUpdated}, items: {syncResult.ItemsInserted}, errors: {syncResult.Errors?.Count ?? 0}.";
+            result.Steps[2].Message = $"Fetched (processed): {syncResult.TotalFetched}, skipped terminal in WMS: {syncResult.AsnsSkippedLocalTerminal}, inserted: {syncResult.AsnsInserted}, updated: {syncResult.AsnsUpdated}, items: {syncResult.ItemsInserted}, errors: {syncResult.Errors?.Count ?? 0}.";
 
             if (syncResult.TotalFetched == 0)
             {

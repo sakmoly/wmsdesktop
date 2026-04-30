@@ -4,8 +4,59 @@
 import { getConnection } from '../../db/connection.js';
 import { postStock } from '../stock-ledger/stockPostingService.js';
 
-/** ERPNext uses "Pending" for submitted MRs; WMS/mobile use "Submitted" for Start Picking. Expose as Submitted to client. */
-const statusForClient = (s) => (s === 'Pending' ? 'Submitted' : s);
+/** ERPNext uses "Pending" for submitted MRs; WMS/mobile use "Submitted" for Start Picking. */
+const statusForClient = (s) => {
+  if (s === 'Pending') return 'Submitted';
+  if (s === 'Dispatched') return 'Transferred';
+  return s;
+};
+
+const formatDateOnly = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[0];
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  return String(value);
+};
+
+/**
+ * Keep line status aligned with picked quantities when the header is changed directly.
+ * This uses the same status rules as pick-items.
+ */
+async function syncMaterialRequestLineStatusesFromPickedQty(connection, title) {
+  const [rows] = await connection.execute(
+    `SELECT item_code, requested_qty, COALESCE(picked_qty, 0) AS picked_qty
+     FROM tabMaterialRequestItem
+     WHERE parent_title = ?`,
+    [title]
+  );
+
+  for (const row of rows) {
+    const requestedQty = parseFloat(row.requested_qty) || 0;
+    const pickedQty = parseFloat(row.picked_qty) || 0;
+    let itemStatus = 'Pending';
+
+    if (pickedQty >= requestedQty && requestedQty > 0) {
+      itemStatus = 'Picked';
+    } else if (pickedQty > 0) {
+      itemStatus = 'In Progress';
+    }
+
+    await connection.execute(
+      `UPDATE tabMaterialRequestItem
+       SET status = ?, updated_at = NOW()
+       WHERE parent_title = ? AND item_code = ?`,
+      [itemStatus, title, row.item_code]
+    );
+  }
+}
 
 /**
  * GET /api/material-requests
@@ -58,6 +109,13 @@ export const getMaterialRequests = async (req, res) => {
     }
     
     const { status, from_warehouse, to_showroom } = req.query;
+    const [mrColumns] = await connection.execute(`DESCRIBE tabMaterialRequest`);
+    const mrColumnNames = new Set(mrColumns.map(row => row.Field));
+    const stockEntrySelect = mrColumnNames.has('stock_entry_no')
+      ? 'stock_entry_no,'
+      : mrColumnNames.has('stock_entry')
+        ? 'stock_entry AS stock_entry_no,'
+        : "NULL AS stock_entry_no,";
     
     let query = `
       SELECT 
@@ -70,6 +128,7 @@ export const getMaterialRequests = async (req, res) => {
         requested_by,
         total_requested_qty,
         total_picked_qty,
+        ${stockEntrySelect}
         created_at,
         updated_at
       FROM tabMaterialRequest
@@ -241,9 +300,10 @@ export const getMaterialRequests = async (req, res) => {
         status: statusForClient(status),
         from_warehouse: row.from_warehouse,
         to_showroom: row.to_showroom,
-        request_date: row.requested_date ? row.requested_date.toISOString().split('T')[0] : null,
-        required_date: row.required_date ? row.required_date.toISOString().split('T')[0] : null,
+        request_date: formatDateOnly(row.requested_date),
+        required_date: formatDateOnly(row.required_date),
         requested_by: row.requested_by,
+        stock_entry_no: row.stock_entry_no || null,
         total_requested_qty: parseFloat(row.total_requested_qty) || 0,
         total_picked_qty: actualTotalPicked, // Use calculated value from items
         items: items,
@@ -297,6 +357,13 @@ export const getMaterialRequestByTitle = async (req, res) => {
     }
     
     const { title } = req.params;
+    const [mrColumns] = await connection.execute(`DESCRIBE tabMaterialRequest`);
+    const mrColumnNames = new Set(mrColumns.map(row => row.Field));
+    const stockEntrySelect = mrColumnNames.has('stock_entry_no')
+      ? 'stock_entry_no,'
+      : mrColumnNames.has('stock_entry')
+        ? 'stock_entry AS stock_entry_no,'
+        : "NULL AS stock_entry_no,";
     
     const [rows] = await connection.execute(`
       SELECT 
@@ -309,6 +376,7 @@ export const getMaterialRequestByTitle = async (req, res) => {
         requested_by,
         total_requested_qty,
         total_picked_qty,
+        ${stockEntrySelect}
         created_at,
         updated_at
       FROM tabMaterialRequest
@@ -446,9 +514,10 @@ export const getMaterialRequestByTitle = async (req, res) => {
       status: statusForClient(status),
       from_warehouse: row.from_warehouse,
       to_showroom: row.to_showroom,
-      request_date: row.requested_date ? row.requested_date.toISOString().split('T')[0] : null,
-      required_date: row.required_date ? row.required_date.toISOString().split('T')[0] : null,
+      request_date: formatDateOnly(row.requested_date),
+      required_date: formatDateOnly(row.required_date),
       requested_by: row.requested_by,
+      stock_entry_no: row.stock_entry_no || null,
       total_requested_qty: parseFloat(row.total_requested_qty) || 0,
       total_picked_qty: actualTotalPicked, // Use calculated value from items
       items: items,
@@ -515,6 +584,22 @@ export const createMaterialRequest = async (req, res) => {
           code: 'VALIDATION_ERROR',
           message: 'items array is required and must not be empty'
         }
+      });
+    }
+
+    const { findMissingItemCodesInMaster } = await import('../../utils/itemMasterValidate.js');
+    const missMrCreate = await findMissingItemCodesInMaster(
+      connection,
+      items.map((i) => i.item_code)
+    );
+    if (missMrCreate.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'ITEM_NOT_IN_MASTER',
+          message: `Item code(s) not in Item master (tabItem): ${missMrCreate.join(', ')}`,
+          missing_item_codes: missMrCreate,
+        },
       });
     }
     
@@ -603,7 +688,7 @@ export const updateMaterialRequestStatus = async (req, res) => {
     }
     
     // Valid status values
-    const validStatuses = ['Draft', 'Submitted', 'In Progress', 'Picked', 'Dispatched', 'Completed', 'Cancelled'];
+    const validStatuses = ['Draft', 'Submitted', 'In Progress', 'Picked', 'Dispatched', 'Transferred', 'Completed', 'Cancelled'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         ok: false,
@@ -615,8 +700,15 @@ export const updateMaterialRequestStatus = async (req, res) => {
     }
     
     // Check if Material Request exists and get current status
+    const [mrColumns] = await connection.execute(`DESCRIBE tabMaterialRequest`);
+    const mrColumnNames = new Set(mrColumns.map(row => row.Field));
+    const stockEntrySelect = mrColumnNames.has('stock_entry_no')
+      ? 'stock_entry_no'
+      : mrColumnNames.has('stock_entry')
+        ? 'stock_entry AS stock_entry_no'
+        : 'NULL AS stock_entry_no';
     const [rows] = await connection.execute(
-      'SELECT title, status FROM tabMaterialRequest WHERE title = ?',
+      `SELECT title, status, ${stockEntrySelect} FROM tabMaterialRequest WHERE title = ?`,
       [title]
     );
     
@@ -631,6 +723,7 @@ export const updateMaterialRequestStatus = async (req, res) => {
     }
     
     const currentStatus = rows[0].status;
+    const stockEntryNo = String(rows[0].stock_entry_no || '').trim();
     
     // Validate status transitions
     if (status === 'Picked') {
@@ -681,12 +774,22 @@ export const updateMaterialRequestStatus = async (req, res) => {
     //   // (e.g., to pick more items, adjust quantities, or correct mistakes)
     // }
     
+    if (status === 'Transferred' && !stockEntryNo) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'STOCK_ENTRY_REQUIRED',
+          message: 'Cannot set status to "Transferred". Stock Entry Number is required.'
+        }
+      });
+    }
+    
     // Build update query
     let updateQuery = 'UPDATE tabMaterialRequest SET status = ?, updated_at = NOW()';
     const params = [status];
     
-    // Add dispatched_by and dispatched_on if status is Dispatched
-    if (status === 'Dispatched') {
+    // Add dispatched_by and dispatched_on if status is Dispatched/Transferred
+    if (status === 'Dispatched' || status === 'Transferred') {
       if (dispatched_by) {
         // Check if dispatched_by column exists
         const [columns] = await connection.execute(`
@@ -724,6 +827,8 @@ export const updateMaterialRequestStatus = async (req, res) => {
     params.push(title);
     
     await connection.execute(updateQuery, params);
+
+    await syncMaterialRequestLineStatusesFromPickedQty(connection, title);
     
     res.json({
       ok: true,
@@ -843,6 +948,22 @@ export const pickMaterialRequestItems = async (req, res) => {
     };
     
     const targetWarehouse = await normalizeWarehouseToCode(warehouse || materialRequest.from_warehouse);
+
+    const { findMissingItemCodesInMaster } = await import('../../utils/itemMasterValidate.js');
+    const missMrPick = await findMissingItemCodesInMaster(
+      connection,
+      items.map((i) => i.item_code)
+    );
+    if (missMrPick.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: 'ITEM_NOT_IN_MASTER',
+          message: `Item code(s) not in Item master (tabItem): ${missMrPick.join(', ')}`,
+          missing_item_codes: missMrPick,
+        },
+      });
+    }
     
     await connection.beginTransaction();
     

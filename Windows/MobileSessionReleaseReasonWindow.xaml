@@ -1,0 +1,65 @@
+<Window x:Class="Wms.Desktop.Windows.MobileSessionReleaseReasonWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Release mobile session"
+        Height="360"
+        Width="520"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F9FAFB">
+    <Border Margin="16" Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="16">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock x:Name="SummaryText"
+                       Grid.Row="0"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold"
+                       Foreground="#111827"
+                       Margin="0,0,0,8" />
+            <TextBlock Grid.Row="1"
+                       TextWrapping="Wrap"
+                       Foreground="#B45309"
+                       FontSize="12"
+                       Margin="0,0,0,12"
+                       Text="If the handheld was offline or broken, scans that never reached the server cannot be recovered from this screen. Only data already synced to WMS is safe." />
+            <StackPanel Grid.Row="2">
+                <TextBlock Text="Reason (required, min. 3 characters)"
+                           Foreground="#4B5563"
+                           Margin="0,0,0,4" />
+                <TextBox x:Name="ReasonBox"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         MinHeight="100"
+                         Padding="8"
+                         BorderBrush="#D1D5DB" />
+            </StackPanel>
+            <TextBlock Grid.Row="3"
+                       x:Name="ValidationText"
+                       Foreground="#DC2626"
+                       FontSize="12"
+                       Margin="0,8,0,0"
+                       Visibility="Collapsed" />
+            <StackPanel Grid.Row="4"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,16,0,0">
+                <Button Content="Cancel"
+                        Padding="16,6"
+                        Margin="0,0,8,0"
+                        IsCancel="True"
+                        Click="Cancel_Click" />
+                <Button Content="Release"
+                        Padding="16,6"
+                        IsDefault="True"
+                        Click="Release_Click" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -2,6 +2,12 @@
 // Transfer In API endpoints (Showroom to Warehouse)
 
 import { getConnection } from "../../db/connection.js";
+import {
+  assertOrAcquireCartonLock,
+  releaseCartonLockIfOwned,
+  releaseCartonLocksForTransferIn,
+  transferInCartonLockKey,
+} from "../../services/mobileSessionService.js";
 
 /**
  * Helper function to compute Transfer In item status based on received_qty vs qty
@@ -473,6 +479,22 @@ export const createTransferIn = async (req, res) => {
       });
     }
 
+    const { findMissingItemCodesInMaster } = await import("../../utils/itemMasterValidate.js");
+    const missTiCreate = await findMissingItemCodesInMaster(
+      connection,
+      items.map((i) => i.item_code)
+    );
+    if (missTiCreate.length > 0) {
+      return res.status(400).json({
+        ok: false,
+        error: {
+          code: "ITEM_NOT_IN_MASTER",
+          message: `Item code(s) not in Item master (tabItem): ${missTiCreate.join(", ")}`,
+          missing_item_codes: missTiCreate,
+        },
+      });
+    }
+
     // Calculate total_qty
     const total_qty = items.reduce(
       (sum, item) => sum + (parseFloat(item.qty) || 0),
@@ -702,9 +724,42 @@ export const receiveTransferInLine = async (req, res) => {
       });
     }
 
+    if (item_code && String(item_code).trim() && received_qty !== undefined) {
+      const { findMissingItemCodesInMaster } = await import("../../utils/itemMasterValidate.js");
+      const missTiLine = await findMissingItemCodesInMaster(connection, [item_code]);
+      if (missTiLine.length > 0) {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "ITEM_NOT_IN_MASTER",
+            message: `Item code(s) not in Item master (tabItem): ${missTiLine.join(", ")}`,
+            missing_item_codes: missTiLine,
+          },
+        });
+      }
+    }
+
     await connection.beginTransaction();
 
     try {
+      const lockCartonId = carton_id ? String(carton_id).trim() : "";
+      if (lockCartonId && req.user?.jti) {
+        const lk = transferInCartonLockKey(title, lockCartonId);
+        const lockUser = req.user.user_code || req.user.user_id || received_by;
+        const lockRes = await assertOrAcquireCartonLock(connection, lk, req.user.jti, lockUser);
+        if (!lockRes.ok) {
+          await connection.rollback();
+          return res.status(409).json({
+            ok: false,
+            error: {
+              code: lockRes.code,
+              message: lockRes.message,
+              locked_by: lockRes.locked_by,
+            },
+          });
+        }
+      }
+
       // Scenario A: Receive by Carton ID
       if (carton_id && !item_code) {
         // Get all items with this carton_id OR items without carton_id (NULL)
@@ -726,6 +781,25 @@ export const receiveTransferInLine = async (req, res) => {
             error: {
               code: "NOT_FOUND",
               message: `No items found for carton_id ${carton_id} in Transfer In ${title}. Items may already have a different carton_id assigned.`,
+            },
+          });
+        }
+
+        const { findMissingItemCodesInMaster: findMissingTiCarton } = await import(
+          "../../utils/itemMasterValidate.js"
+        );
+        const missTiCarton = await findMissingTiCarton(
+          connection,
+          items.map((i) => i.item_code)
+        );
+        if (missTiCarton.length > 0) {
+          await connection.rollback();
+          return res.status(400).json({
+            ok: false,
+            error: {
+              code: "ITEM_NOT_IN_MASTER",
+              message: `Item code(s) not in Item master (tabItem): ${missTiCarton.join(", ")}`,
+              missing_item_codes: missTiCarton,
             },
           });
         }
@@ -1096,6 +1170,38 @@ export const markTransferInItemReceived = async (req, res) => {
     const { title } = req.params;
     const { item_code } = req.body;
 
+    const { findMissingItemCodesInMaster } = await import("../../utils/itemMasterValidate.js");
+    if (item_code && String(item_code).trim()) {
+      const missMark = await findMissingItemCodesInMaster(connection, [item_code]);
+      if (missMark.length > 0) {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "ITEM_NOT_IN_MASTER",
+            message: `Item code(s) not in Item master (tabItem): ${missMark.join(", ")}`,
+            missing_item_codes: missMark,
+          },
+        });
+      }
+    } else {
+      const [allTiItems] = await connection.execute(
+        `SELECT DISTINCT item_code FROM tabTransferInItem WHERE parent_title = ?`,
+        [title]
+      );
+      const allCodes = allTiItems.map((r) => r.item_code);
+      const missMarkAll = await findMissingItemCodesInMaster(connection, allCodes);
+      if (missMarkAll.length > 0) {
+        return res.status(400).json({
+          ok: false,
+          error: {
+            code: "ITEM_NOT_IN_MASTER",
+            message: `Item code(s) not in Item master (tabItem): ${missMarkAll.join(", ")}`,
+            missing_item_codes: missMarkAll,
+          },
+        });
+      }
+    }
+
     await connection.beginTransaction();
 
     // Check if Transfer In exists
@@ -1343,6 +1449,10 @@ export const completeTransferInReceiving = async (req, res) => {
           transferInInfo[0].to_warehouse
         );
       }
+    }
+
+    if (req.user?.jti) {
+      await releaseCartonLocksForTransferIn(connection, req.user.jti, title);
     }
 
     await connection.commit();
@@ -1685,6 +1795,14 @@ export const closeTransferInCarton = async (req, res) => {
       WHERE carton_id = ? AND transfer_in = ?
     `, [userId, carton_id, title]);
 
+    if (req.user?.jti) {
+      await releaseCartonLockIfOwned(
+        connection,
+        transferInCartonLockKey(title, carton_id),
+        req.user.jti
+      );
+    }
+
     await connection.commit();
 
     res.json({
@@ -1990,7 +2108,9 @@ export const updateTransferInLineCarton = async (req, res) => {
 
 /**
  * Helper function to create Putaway Task from Transfer In
- * Exported for use in putaway scan endpoint
+ * Exported for use in putaway scan endpoint and POST /api/putaway/create-tasks
+ *
+ * @returns {Promise<{ok:true, created:boolean, putaway_task:string}|{ok:false, code:string, message:string}>}
  */
 export async function createPutawayTaskFromTransferIn(
   connection,
@@ -2118,7 +2238,11 @@ export async function createPutawayTaskFromTransferIn(
         console.log(
           `⚠️ Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
         );
-        return;
+        return {
+          ok: true,
+          created: false,
+          putaway_task: existingTasks[0].title,
+        };
       }
     } else if (hasSourceType) {
       // Fallback: check by source_type and advance_shipping_notice
@@ -2135,7 +2259,11 @@ export async function createPutawayTaskFromTransferIn(
         console.log(
           `⚠️ Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
         );
-        return;
+        return {
+          ok: true,
+          created: false,
+          putaway_task: existingTasks[0].title,
+        };
       }
     } else {
       // Fallback: check by advance_shipping_notice only
@@ -2151,7 +2279,11 @@ export async function createPutawayTaskFromTransferIn(
         console.log(
           `⚠️ Putaway Task already exists for Transfer In ${transferInTitle}: ${existingTasks[0].title}`
         );
-        return;
+        return {
+          ok: true,
+          created: false,
+          putaway_task: existingTasks[0].title,
+        };
       }
     }
 
@@ -2165,10 +2297,9 @@ export async function createPutawayTaskFromTransferIn(
     const hasMultiCartonTables = cartonTableCheck.length > 0;
     
     let items = [];
-    
+
     if (hasMultiCartonTables) {
-      // MULTI-CARTON MODE: Get items from carton lines (one line per item per carton)
-      // This ensures each carton gets its own putaway line
+      // MULTI-CARTON MODE: Prefer carton lines (one line per item per carton).
       // Note: Include items from all cartons (Draft or Closed) since they all need to be put away
       const [cartonItems] = await connection.execute(
         `
@@ -2184,16 +2315,23 @@ export async function createPutawayTaskFromTransferIn(
       `,
         [transferInTitle]
       );
-      
-      items = cartonItems.map(item => ({
+
+      items = cartonItems.map((item) => ({
         item_code: item.item_code,
         carton_id: item.carton_id,
-        received_qty: parseFloat(item.received_qty) || 0
+        received_qty: parseFloat(item.received_qty) || 0,
       }));
-      
-      console.log(`📦 Multi-carton mode: Found ${items.length} item-carton combination(s) for putaway`);
-    } else {
-      // LEGACY MODE: Get items from tabTransferInItem (single carton per item)
+
+      console.log(
+        `📦 Multi-carton mode: Found ${items.length} item-carton combination(s) with received_qty > 0 in tabTransferInCartonLine`
+      );
+    }
+
+    // Fallback / legacy: tabTransferInItem.received_qty
+    // CRITICAL: POST /api/events/batch TRANSFER_IN_RECEIVE without carton_id updates only
+    // tabTransferInItem when tabTransferInCarton exists — carton lines stay empty/zero.
+    // SORT_TO_BOX does not update Transfer In received_qty at all (TO / MR flows only).
+    if (items.length === 0) {
       const [legacyItems] = await connection.execute(
         `
         SELECT item_code, carton_id, received_qty
@@ -2204,21 +2342,29 @@ export async function createPutawayTaskFromTransferIn(
       `,
         [transferInTitle]
       );
-      
-      items = legacyItems.map(item => ({
+
+      items = legacyItems.map((item) => ({
         item_code: item.item_code,
         carton_id: item.carton_id || null,
-        received_qty: parseFloat(item.received_qty) || 0
+        received_qty: parseFloat(item.received_qty) || 0,
       }));
-      
-      console.log(`📦 Legacy mode: Found ${items.length} item(s) for putaway`);
+
+      console.log(
+        hasMultiCartonTables
+          ? `📦 Fallback from tabTransferInItem: ${items.length} row(s) with received_qty > 0 (no carton lines)`
+          : `📦 Legacy mode: Found ${items.length} item(s) for putaway from tabTransferInItem`
+      );
     }
 
     if (items.length === 0) {
       console.log(
         `⚠️ No items to put away for Transfer In ${transferInTitle} (all items have received_qty = 0)`
       );
-      return;
+      return {
+        ok: false,
+        code: "NO_RECEIVED_QTY",
+        message: `No received quantities for Transfer In ${transferInTitle}; putaway task was not created.`,
+      };
     }
 
     console.log(
@@ -2426,6 +2572,12 @@ export async function createPutawayTaskFromTransferIn(
         createdBy: 'SYSTEM'
       }
     );
+
+    return {
+      ok: true,
+      created: true,
+      putaway_task: putawayTaskTitle,
+    };
   } catch (error) {
     console.error(
       `❌ Failed to create Putaway Task for Transfer In ${transferInTitle}:`,
@@ -2440,8 +2592,12 @@ export async function createPutawayTaskFromTransferIn(
         sql: error.sql
       }
     );
-    // Don't throw - this is a helper function, errors are logged but don't fail the receive operation
-    // But we should log it clearly so it can be debugged
+    // Don't throw - callers (e.g. receive flow) rely on non-throwing behavior; API layer checks return value.
+    return {
+      ok: false,
+      code: "DATABASE_ERROR",
+      message: error.message || "Failed to create putaway task",
+    };
   }
 }
 
@@ -3073,8 +3229,9 @@ export const validateTransferInCarton = async (req, res) => {
       });
     }
 
-    const transferInStatus = tiRows[0].status;
-    const actualTitle = tiRows[0].title; // Get actual title from DB (in case of case sensitivity)
+    // Trim DB strings so status/title comparisons and logs are not thrown off by stray spaces or quotes
+    const transferInStatus = String(tiRows[0].status ?? '').trim();
+    const actualTitle = String(tiRows[0].title ?? '').trim();
     console.log(`[Validate Carton] ✅ Transfer In ${actualTitle} exists (status: ${transferInStatus})`);
 
     // Allow validation for "Submitted" status - user needs to validate carton before scanning items

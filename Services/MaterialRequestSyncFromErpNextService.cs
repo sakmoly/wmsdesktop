@@ -91,6 +91,14 @@ public static class MaterialRequestSyncFromErpNextService
                     if (totalRequested == 0 && items.Count > 0)
                         totalRequested = items.Sum(i => i.RequestedQty > 0 ? i.RequestedQty : i.Qty);
 
+                    var validItemLineCount = items.Count(i => !string.IsNullOrWhiteSpace((i.ItemCode ?? "").Trim()));
+                    if (validItemLineCount == 0)
+                    {
+                        ErrorLogService.LogInfo(
+                            $"MaterialRequestSyncFromErpNextService: Skipping MR {title}: ERP payload has no item lines (include_items missing or empty). Desktop DB not updated.");
+                        continue;
+                    }
+
                     // Preserve local picked quantities: ERPNext often has picked_qty=0; WMS picking is local. Read existing before delete.
                     var existingItems = await GetExistingMaterialRequestItemsAsync(connection, title);
                     double totalPicked = mr.TotalPickedQty;
@@ -108,7 +116,17 @@ public static class MaterialRequestSyncFromErpNextService
                     if (string.IsNullOrWhiteSpace(requestedBy)) requestedBy = "Unknown";
 
                     // ERPNext uses "Pending" for submitted MRs (awaiting fulfillment). WMS/mobile expect "Submitted" to allow Start Picking.
-                    var status = NormalizeMaterialRequestStatus(mr.Status);
+                    var normalizedErpStatus = NormalizeMaterialRequestStatus(mr.Status);
+                    var existingHeaderStatus = await GetExistingMaterialRequestStatusAsync(connection, title);
+                    var status = ShouldPreserveLocalMaterialRequestHeaderStatus(existingHeaderStatus)
+                        ? existingHeaderStatus!.Trim()
+                        : normalizedErpStatus;
+                    if (ShouldPreserveLocalMaterialRequestHeaderStatus(existingHeaderStatus) &&
+                        !string.Equals(existingHeaderStatus, normalizedErpStatus, StringComparison.OrdinalIgnoreCase))
+                    {
+                        ErrorLogService.LogInfo(
+                            $"MaterialRequestSyncFromErpNextService: MR {title}: keeping WMS header status \"{existingHeaderStatus}\" (ERP reported \"{mr.Status}\" → \"{normalizedErpStatus}\").");
+                    }
 
                     var mrSql = @"INSERT INTO tabMaterialRequest 
                         (title, status, from_warehouse, to_showroom, requested_date, required_date, requested_by, total_requested_qty, total_picked_qty, updated_at)
@@ -252,6 +270,26 @@ public static class MaterialRequestSyncFromErpNextService
     {
         var s = (erpStatus ?? "Draft").Trim();
         return string.Equals(s, "Pending", StringComparison.OrdinalIgnoreCase) ? "Submitted" : s;
+    }
+
+    /// <summary>WMS/mobile can move an MR past ERP's document status. ERP pull must not downgrade the header.</summary>
+    private static readonly HashSet<string> PreservedMaterialRequestHeaderStatuses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "In Progress", "Picked", "Dispatched", "Completed", "Cancelled",
+    };
+
+    private static bool ShouldPreserveLocalMaterialRequestHeaderStatus(string? existingStatus) =>
+        !string.IsNullOrWhiteSpace(existingStatus) &&
+        PreservedMaterialRequestHeaderStatuses.Contains(existingStatus.Trim());
+
+    private static async Task<string?> GetExistingMaterialRequestStatusAsync(MySqlConnection connection, string title)
+    {
+        const string sql = "SELECT status FROM tabMaterialRequest WHERE title = @t LIMIT 1";
+        await using var cmd = new MySqlCommand(sql, connection);
+        cmd.Parameters.AddWithValue("@t", title);
+        var o = await cmd.ExecuteScalarAsync();
+        if (o == null || o is DBNull) return null;
+        return Convert.ToString(o);
     }
 
     private static DateTime? ParseDate(string? s)

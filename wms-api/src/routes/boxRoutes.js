@@ -2,7 +2,9 @@
 // Box routes
 
 import express from 'express';
-import { createBox, closeBox, deleteBox, getBoxes, getBoxById } from '../modules/boxes/boxController.js';
+import { createBox, closeBox, deleteBox, getBoxes, getBoxItems, getBoxById } from '../modules/boxes/boxController.js';
+import { sortBoxScan } from '../modules/boxes/sortBoxScanController.js';
+import { sortBoxAdjust } from '../modules/boxes/sortBoxAdjustController.js';
 import { printBox } from '../modules/boxes/boxPrintController.js';
 import { authenticateToken } from '../middleware/auth.js';
 
@@ -11,6 +13,15 @@ const router = express.Router();
 // GET /api/boxes - Get boxes filtered by ASN, store, and optionally status
 // Must come before /:box_id route to avoid matching conflicts
 router.get('/', authenticateToken, getBoxes);
+
+// GET /api/boxes/:box_id/items — live SORT_TO_BOX lines (must be before /:box_id)
+router.get('/:box_id/items', authenticateToken, getBoxItems);
+
+// POST /api/boxes/scan | POST /api/sort-box/scan — validated SORT_TO_BOX (TO allocation, warehouse master)
+router.post('/scan', authenticateToken, sortBoxScan);
+
+// POST /api/boxes/adjust | POST /api/sort-box/adjust — net qty for box/carton/item via delta events
+router.post('/adjust', authenticateToken, sortBoxAdjust);
 
 // POST /api/boxes/create - Create a new sort box
 router.post('/create', authenticateToken, createBox);

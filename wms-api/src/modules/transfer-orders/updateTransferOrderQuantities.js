@@ -50,7 +50,7 @@ export async function updateTransferOrderQuantities(transferOrderTitle, connecti
     for (const toItem of toItems) {
       const { store, item_code, allocated_qty } = toItem;
 
-      // Calculate sorted_qty from SORT_TO_BOX events
+      // Calculate sorted_qty from SORT_TO_BOX events (SUM(qty) includes negative adjustment rows)
       // Match by: transfer_order, item_code, and optionally store (if available in event)
       // Note: store might not always be in the event, so we match by TO and item_code
       const [sortedEvents] = await connection.execute(`
